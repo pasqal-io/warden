@@ -1,0 +1,16 @@
+*.egg-info
+.eggs
+.pytest_cache
+__pycache__/
+*.pyc
+.coverage
+*.DS_Store
+.mypy_cache
+.vscode/
+
+
+.python-version
+!.secrets.env
+!.just.env
+
+*.db

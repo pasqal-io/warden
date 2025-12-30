@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "warden"
+version = "0.1.0"
+authors = []
+description = "FastAPI middleware for receiving and validating quantum jobs"
+readme = "README.md"
+packages = [{ include = "warden" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.128.0"
+uvicorn = { extras = ["standard"], version = "^0.40.0" }
+pydantic = "^2.6"
+pydantic-settings = "^2.12.0"
+alembic = "^1.17.2"
+psycopg = {extras = ["binary"], version = "^3.3.2"}
+greenlet = "^3.3.0"
+sqlalchemy = "^2.0.45"
+aiosqlite = "^0.20"
+
+# Optional DBs
+asyncpg = { version = "^0.29", optional = true }
+asyncmy = { version = "^0.2", optional = true }
+
+[tool.poetry.extras]
+postgres = ["asyncpg"]
+mariadb = ["asyncmy"]
+
+
+[tool.poetry.scripts]
+start = "uvicorn warden.main:app --reload --host 0.0.0.0 --port 8000"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.2"
+pytest-asyncio = "^1.3.0"
+httpx = "^0.28.1"
+black = "^24.3"
+isort = "^6.1"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
