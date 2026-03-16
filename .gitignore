@@ -14,3 +14,7 @@ __pycache__/
 !.just.env
 
 *.db
+
+.env
+.env.*
+!.env.sample

@@ -26,5 +26,5 @@ class Session(Base):
     )
     user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     slurm_job_id: Mapped[str] = mapped_column(
-        String, doc="ID of the slurm job which created this session."
+        String(255), doc="ID of the slurm job which created this session."
     )

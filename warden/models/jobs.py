@@ -57,18 +57,19 @@ class Job(Base):
         doc="Number of bitstrings the QPU should return.",
     )
     sequence: Mapped[str] = mapped_column(
+        Text,
         doc="Serialized pulser sequence to execute on the QPU.",
     )
     backend_id: Mapped[str | None] = mapped_column(
-        String,
+        String(255),
         default=None,
         doc="ID of the job assigned by the QPU.",
     )
     results: Mapped[str | None] = Column(
-        Text(length=16777215),
+        Text().with_variant(Text(16777215), "mysql"),
         nullable=True,
         doc="Serialized results from the QPU.",
-    )  # 16 MiB storage, limit for mariaDB mediumtext
+    )
     session_id: Mapped[UUID] = mapped_column(
         ForeignKey("sessions.id"), nullable=False, default=None
     )

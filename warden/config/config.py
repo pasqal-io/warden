@@ -1,20 +1,35 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 import yaml
 from pathlib import Path
 
 
-class DatabaseConfig(BaseSettings):
-    backend: Literal["sqlite", "postgres", "mariadb"]
 
-    host: str | None = None
-    port: int | None = None
-    name: str | None = "warden.db"
-    user: str | None = None
-    password: str | None = None
-
+class SqliteConfig(BaseSettings):
+    backend: Literal["sqlite"]
+    name: str
     echo: bool = False
 
+class PostgresConfig(BaseSettings):
+    backend: Literal["postgres"]
+    host: str = Field(default="localhost")
+    port: int = Field(default=5432)
+    name: str = Field(default="warden")
+    user: str
+    password: str
+    echo: bool = False
+
+class MariadbConfig(BaseSettings):
+    backend: Literal["mariadb"]
+    host: str = Field(default="localhost")
+    port: int = Field(default=3306)
+    name: str = Field(default="warden")
+    user: str
+    password: str
+    echo: bool = False
+
+DatabaseConfig = Annotated[SqliteConfig | PostgresConfig | MariadbConfig, Field(discriminator="backend")]
 
 class Config(BaseSettings):
     database: DatabaseConfig
@@ -45,9 +60,8 @@ class Config(BaseSettings):
             return data
 
         return (
-            init_settings,
-            yaml_config_source,  # from yaml
-            dotenv_settings,  # from dotenv
-            env_settings,  # from env variables
-            file_secret_settings,
+            env_settings,         # Highest precedence: from env variables
+            init_settings,        # from Config(...)
+            dotenv_settings,      # from .env
+            yaml_config_source,   # Lowest precedence: from yaml
         )

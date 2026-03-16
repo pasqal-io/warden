@@ -26,7 +26,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('user_id', sa.String(length=255), nullable=False),
-    sa.Column('slurm_job_id', sa.String(), nullable=False),
+    sa.Column('slurm_job_id', sa.String(length=255), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_sessions_id'), 'sessions', ['id'], unique=False)
@@ -37,9 +37,9 @@ def upgrade() -> None:
     sa.Column('ended_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('shots', sa.Integer(), nullable=False),
-    sa.Column('sequence', sa.String(), nullable=False),
-    sa.Column('backend_id', sa.String(), nullable=True),
-    sa.Column('results', sa.Text(length=16777215), nullable=True),
+    sa.Column('sequence', sa.Text(), nullable=False),
+    sa.Column('backend_id', sa.String(length=255), nullable=True),
+    sa.Column('results', sa.Text().with_variant(sa.Text(16777215), "mysql"), nullable=True),
     sa.Column('session_id', sa.UUID(), nullable=False),
     sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ),
     sa.PrimaryKeyConstraint('id')
