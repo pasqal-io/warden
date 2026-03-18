@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: init-config install install-pg install-mariadb start ping migrate
+.PHONY: init-config install install-pg install-mariadb start ping migrate lint format
 
 # cluster admin commands
 
@@ -52,6 +52,14 @@ requirements-all: requirements requirements-pg requirements-mariadb
 
 test:
 	poetry run pytest
+
+lint:
+	poetry run ruff check .
+	poetry run ruff format --check .
+
+format:
+	poetry run ruff check --fix .
+	poetry run ruff format .
 
 run-db:
 	docker compose up -d
