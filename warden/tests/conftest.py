@@ -9,7 +9,7 @@ from warden.config.config import Config, SqliteConfig
 from warden.app import create_app
 from warden.db.database import Base
 
-from warden.api.auth.auth import MungeIdentity, munge_identity
+from warden.api.dependencies.auth import MungeIdentity, munge_identity
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ async def app(config):
 @pytest_asyncio.fixture
 async def client(app) -> AsyncClient:
     # create tables in the test database
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 

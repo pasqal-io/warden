@@ -16,6 +16,7 @@ alembic = "^1.17.2"
 greenlet = "^3.3.0"
 sqlalchemy = "^2.0.45"
 aiosqlite = "^0.20"
+httpx = "^0.28.1"
 
 # Optional DBs
 psycopg = { extras = ["binary"], version = "^3.3.2", optional = true }

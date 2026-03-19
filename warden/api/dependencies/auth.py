@@ -4,7 +4,7 @@ from logging import getLogger
 
 from pydantic import UUID4
 from sqlalchemy import select
-from warden.db.database import DBSessionDep
+from warden.api.dependencies.db import DBSessionDep
 from warden.models.sessions import Session
 from warden.utils.munge import (
     MungeExpiredError,

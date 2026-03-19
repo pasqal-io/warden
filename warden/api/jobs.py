@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from warden.api.auth.auth import MungeIdentity, munge_identity, verify_session
-from warden.db.database import DBSessionDep
+from warden.api.dependencies.auth import MungeIdentity, munge_identity, verify_session
+from warden.api.dependencies.db import DBSessionDep
 from warden.models.sessions import Session
 from warden.schemas.jobs import Job, JobCreate, JobPatch, JobResponse
 from logging import getLogger

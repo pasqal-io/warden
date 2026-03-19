@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import UUID4
 from sqlalchemy import Select
-from warden.db.database import DBSessionDep
+from warden.api.dependencies.db import DBSessionDep
 from logging import getLogger
 
-from warden.api.auth.auth import verify_root
+from warden.api.dependencies.auth import verify_root
 from warden.models.sessions import Session
 from warden.schemas.sessions import CreateSession, SessionResponse
 

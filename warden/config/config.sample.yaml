@@ -9,7 +9,7 @@ database:
   backend: sqlite # sqlite, postgres or mariadb
 
   # For SQLite, the database name is the filename of the database.
-  name: "warden.db"              # Default for SQLite
+  name: "warden.db" # Default for SQLite
 
   # For PostgreSQL and MariaDB:
   # - the database name is the name of the database.
@@ -47,3 +47,6 @@ logging:
   formatters:
     default:
       format: "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
+
+qpu:
+  url: http://localhost:4300

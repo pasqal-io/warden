@@ -1,9 +1,10 @@
 import logging
 import logging.config
 from fastapi import FastAPI
-from warden.api import jobs, sessions
+from warden.api import jobs, sessions, qpu
+from warden.api.dependencies.qpu_client import init_qpu_client
 from warden.config.config import Config
-from warden.db.database import init_db
+from warden.api.dependencies.db import init_db
 
 
 def create_app(config: Config = Config()):
@@ -14,9 +15,11 @@ def create_app(config: Config = Config()):
         version="0.1.0",
     )
     init_db(app, config.database)
+    init_qpu_client(app, config.qpu)
 
     app.include_router(jobs.router, tags=["jobs"])
     app.include_router(sessions.router, tags=["sessions"])
+    app.include_router(qpu.router, tags=["qpu"])
 
     logger = logging.getLogger(__name__)
 
@@ -26,5 +29,3 @@ def create_app(config: Config = Config()):
 
     logger.info("App ready")
     return app
-
-

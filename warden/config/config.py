@@ -31,9 +31,14 @@ class MariadbConfig(BaseSettings):
 
 DatabaseConfig = Annotated[SqliteConfig | PostgresConfig | MariadbConfig, Field(discriminator="backend")]
 
+class QPUConfig(BaseSettings):
+    url: str
+
+
 class Config(BaseSettings):
     database: DatabaseConfig
     logging: dict[str, Any]
+    qpu: QPUConfig
 
     model_config = SettingsConfigDict(
         env_file=".env",
