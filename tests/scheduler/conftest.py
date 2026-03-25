@@ -1,7 +1,6 @@
 """Pytest fixture and configurations"""
 
 import pytest_asyncio
-
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from warden.lib.config.config import Config, SqliteConfig
@@ -27,6 +26,7 @@ async def db_engine(config_db):
         # Delete tables
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session_maker(db_engine):

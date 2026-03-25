@@ -1,7 +1,6 @@
 """Testing lib/config"""
 
 import pytest
-
 from pydantic import ValidationError
 
 from warden.lib.config.config import SchedulerConfig

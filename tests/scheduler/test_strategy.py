@@ -1,10 +1,10 @@
 """Testing warden.scheduler.strategy"""
 
-import pytest
 from datetime import datetime, timedelta
 
-from warden.lib.models import Job, Session
+import pytest
 
+from warden.lib.models import Job, Session
 from warden.scheduler.strategy import schedulers
 
 
@@ -70,6 +70,7 @@ async def test_fifo_nominal(db_session_maker):
         assert schedule[3].id == 3
         assert schedule[4] is None
 
+
 @pytest.mark.asyncio
 async def test_fifo_id_precedence(db_session_maker):
     """Testing FIFO scheduler with ID sorting if same datetime"""
@@ -131,6 +132,7 @@ async def test_fifo_id_precedence(db_session_maker):
         assert schedule[2].id == 1
         assert schedule[3].id == 4
         assert schedule[4] is None
+
 
 @pytest.mark.asyncio
 async def test_fifo_job_running(db_session_maker):

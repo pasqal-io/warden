@@ -1,13 +1,12 @@
 """Worker to send jobs to QPU"""
 
-import logging
 import asyncio
+import logging
 from asyncio import Queue
 from datetime import datetime
 
 from warden.lib.config import Config
 from warden.lib.qpu_client import QPUClient, QPUJobInfo
-
 from warden.scheduler.errors import QPUDownError
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,9 @@ class LocalQPUWorker:
             )
             await asyncio.sleep(self.conf.scheduler.qpu_polling_interval_s)
 
-    async def _get_job_and_queue(self, queue: Queue[QPUJobInfo], qpu_job: QPUJobInfo) -> QPUJobInfo:
+    async def _get_job_and_queue(
+        self, queue: Queue[QPUJobInfo], qpu_job: QPUJobInfo
+    ) -> QPUJobInfo:
         """Get job info and if update, send to db commit"""
         qpu_job = self.client.get_job(qpu_job)
         logger.info(f"Job status: {qpu_job.status}")

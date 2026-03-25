@@ -1,7 +1,7 @@
 from typing import Annotated, AsyncGenerator
 
-from fastapi import Depends, Request, FastAPI
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from fastapi import Depends, FastAPI, Request
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from warden.lib.config import DatabaseConfig

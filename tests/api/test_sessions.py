@@ -1,5 +1,4 @@
 import pytest
-
 from conftest import mock_munge_auth
 
 

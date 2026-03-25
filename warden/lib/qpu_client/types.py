@@ -1,13 +1,13 @@
 """Useful data types for QPU API parsing"""
 
-from typing import Any, TypeAlias, Literal
 from datetime import datetime
+from typing import Any, Literal, TypeAlias
 
 from pydantic.dataclasses import dataclass
 
-
 JobStatus: TypeAlias = Literal["PENDING", "RUNNING", "ERROR", "CANCELED", "DONE"]
 QPUStatus: TypeAlias = Literal["UP", "DOWN"]
+
 
 @dataclass
 class QPUJobInfo:

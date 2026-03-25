@@ -1,9 +1,9 @@
-from uuid import UUID
 import pytest
-from warden.lib.models.jobs import Job
-from warden.lib.models.sessions import Session
 from conftest import mock_munge_auth
 from httpx import AsyncClient
+
+from warden.lib.models.jobs import Job
+from warden.lib.models.sessions import Session
 
 
 @pytest.mark.asyncio

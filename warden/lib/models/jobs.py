@@ -3,16 +3,17 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     UUID,
     Column,
+    DateTime,
     ForeignKey,
     Integer,
     String,
-    DateTime,
     Text,
 )
-from sqlalchemy.ext.associationproxy import association_proxy, AssociationProxy
+from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from warden.lib.db.database import Base
+
 from .sessions import Session
 
 

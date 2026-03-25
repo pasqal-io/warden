@@ -1,18 +1,14 @@
-from logging.config import fileConfig
-from logging import getLogger
 import asyncio
-from sqlalchemy.ext.asyncio.engine import async_engine_from_config
-
-from sqlalchemy import Connection, pool, text
-
+from logging import getLogger
+from logging.config import fileConfig
 
 from alembic import context
-
-from warden.lib.config import Config
-from warden.lib.db.database import Base, build_db_url
+from sqlalchemy import Connection, pool, text
+from sqlalchemy.ext.asyncio.engine import async_engine_from_config
 
 # Import models to be tracked by alembic
-import warden.lib.models as _
+from warden.lib.config import Config
+from warden.lib.db.database import Base, build_db_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

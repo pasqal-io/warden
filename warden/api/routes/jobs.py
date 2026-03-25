@@ -1,10 +1,16 @@
+from logging import getLogger
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity, verify_session
+
+from warden.api.routes.dependencies.auth import (
+    MungeIdentity,
+    munge_identity,
+    verify_session,
+)
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.lib.models.sessions import Session
 from warden.api.schemas.jobs import Job, JobCreate, JobPatch, JobResponse
-from logging import getLogger
+from warden.lib.models.sessions import Session
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
