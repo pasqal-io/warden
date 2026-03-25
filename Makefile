@@ -5,10 +5,10 @@ PYTHON ?= python
 # cluster admin commands
 
 init-config:
-	cp --backup=numbered warden/config/config.sample.yaml warden/config/config.yaml
+	cp --backup=numbered warden/lib/config/config.sample.yaml warden/lib/config/config.yaml
 
 install:
-	@test -f warden/config/config.yaml || $(MAKE) init-config
+	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
 	pip install -r requirements.txt
 
 install-pg: install
@@ -18,7 +18,10 @@ install-mariadb: install
 	pip install -r requirements.txt -r requirements-mariadb.txt
 
 start: migrate
-	python -m uvicorn warden.main:app --host 0.0.0.0 --port 4207
+	python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
+
+start-scheduler:
+	python  -m warden.scheduler
 
 ping:
 	curl localhost:4207
@@ -31,13 +34,13 @@ migrate:
 .PHONY: install-dev test run-db alembic requirements requirements-pg requirements-mariadb requirements-all
 
 install-dev:
-	@test -f warden/config/config.yaml || $(MAKE) init-config
+	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
 	python -m pip install poetry==1.8.4
 	poetry install --with dev --all-extras
 	$(MAKE) migrate
 
 start-dev: migrate
-	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.main:app --reload --host 0.0.0.0 --port 4207
+	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207
 
 requirements:
 	poetry export -f requirements.txt --output requirements.txt
@@ -66,4 +69,4 @@ run-db:
 
 # Usage: make alembic ARGS="upgrade head"
 alembic:
-	python -m alembic -c warden/alembic.ini $(ARGS)
+	python -m alembic -c warden/api/alembic.ini $(ARGS)

@@ -13,13 +13,13 @@ On top of the requirements from [README.md](README.md), the following are requir
 If you have a fresh environment, you may get started with:
 
 ```bash
-make init-dev
+make install-dev
 ```
 
 This will:
 - Install Poetry
 - Install dependencies
-- Create the default `warden/config/config.yaml` file if it does not exist yet
+- Create the default `warden/lib/config/config.yaml` file if it does not exist yet
 - Run migrations for the default SQLite DB
 
 ## Run dev server
@@ -30,7 +30,7 @@ make install
 
 ## Run in development mode
 
-> You will need a database instance accessible locally. For convenience a simple sqlite DB is provided as a default. This db was already initialized if you ran the `make init-dev` above. See below for more details about the DB.
+> You will need a database instance accessible locally. For convenience a simple sqlite DB is provided as a default. This db was already initialized if you ran the `make install-dev` above. See below for more details about the DB.
 
 Run the API with hot-reload:
 

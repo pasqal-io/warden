@@ -1,0 +1,84 @@
+database:
+  # echo: false # Optional, SQLAlchemy echo
+
+  # Warden supports the following database backends:
+  # - sqlite
+  # - postgres
+  # - mariadb
+
+  backend: sqlite # sqlite, postgres or mariadb
+
+  # For SQLite, the database name is the filename of the database.
+  name: "warden.db" # Default for SQLite
+
+  # For PostgreSQL and MariaDB:
+  # - the database name is the name of the database.
+  # - the database user and password are the credentials to connect to the database.
+  # - the database host and port are the address and port to connect to the database.
+
+  # For PostgreSQL and MariaDB:
+  # host: "localhost"              # Default
+  # port: 5432                     # Default for PostgreSQL, 3306 for MariaDB
+  # name: "warden"                 # Default
+  # user: "wardenuser"             # Mandatory
+
+  # For PostgreSQL and MariaDB, the password should be set as an environment variable.
+  # DATABASE_PASSWORD="secret"
+
+scheduler:
+  # Job scheduler configuration
+
+  # Available job scheduling strategies: 
+  # - FIFO: priority to the oldest job pending in the database
+  strategy: FIFO
+  # Time interval in seconds between checks on the database for new job to schedule.
+  db_polling_interval_s: 1
+
+  # QPU state polling policy
+  # Time interval in seconds between checks of the QPU status.
+  qpu_polling_interval_s: 5        
+  # Maximum time in seconds the scheduler will wait for the QPU to be operational
+  # at the start of a job:
+  # - If the QPU if not operational after this time,
+  #   scheduled job will return with status: "ERROR".
+  # - Set to -1 for no time limit.
+  qpu_polling_timeout_s: -1
+
+  # Job state polling policy
+  # Time interval in seconds between checks of the status of the job running on the QPU.
+  job_polling_interval_s: 5        
+  # Maximum time in seconds the scheduler will wait for the job to finish
+  # execution on the QPU:
+  # - If the job is not done after this time,
+  #   the scheduler will cancel the job on the QPU and return with status "CANCELED".
+  # - Set to -1 for no time limit.
+  job_polling_timeout_s: -1
+
+qpu:
+  # Local Pasqal QPU API configuration
+  uri: http://localhost:4300
+
+
+logging:
+  version: 1
+  disable_existing_loggers: false
+
+  root:
+    handlers:
+      - console
+
+  loggers:
+    warden:
+      level: INFO
+      handlers: [console]
+      propagate: false
+
+  handlers:
+    console:
+      class: logging.StreamHandler
+      stream: "ext://sys.stderr"
+      formatter: default
+
+  formatters:
+    default:
+      format: "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
