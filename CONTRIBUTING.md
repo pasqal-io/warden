@@ -75,3 +75,15 @@ make alembic ARGS="downgrade -1"
 ```
 
 Anything you would normally put after `alembic` in the CLI should be passed via `ARGS`.
+
+## Adding dependencies 
+
+In the dev environment you may use poetry to manage your dependencies, but end users ultimately use `make` targets that rely on [`requirements.txt`](requirements.txt) so that they don't need to install `poetry` to run `warden`. That is why it is important to keep [`requirements.txt`](requirements.txt) updated.
+
+### Updating requirements.txt
+
+Using the [`poetry export`](https://github.com/python-poetry/poetry-plugin-export) plugin we can export the locked packages to the `requirements.txt` format:
+
+```bash
+make update-requirements
+```
