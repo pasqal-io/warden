@@ -31,7 +31,7 @@ migrate:
 
 # dev/contributors methods
 
-.PHONY: install-dev test run-db alembic requirements requirements-pg requirements-mariadb requirements-all
+.PHONY: install-dev test run-db alembic requirements requirements-pg requirements-mariadb requirements-all update-requirements
 
 install-dev:
 	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
@@ -63,6 +63,9 @@ lint:
 format:
 	poetry run ruff check --fix .
 	poetry run ruff format .
+
+update-requirements:
+	poetry export -f requirements.txt --output requirements.txt
 
 run-db:
 	docker compose up -d
