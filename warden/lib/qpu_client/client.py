@@ -25,7 +25,7 @@ class QPUClient:
         base_uri: str,
     ) -> None:
         self._base_uri = base_uri + "/api/v1"
-        self.client = Client()
+        self.client = Client(base_url=self._base_uri)
 
     @property
     def base_uri(self) -> str:
@@ -104,7 +104,7 @@ class QPUClient:
         Returns:
             The Response returned by the GET request.
         """
-        response = self.client.get(self.base_uri + suffix)
+        response = self.client.get(suffix)
         response.raise_for_status()
         return response
 
@@ -118,7 +118,7 @@ class QPUClient:
         Returns:
             The Response returned by the POST request.
         """
-        response = self.client.post(self.base_uri + suffix, json=data)
+        response = self.client.post(suffix, json=data)
         response.raise_for_status()
         return response
 
@@ -131,7 +131,7 @@ class QPUClient:
         Returns:
             The Response returned by the DELETE request.
         """
-        response = self.client.delete(self.base_uri + suffix)
+        response = self.client.delete(suffix)
         response.raise_for_status()
         return response
 
@@ -145,7 +145,7 @@ class QPUClient:
         Returns:
             The Response returned by the DELETE request.
         """
-        response = self.client.put(self.base_uri + suffix, json=data)
+        response = self.client.put(suffix, json=data)
         response.raise_for_status()
         return response
 
