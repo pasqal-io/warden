@@ -1,8 +1,7 @@
 """Warden db utils"""
 
-from sqlalchemy.orm import declarative_base
 from sqlalchemy.engine.url import URL
-
+from sqlalchemy.orm import declarative_base
 
 from warden.lib.config import DatabaseConfig
 

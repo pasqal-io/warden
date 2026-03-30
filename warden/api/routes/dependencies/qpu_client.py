@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+
 from warden.lib.config.config import QPUConfig
 from warden.lib.qpu_client.client import AsyncQPUClient
 

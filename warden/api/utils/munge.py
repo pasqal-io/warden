@@ -71,7 +71,7 @@ def decode_munge(token: bytes) -> tuple[bytes, int]:
             if "expired" in msg.lower():
                 raise MungeExpiredError(msg)
             # We ignore replay errors for now
-            if not "replay" in msg.lower():
+            if "replay" not in msg.lower():
                 msg = lib.munge_strerror(rc)
                 raise MungeError(msg.decode() if msg else f"munge error {rc}")
 

@@ -1,17 +1,16 @@
 """Main logic of the scheduler"""
 
 import asyncio
-from asyncio import Queue
-import signal
 import logging.config
+import signal
+from asyncio import Queue
 
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from warden.lib.config import Config
-from warden.lib.qpu_client import QPUJobInfo
 from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
-
+from warden.lib.qpu_client import QPUJobInfo
 from warden.scheduler.strategy import schedulers
 from warden.scheduler.worker import LocalQPUWorker
 
@@ -30,7 +29,7 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
         - `db_commit_task`: infinite loop coroutine to update job information to the database
         - `worker_task`: worker coroutine that handles job execution on the qpu
     - Awaits the end of the job execution in `worker_task` task
-    - Awaits that all job updates 
+    - Awaits that all job updates
     - Cancels `db_commit_task` task that is no longer needed
 
     Infinite loop gets canceled by `main_async` when stop signal is received.

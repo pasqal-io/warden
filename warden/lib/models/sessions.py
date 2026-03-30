@@ -1,14 +1,15 @@
-from datetime import datetime, timezone
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     UUID,
-    String,
     DateTime,
+    String,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from warden.lib.db.database import Base
+
 
 class Session(Base):
     __tablename__ = "sessions"

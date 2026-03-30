@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
-from warden.api.routes.dependencies.qpu_client import get_qpu_client
-from warden.lib.qpu_client.client import AsyncQPUClient
 from logging import getLogger
 
+from fastapi import APIRouter, Depends
+
+from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.qpu import QPUSpecsResponse
+from warden.lib.qpu_client.client import AsyncQPUClient
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/qpu")

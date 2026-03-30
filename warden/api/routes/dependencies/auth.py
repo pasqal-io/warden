@@ -1,18 +1,18 @@
 import asyncio
-from fastapi import Depends, Header, HTTPException, status
+from dataclasses import dataclass
 from logging import getLogger
 
+from fastapi import Depends, Header, HTTPException, status
 from pydantic import UUID4
 from sqlalchemy import select
+
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.lib.models.sessions import Session
 from warden.api.utils.munge import (
     MungeExpiredError,
     MungeReplayError,
     decode_munge,
 )
-
-from dataclasses import dataclass
+from warden.lib.models.sessions import Session
 
 logger = getLogger(__name__)
 

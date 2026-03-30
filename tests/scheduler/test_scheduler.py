@@ -1,18 +1,17 @@
 """Testing warden.scheduler.main.py"""
 
+import asyncio
 import math
 import random
-import asyncio
 from datetime import datetime, timedelta
 
 import pytest
 from pytest_httpx import HTTPXMock
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from warden.lib.config import Config, QPUConfig, SchedulerConfig
 from warden.lib.models import Job, Session
-from warden.lib.config import Config, SchedulerConfig, QPUConfig
-
 from warden.scheduler.main import run_scheduler
 
 NOW = datetime.now()
@@ -69,7 +68,7 @@ async def test_run_main_scheduler(
             qpu_polling_timeout_s=-1,
             job_polling_interval_s=0.01,
             job_polling_timeout_s=-1,
-            ),
+        ),
         qpu=QPUConfig(
             uri=QPU_URI,
         ),
@@ -219,7 +218,7 @@ async def test_run_main_scheduler_qpu_down(
             qpu_polling_timeout_s=0.03,  # <----- IMPORTANT TO THIS TEST
             job_polling_interval_s=0.01,
             job_polling_timeout_s=-1,
-            ),
+        ),
         qpu=QPUConfig(
             uri=QPU_URI,
         ),
@@ -283,11 +282,11 @@ async def test_run_main_scheduler_job_timeout(
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
 ):
-    """ Thest scheduler behavior when one 
+    """Thest scheduler behavior when one
     scheduled jobs timesout
 
     Test rationale:
-    - Set job_polling_timout to a positive number to avoid 
+    - Set job_polling_timout to a positive number to avoid
       infinite job status polling
     - Create N_JOBS dummy jobs to run
     - Select one random JOB_TIMEOUT_ID job ID that will timeout
@@ -297,7 +296,7 @@ async def test_run_main_scheduler_job_timeout(
         - To return "RUNNING" and then "DONE" status for each job
         - For JOB_TIMEOUT_ID:
             - Add N_JOB_POLLING_BEFORE_TIMEOUT "RUNNING" status return
-            - Mock the job canceling API calls 
+            - Mock the job canceling API calls
     - Run scheduler until:
         - All jobs are either "DONE" or "CANCELED"
         - Test timout after TEST_TIMOUT_S
@@ -332,10 +331,10 @@ async def test_run_main_scheduler_job_timeout(
             qpu_polling_interval_s=0.01,
             qpu_polling_timeout_s=-1,
             # Set job_polling_timeout_s to a non-negative value to
-            # avoid infinite job status polling 
+            # avoid infinite job status polling
             job_polling_interval_s=JOB_POLLING_INTERVAL_S,  # <----- IMPORTANT TO THIS TEST
             job_polling_timeout_s=JOB_POLLING_TIMEOUT_S,  # <----- IMPORTANT TO THIS TEST
-            ),
+        ),
         qpu=QPUConfig(
             uri=QPU_URI,
         ),

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint-and-test:
+    name: Lint & Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Note: Python 3.13 is not supported yet, due to some errors in building some dependencies,
+        #       see https://github.com/pasqal-io/warden/actions/runs/23564423832/job/68612293750
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libmunge-dev
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry to use in-project virtualenvs
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: poetry install --with dev --all-extras
+
+      - name: Initialise default config
+        run: make init-config
+
+      - name: Lint — ruff lint/format check
+        run: make lint-check
+
+      - name: Run tests
+        run: poetry run pytest

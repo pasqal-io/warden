@@ -7,9 +7,10 @@ from typing import Any
 
 from httpx import AsyncClient, Client, Response
 
-from .types import QPUJobInfo, QPUInfo, QPUOperationalStatus, QPUStatus
+from .types import QPUInfo, QPUJobInfo, QPUOperationalStatus, QPUStatus
 
 logger = logging.getLogger(__name__)
+
 
 class QPUClient:
     """A client to communicate with the QPU's API.
@@ -62,7 +63,9 @@ class QPUClient:
         pasqman_job_id = f"{uuid.uuid4()}"
         if batch_id is None:
             batch_id = f"pasqal-local-batch-{pasqman_job_id}"
-        logger.debug(f"Creating pasqman_job_id {pasqman_job_id} for batch id {batch_id}")
+        logger.debug(
+            f"Creating pasqman_job_id {pasqman_job_id} for batch id {batch_id}"
+        )
         payload = {
             "nb_run": nb_run,
             "pulser_sequence": abstract_sequence,

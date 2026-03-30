@@ -1,10 +1,11 @@
 import logging
 import logging.config
+
 from fastapi import FastAPI
-from warden.api.routes import jobs, sessions, qpu
+
+from warden.api.routes import jobs, qpu, sessions
 from warden.api.routes.dependencies.db import init_db
 from warden.api.routes.dependencies.qpu_client import init_qpu_client
-
 from warden.lib.config import Config
 
 

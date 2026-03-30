@@ -31,41 +31,32 @@ migrate:
 
 # dev/contributors methods
 
-.PHONY: install-dev test run-db alembic requirements requirements-pg requirements-mariadb requirements-all update-requirements
+.PHONY: install-dev start-dev test lint-check lint-fix update-requirements run-db alembic
 
 install-dev:
 	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
-	python -m pip install poetry==1.8.4
+	python -m pip install poetry==2
 	poetry install --with dev --all-extras
 	$(MAKE) migrate
 
 start-dev: migrate
 	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207
 
-requirements:
-	poetry export -f requirements.txt --output requirements.txt
-
-requirements-pg:
-	poetry export -f requirements.txt --extras postgres --output requirements-pg.txt
-
-requirements-mariadb:
-	poetry export -f requirements.txt --extras mariadb --output requirements-mariadb.txt
-
-requirements-all: requirements requirements-pg requirements-mariadb
-
 test:
 	poetry run pytest
 
-lint:
+lint-check:
 	poetry run ruff check .
 	poetry run ruff format --check .
 
-format:
+lint-fix:
 	poetry run ruff check --fix .
 	poetry run ruff format .
 
 update-requirements:
 	poetry export -f requirements.txt --output requirements.txt
+	poetry export -f requirements.txt --extras postgres --output requirements-pg.txt
+	poetry export -f requirements.txt --extras mariadb --output requirements-mariadb.txt
 
 run-db:
 	docker compose up -d
