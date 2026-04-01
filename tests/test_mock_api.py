@@ -1,22 +1,22 @@
-"""Testing mock api's """
+"""Testing mock api's"""
 
-import pytest 
-
+import pytest
 from fastapi.testclient import TestClient
-
 from mock_api.app import create_app
 
 from warden.lib.qpu_client import QPUClient
 
 BASE_URI = "http://test:4300/api/v1"
 
+
 @pytest.fixture
 def mock_api_client():
-    # The fastapi TestClient is based on the httpx client and should 
-    # have the same behavior
+    # The fastapi TestClient is based on the httpx client and should
+    # have the same behavior
     # https://fastapi.tiangolo.com/tutorial/testing/
     with TestClient(app=create_app(), base_url=BASE_URI) as client:
         yield client
+
 
 def test_get_qpu_status(mock_api_client):
     """Test nominal get qpu status api call"""

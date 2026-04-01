@@ -1,5 +1,7 @@
 from enum import Enum
+
 from pydantic import BaseModel
+
 
 class ProgramStatus(Enum):
     """The list of the possible program status.
@@ -43,6 +45,6 @@ class ProgramStatus(Enum):
 
 
 class Program(BaseModel):
-    # Only thing that interests us here 
+    # Only thing that interests us here
     uid: int
     status: ProgramStatus

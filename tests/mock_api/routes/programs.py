@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
 
+from ..db import FAKE_PROGRAM_DB
 from ..models import StandardResponse
 from ..models.program import Program, ProgramStatus
-from ..db import FAKE_PROGRAM_DB
 
 router = APIRouter(prefix="/programs")
+
 
 @router.get("/{uid}", response_model=StandardResponse[Program])
 async def get_program(uid: int):

@@ -6,6 +6,7 @@ from .routes import jobs, programs, system
 
 PREFIX = "/api/v1"
 
+
 def create_app():
     app = FastAPI(
         title="Mocked PasqOS API",
@@ -20,10 +21,11 @@ def create_app():
     @app.get("/")
     async def hello():
         return {"message", "Mocked PasqOS API is up."}
-    
+
     return app
+
 
 app = create_app()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     app = create_app()
