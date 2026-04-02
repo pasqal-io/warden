@@ -1,5 +1,5 @@
 import pytest
-from mock_api.app import create_app
+from mock_pasqos_api.app import create_app
 
 
 @pytest.fixture(scope="session")

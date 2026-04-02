@@ -2,14 +2,14 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..db import FAKE_PROGRAM_DB
-from ..models import StandardResponse
-from ..models.program import Program, ProgramStatus
+from mock_pasqos_api.db import FAKE_PROGRAM_DB
+from mock_pasqos_api.models import JSendResponse
+from mock_pasqos_api.models.program import Program, ProgramStatus
 
 router = APIRouter(prefix="/programs")
 
 
-@router.get("/{uid}", response_model=StandardResponse[Program])
+@router.get("/{uid}", response_model=JSendResponse[Program])
 async def get_program(uid: int):
     if uid not in FAKE_PROGRAM_DB:
         # TODO: improve PasqOS error mimicking
@@ -17,7 +17,7 @@ async def get_program(uid: int):
     program = FAKE_PROGRAM_DB[uid]
     # TODO: Handle other cases
     program.status = ProgramStatus.RUNNING
-    return StandardResponse(
+    return JSendResponse(
         code=200,
         message="OK.",
         data=program,

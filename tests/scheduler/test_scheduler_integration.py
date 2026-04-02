@@ -42,7 +42,7 @@ async def test_run_scheduler_integration(
     - Patch/inject httpx client with TestClient requesting
       directly to the ASGI FastAPI mock api
     - Run scheduler until:
-        - All jobs have a "DONE" status is DB
+        - All jobs have a "DONE" status in DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS
     """

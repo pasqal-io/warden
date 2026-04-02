@@ -43,10 +43,10 @@ start-dev: migrate
 	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207
 
 start-mock-pasqos:
-	fastapi run tests/mock_api/app.py
+	cd tests && uvicorn mock_pasqos_api.app:app
 
 start-mock-pasqos-dev:
-	fastapi run tests/mock_api/app.py --reload
+	cd tests && uvicorn mock_pasqos_api.app:app --reload
 
 test:
 	poetry run pytest

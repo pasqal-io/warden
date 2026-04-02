@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from .routes import jobs, programs, system
+from mock_pasqos_api.routes import jobs, programs, system
 
 PREFIX = "/api/v1"
 
@@ -27,5 +27,5 @@ def create_app():
 
 # Only creating app object if called from root of repo
 # with makefile target
-if __name__ == "mock_api.app":
+if __name__ == "mock_pasqos_api.app":
     app = create_app()

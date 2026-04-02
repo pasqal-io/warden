@@ -1,5 +1,5 @@
 DUMMY_QPU_SPECS = {
-    "name": "FRESNEL_CAN1",
+    "name": "FRESNEL",
     "dimensions": 2,
     "rydberg_level": 60,
     "min_atom_distance": 5,

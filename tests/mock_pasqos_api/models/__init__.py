@@ -2,14 +2,14 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 
-from .jobs import Job
-from .program import Program
-from .system import QPU, QPUOperational
+from mock_pasqos_api.models.jobs import Job
+from mock_pasqos_api.models.program import Program
+from mock_pasqos_api.models.system import QPU, QPUOperational
 
 T = TypeVar("T")
 
 
-class StandardResponse(BaseModel, Generic[T]):
+class JSendResponse(BaseModel, Generic[T]):
     code: int
     message: str = "OK."
     data: T
