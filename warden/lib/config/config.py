@@ -1,12 +1,14 @@
 """Yaml config definition"""
 
 from pathlib import Path
-from typing import Annotated, Any, Literal, Type
+from typing import Annotated, Any, Literal
 
 import httpx
 import yaml
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+API_PREFIX = "/api/v1"
 
 
 class SqliteConfig(BaseSettings):
@@ -55,11 +57,12 @@ class SchedulerConfig(BaseSettings):
 class QPUConfig(BaseSettings):
     uri: str
 
-    #
-    # Dev config option
-    #
-    # Client dependency injection
-    client_cls: Type[httpx.Client] | None = None
+    _client = PrivateAttr(default_factory=httpx.Client)
+
+    @property
+    def client(self):
+        self._client.base_url = self.uri + API_PREFIX
+        return self._client
 
 
 class Config(BaseSettings):

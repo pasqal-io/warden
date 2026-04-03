@@ -1,7 +1,6 @@
 """Integration test"""
 
 import asyncio
-from typing import Any, Generator, Type
 
 import pytest
 from fastapi import FastAPI
@@ -17,28 +16,13 @@ BASE_URI_MOCK = "http://test:4300"
 SLURM_USER_ID = "1234"
 
 
-@pytest.fixture
-def mock_pasqos_api_client_cls(
-    mock_pasqos_api_app: FastAPI,
-) -> Generator[Type[TestClient], Any, None]:
-    # The fastapi TestClient is based on the HTTPX client and should
-    # have the same behavior/api as the sync HTTPX client
-    # we can thus safely inject it into the test
-    # https://fastapi.tiangolo.com/tutorial/testing/
-    class ClientInjection(TestClient):
-        def __init__(self, *args, **kwargs):
-            super().__init__(app=mock_pasqos_api_app, *args, **kwargs)
-
-    yield ClientInjection
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_scheduler_integration(
     strategy: str,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
-    mock_pasqos_api_client_cls: Type[TestClient],
+    mock_pasqos_api_app: FastAPI,
 ):
     """Test nominal behavior of scheduler with mock pasqos api
 
@@ -70,13 +54,14 @@ async def test_run_scheduler_integration(
         ),
         qpu=QPUConfig(
             uri=BASE_URI_MOCK,
-            #################################
-            # Injecting FastAPI ASGI client #
-            #################################
-            client_cls=mock_pasqos_api_client_cls,
-            #################################
         ),
     )
+
+    #################################
+    # Injecting FastAPI ASGI client #
+    #################################
+    conf.qpu._client = TestClient(app=mock_pasqos_api_app)
+    #################################
 
     ##################
     ### TEST SETUP ###

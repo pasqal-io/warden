@@ -3,9 +3,8 @@
 import json
 import logging
 import uuid
-from typing import Any, Type
+from typing import Any
 
-import httpx
 from httpx import AsyncClient, Response
 
 from warden.lib.config import QPUConfig
@@ -20,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class HTTPClientWrapper:
-    """HTTP client wrapper for handling dependency injection and exception handling"""
+    """HTTP client wrapper for exception handling"""
 
-    def __init__(self, client_cls: Type[httpx.Client], base_url: str):
-        self.client = client_cls(base_url=base_url)
+    def __init__(self, qpu_conf: QPUConfig):
+        self.client = qpu_conf.client
 
     def get(self, suffix: str) -> Response:
         """Sends a GET request to base_uri + suffix.
@@ -84,19 +83,11 @@ class QPUClient:
     """PasqOS client
 
     Args:
-        base_uri: the IP address of the QPU.
-        version: the version of its API.
+        qpu_conf: QPUConfig object
     """
 
     def __init__(self, qpu_conf: QPUConfig) -> None:
-        base_url = qpu_conf.uri + "/api/v1"
-        client_cls = qpu_conf.client_cls or httpx.Client
-        self.client = HTTPClientWrapper(client_cls, base_url)
-
-    @property
-    def base_uri(self) -> str:
-        """Base URI of the QPU (IP/version)."""
-        return self._base_uri
+        self.client = HTTPClientWrapper(qpu_conf)
 
     def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
