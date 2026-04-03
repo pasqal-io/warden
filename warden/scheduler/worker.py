@@ -17,7 +17,7 @@ class LocalQPUWorker:
 
     def __init__(self, conf: Config):
         self.conf = conf
-        self.client = QPUClient(base_uri=conf.qpu.uri)
+        self.client = QPUClient(qpu_conf=conf.qpu)
         self.previous_job_status: QPUJobInfo | None = None
 
     @property

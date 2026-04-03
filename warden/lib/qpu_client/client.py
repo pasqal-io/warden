@@ -5,54 +5,111 @@ import logging
 import uuid
 from typing import Any
 
-from httpx import AsyncClient, Client, Response
+from httpx import AsyncClient, Response
 
-from .types import QPUInfo, QPUJobInfo, QPUOperationalStatus, QPUStatus
+from warden.lib.config import QPUConfig
+from warden.lib.qpu_client.types import (
+    QPUInfo,
+    QPUJobInfo,
+    QPUOperationalStatus,
+    QPUStatus,
+)
 
 logger = logging.getLogger(__name__)
 
 
+class HTTPClientWrapper:
+    """HTTP client wrapper for exception handling"""
+
+    def __init__(self, qpu_conf: QPUConfig):
+        self.client = qpu_conf.client
+
+    def get(self, suffix: str) -> Response:
+        """Sends a GET request to base_uri + suffix.
+
+        Arg:
+            suffix: The suffix to add after base_uri for the request.
+
+        Returns:
+            The Response returned by the GET request.
+        """
+        response = self.client.get(suffix)
+        response.raise_for_status()
+        return response
+
+    def post(self, suffix: str, data: dict | None = None) -> Response:
+        """Sends a POST request to base_uri + suffix.
+
+        Arg:
+            suffix: The suffix to add after base_uri for the request.
+            data: The data to POST, as a JSON dictionnary.
+
+        Returns:
+            The Response returned by the POST request.
+        """
+        response = self.client.post(suffix, json=data)
+        response.raise_for_status()
+        return response
+
+    def delete(self, suffix: str) -> Response:
+        """Sends a DELETE request to base_uri + suffix.
+
+        Arg:
+            suffix: The suffix to add after base_uri for the request.
+
+        Returns:
+            The Response returned by the DELETE request.
+        """
+        response = self.client.delete(suffix)
+        response.raise_for_status()
+        return response
+
+    def put(self, suffix: str, data: dict | None = None) -> Response:
+        """Sends a PUT request to base_uri + suffix.
+
+        Arg:
+            suffix: The suffix to add after base_uri for the request.
+            data:  The data to PUT, as a JSON dictionnary.
+
+        Returns:
+            The Response returned by the DELETE request.
+        """
+        response = self.client.put(suffix, json=data)
+        response.raise_for_status()
+        return response
+
+
 class QPUClient:
-    """A client to communicate with the QPU's API.
+    """PasqOS client
 
     Args:
-        base_uri: the IP address of the QPU.
-        version: the version of its API.
+        qpu_conf: QPUConfig object
     """
 
-    def __init__(
-        self,
-        base_uri: str,
-    ) -> None:
-        self._base_uri = base_uri + "/api/v1"
-        self.client = Client()
-
-    @property
-    def base_uri(self) -> str:
-        """Base URI of the QPU (IP/version)."""
-        return self._base_uri
+    def __init__(self, qpu_conf: QPUConfig) -> None:
+        self.client = HTTPClientWrapper(qpu_conf)
 
     def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
-        response = self._get("/system/operational")
+        response = self.client.get("/system/operational")
         data = response.json()["data"]
         return QPUOperationalStatus(**data).operational_status
 
     def get_specs(self) -> Any | None:
         """Gets the Device implemented by the QPU."""
-        response = self._get("/system")
+        response = self.client.get("/system")
         data = response.json()["data"]
         return QPUInfo(**data).specs
 
     def get_job(self, job: QPUJobInfo) -> QPUJobInfo:
         """Gets information on a submitted job."""
-        response = self._get(f"/jobs/{job.uid}")
+        response = self.client.get(f"/jobs/{job.uid}")
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
     def get_program_status(self, program_id: int) -> str:
         """Gets the status of a program."""
-        response = self._get(f"/programs/{program_id}")
+        response = self.client.get(f"/programs/{program_id}")
         return json.dumps(response.json()["data"]["status"])
 
     def create_job(
@@ -71,7 +128,7 @@ class QPUClient:
             "pulser_sequence": abstract_sequence,
             "context": {"batch_id": batch_id, "pasqman_job_id": pasqman_job_id},
         }
-        response = self._post("/jobs", payload)
+        response = self.client.post("/jobs", payload)
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
@@ -88,66 +145,12 @@ class QPUClient:
             '"DONE"',
             '"INVALID"',
         ]:
-            response = self._put(f"/jobs/{job_info.uid}/cancel")
+            response = self.client.put(f"/jobs/{job_info.uid}/cancel")
             data = response.json()["data"]
             return QPUJobInfo(**data)
         else:
-            logger.error(f"Job {job_info.id} already terminated, cannot cancel")
-            return self.get_job(job_info.id)
-
-    def _get(self, suffix: str) -> Response:
-        """Sends a GET request to base_uri + suffix.
-
-        Arg:
-            suffix: The suffix to add after base_uri for the request.
-
-        Returns:
-            The Response returned by the GET request.
-        """
-        response = self.client.get(self.base_uri + suffix)
-        response.raise_for_status()
-        return response
-
-    def _post(self, suffix: str, data: dict | None = None) -> Response:
-        """Sends a POST request to base_uri + suffix.
-
-        Arg:
-            suffix: The suffix to add after base_uri for the request.
-            data: The data to POST, as a JSON dictionnary.
-
-        Returns:
-            The Response returned by the POST request.
-        """
-        response = self.client.post(self.base_uri + suffix, json=data)
-        response.raise_for_status()
-        return response
-
-    def _delete(self, suffix: str) -> Response:
-        """Sends a DELETE request to base_uri + suffix.
-
-        Arg:
-            suffix: The suffix to add after base_uri for the request.
-
-        Returns:
-            The Response returned by the DELETE request.
-        """
-        response = self.client.delete(self.base_uri + suffix)
-        response.raise_for_status()
-        return response
-
-    def _put(self, suffix: str, data: dict | None = None) -> Response:
-        """Sends a PUT request to base_uri + suffix.
-
-        Arg:
-            suffix: The suffix to add after base_uri for the request.
-            data:  The data to PUT, as a JSON dictionnary.
-
-        Returns:
-            The Response returned by the DELETE request.
-        """
-        response = self.client.put(self.base_uri + suffix, json=data)
-        response.raise_for_status()
-        return response
+            logger.error(f"Job {job_info.uid} already terminated, cannot cancel")
+            return self.get_job(job_info.uid)
 
 
 class AsyncQPUClient:

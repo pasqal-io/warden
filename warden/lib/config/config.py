@@ -3,9 +3,12 @@
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+import httpx
 import yaml
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+API_PREFIX = "/api/v1"
 
 
 class SqliteConfig(BaseSettings):
@@ -53,6 +56,13 @@ class SchedulerConfig(BaseSettings):
 
 class QPUConfig(BaseSettings):
     uri: str
+
+    _client = PrivateAttr(default_factory=httpx.Client)
+
+    @property
+    def client(self):
+        self._client.base_url = self.uri + API_PREFIX
+        return self._client
 
 
 class Config(BaseSettings):
