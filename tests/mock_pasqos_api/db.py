@@ -34,17 +34,20 @@ def create_job(job_model: JobCreation) -> Job:
     return new_job
 
 
-def get_job(uid: int) -> Job:
+def get_job(uid: int) -> Job | None:
+    if uid not in FAKE_JOB_DB:
+        return None
     job = FAKE_JOB_DB[uid]
+    # Artificial job logic
     if job.status == JobStatus.PENDING:
         job.status = JobStatus.RUNNING
         job.start_datetime = datetime.now()
-        update_program(uid=uid, status=ProgramStatus.RUNNING)
+        update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING:
         job.status = JobStatus.DONE
         job.result = FAKE_RESULTS
         job.end_datetime = datetime.now()
-        update_program(uid=uid, status=ProgramStatus.DONE)
+        update_program_status(uid=uid, status=ProgramStatus.DONE)
     return job
 
 
@@ -54,10 +57,6 @@ def cancel_job(uid: int) -> Job:
     program = FAKE_PROGRAM_DB[job.program_id]
     program.status = ProgramStatus.CANCELED
     return job
-
-
-def job_exists(uid: int) -> bool:
-    return uid in FAKE_JOB_DB.keys()
 
 
 ############
@@ -75,7 +74,7 @@ def create_program(new_uid: int) -> None:
     FAKE_PROGRAM_DB[new_uid] = new_program
 
 
-def update_program(uid: int, status: ProgramStatus) -> None:
+def update_program_status(uid: int, status: ProgramStatus) -> None:
     if not program_exists(uid):
         # TODO: handle error
         return

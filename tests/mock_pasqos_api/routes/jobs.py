@@ -18,16 +18,16 @@ async def create_job(job_model: JobCreation) -> JSendResponse[Job]:
 
 @router.get("/{uid}")
 async def get_job(uid: int) -> JSendResponse[Job]:
-    if not db.job_exists(uid):
+    job = db.get_job(uid)
+    if job is None:
         # TODO: improve PasqOS error mimicking
         raise HTTPException(400, "Bad request")
-    job = db.get_job(uid)
     return JSendResponse(code=200, message="OK.", data=job)
 
 
 @router.put("/{uid}/cancel")
 async def cancel_job(uid: int) -> JSendResponse[Job]:
-    if not db.job_exists(uid):
+    if db.get_job(uid) is None:
         # TODO: improve PasqOS error mimicking
         raise HTTPException(400, "Bad request")
     job = db.cancel_job(uid)
