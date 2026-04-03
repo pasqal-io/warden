@@ -6,7 +6,7 @@ from asyncio import Queue
 from datetime import datetime
 
 from warden.lib.config import Config
-from warden.lib.qpu_client import QPUClient, QPUJobInfo
+from warden.lib.qpu_client import QPUClient, QPUClientRequestError, QPUJobInfo
 from warden.scheduler.errors import QPUDownError
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,12 @@ class LocalQPUWorker:
         self, queue: Queue[QPUJobInfo], qpu_job: QPUJobInfo
     ) -> QPUJobInfo:
         """Get job info and if update, send to db commit"""
-        qpu_job = self.client.get_job(qpu_job)
+        try:
+            qpu_job = self.client.get_job(qpu_job)
+        except QPUClientRequestError as e:
+            logger.error(f"Failed getting job status: {e}")
+            # TODO: Handle exit strategy here
+
         logger.info(f"Job status: {qpu_job.status}")
         if qpu_job != self.previous_job_status:
             await queue.put(qpu_job)
@@ -74,13 +79,23 @@ class LocalQPUWorker:
             )
             await queue.put(QPUJobInfo(status="ERROR"))
             return
+        except QPUClientRequestError as e:
+            logger.error(f"Failed polling QPU status: {e}")
+            await queue.put(QPUJobInfo(status="ERROR"))
+            return
         logger.info("QPU is operational.")
 
-        qpu_job = self.client.create_job(
-            nb_run=nb_run,
-            abstract_sequence=sequence,
-            batch_id=batch_id,
-        )
+        try:
+            # TODO: 400 error when QPU is not UP ?
+            qpu_job = self.client.create_job(
+                nb_run=nb_run,
+                abstract_sequence=sequence,
+                batch_id=batch_id,
+            )
+        except QPUClientRequestError as e:
+            logger.error(f"Failed creating job: {e}")
+            await queue.put(QPUJobInfo(status="ERROR"))
+            return
 
         polling_start = datetime.now()
         qpu_job = await self._get_job_and_queue(queue, qpu_job)

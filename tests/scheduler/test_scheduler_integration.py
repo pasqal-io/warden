@@ -9,11 +9,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from warden.lib.config import Config, QPUConfig, SchedulerConfig
-from warden.lib.models import Job, Session
+from warden.lib.models import Job
 from warden.scheduler.main import run_scheduler
 
 BASE_URI_MOCK = "http://test:4300"
-SLURM_USER_ID = "1234"
 
 
 @pytest.mark.asyncio
@@ -23,6 +22,7 @@ async def test_run_scheduler_integration(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     mock_pasqos_api_app: FastAPI,
+    helpers,
 ):
     """Test nominal behavior of scheduler with mock pasqos api
 
@@ -67,20 +67,7 @@ async def test_run_scheduler_integration(
     ### TEST SETUP ###
     ##################
 
-    jobs_to_run = [
-        Job(
-            id=i,
-            sequence="{}",
-            status="PENDING",
-            shots=100,
-            session=Session(slurm_job_id=1, user_id=SLURM_USER_ID),
-        )
-        for i in range(N_JOBS)
-    ]
-
-    async with db_session_maker() as session:
-        session.add_all(jobs_to_run)
-        await session.commit()
+    await helpers.create_n_jobs(db_session_maker, N_JOBS)
 
     stmt = select(func.count(Job.id)).where(Job.status == "DONE")
 

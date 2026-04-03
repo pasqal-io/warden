@@ -8,6 +8,7 @@ from typing import Any
 from httpx import AsyncClient, Response
 
 from warden.lib.config import QPUConfig
+from warden.lib.qpu_client.retry import retry
 from warden.lib.qpu_client.types import (
     QPUInfo,
     QPUJobInfo,
@@ -24,6 +25,7 @@ class HTTPClientWrapper:
     def __init__(self, qpu_conf: QPUConfig):
         self.client = qpu_conf.client
 
+    @retry()
     def get(self, suffix: str) -> Response:
         """Sends a GET request to base_uri + suffix.
 
@@ -37,6 +39,7 @@ class HTTPClientWrapper:
         response.raise_for_status()
         return response
 
+    @retry()
     def post(self, suffix: str, data: dict | None = None) -> Response:
         """Sends a POST request to base_uri + suffix.
 
@@ -51,6 +54,7 @@ class HTTPClientWrapper:
         response.raise_for_status()
         return response
 
+    @retry()
     def delete(self, suffix: str) -> Response:
         """Sends a DELETE request to base_uri + suffix.
 
@@ -64,6 +68,7 @@ class HTTPClientWrapper:
         response.raise_for_status()
         return response
 
+    @retry()
     def put(self, suffix: str, data: dict | None = None) -> Response:
         """Sends a PUT request to base_uri + suffix.
 
@@ -87,7 +92,14 @@ class QPUClient:
     """
 
     def __init__(self, qpu_conf: QPUConfig) -> None:
+        base_url = qpu_conf.uri + "/api/v1"
+        client_cls = qpu_conf.client_cls or httpx.Client
         self.client = HTTPClientWrapper(qpu_conf)
+
+    @property
+    def base_uri(self) -> str:
+        """Base URI of the QPU (IP/version)."""
+        return self._base_uri
 
     def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
@@ -137,6 +149,7 @@ class QPUClient:
         program_id = job_info.program_id
         program_status = self.get_program_status(program_id)
 
+        # TODO: reformat program_status
         if program_status not in [
             '"ABORTED"',
             '"ABORTING"',

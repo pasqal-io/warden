@@ -1,4 +1,5 @@
 from .client import AsyncQPUClient, QPUClient
+from .retry import QPUClientRequestError
 from .types import QPUInfo, QPUJobInfo, QPUOperationalStatus
 
 __all__ = [
@@ -7,4 +8,5 @@ __all__ = [
     "QPUOperationalStatus",
     "QPUClient",
     "AsyncQPUClient",
+    "QPUClientRequestError",
 ]
