@@ -9,19 +9,19 @@ init-config:
 
 install:
 	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
-	pip install -r requirements.txt
+	python -m pip install -r requirements.txt
 
 install-pg: install
-	pip install -r requirements.txt -r requirements-pg.txt
+	python -m pip install -r requirements.txt -r requirements-pg.txt
 
 install-mariadb: install
-	pip install -r requirements.txt -r requirements-mariadb.txt
+	python -m pip install -r requirements.txt -r requirements-mariadb.txt
 
 start: migrate
 	python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
 
-start-scheduler:
-	python  -m warden.scheduler
+start-scheduler: migrate
+	python -m warden.scheduler
 
 ping:
 	curl localhost:4207
