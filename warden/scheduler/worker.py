@@ -150,7 +150,7 @@ class LocalQPUWorker:
             qpu_job = self.client.get_job(qpu_job, no_retry=True)
             logger.info(f"Job status: {qpu_job.status}")
         except QPUClientRequestError as e:
-            logger.error(
+            logger.warning(
                 f"Got an error while polling job status: {e}."
                 f"Continuing polling, last known job status: {qpu_job.status}."
             )

@@ -314,8 +314,8 @@ async def test_run_main_scheduler_job_timeout(
     JOB_POLLING_INTERVAL_S = 0.02
     JOB_POLLING_TIMEOUT_S = 0.05
 
-    N_JOB_POLLING_BEFORE_TIMEOUT = int(
-        math.ceil(JOB_POLLING_TIMEOUT_S / JOB_POLLING_INTERVAL_S)
+    N_JOB_POLLING_BEFORE_TIMEOUT = (
+        int(math.ceil(JOB_POLLING_TIMEOUT_S / JOB_POLLING_INTERVAL_S)) + 1
     )
 
     conf = Config(
