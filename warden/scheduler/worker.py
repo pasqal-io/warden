@@ -121,7 +121,6 @@ class LocalQPUWorker:
         qpu_job = self._get_job_poll(qpu_job)
         await queue.put(qpu_job)
         while qpu_job.status not in ["ERROR", "DONE", "CANCELED"]:
-            await asyncio.sleep(self.conf_sched.job_polling_interval_s)
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
                 logger.warning(
                     f"Job timed out (max {self.conf_sched.job_polling_timeout_s} s). "
@@ -138,6 +137,7 @@ class LocalQPUWorker:
                 logger.info("Job cancellation done")
                 await queue.put(qpu_job)
                 break
+            await asyncio.sleep(self.conf_sched.job_polling_interval_s)
             qpu_job = self._get_job_poll(qpu_job)
             await queue.put(qpu_job)
         return qpu_job

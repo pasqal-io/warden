@@ -144,7 +144,7 @@ class QPUClient:
         data = response.json()["data"]
         return QPUInfo(**data).specs
 
-    def get_job(self, job: QPUJobInfo, no_retry: bool) -> QPUJobInfo:
+    def get_job(self, job: QPUJobInfo, no_retry: bool = False) -> QPUJobInfo:
         """Gets information on a submitted job."""
         response = self.client.get(f"/jobs/{job.uid}", no_retry)
         data = response.json()["data"]
@@ -193,7 +193,7 @@ class QPUClient:
             data = response.json()["data"]
             return QPUJobInfo(**data)
         else:
-            job_info = self.get_job(job_info.uid)
+            job_info = self.get_job(job_info)
             logger.error(f"Job can't be cancelled, is in '{job_info.status}' state.")
             return job_info
 
