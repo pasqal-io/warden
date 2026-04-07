@@ -813,7 +813,7 @@ async def test_run_main_scheduler_job_timeout_client_error(
     ### TEST CONF  ###
     ##################
 
-    TEST_TIMEOUT_S = 300
+    TEST_TIMEOUT_S = 3
     N_JOBS = 1
     EXPECTED_STATUS = "ERROR"
 

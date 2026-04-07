@@ -9,7 +9,7 @@ JobStatus: TypeAlias = Literal["PENDING", "RUNNING", "ERROR", "CANCELED", "DONE"
 QPUStatus: TypeAlias = Literal["UP", "DOWN"]
 
 
-@dataclass
+@dataclass(frozen=True)
 class QPUJobInfo:
     uid: int | None = None
     batch_id: str | None = None
