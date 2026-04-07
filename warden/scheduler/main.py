@@ -117,7 +117,7 @@ async def shutdown(engine: AsyncEngine):
 async def main_async(conf=Config()):
     """Main asyncio logic"""
     logging.config.dictConfig(config=conf.logging)
-    engine = create_async_engine(build_db_url(conf.database))
+    engine = create_async_engine(build_db_url(conf.database), echo=conf.database.echo)
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
