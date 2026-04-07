@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 import yaml
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_PREFIX = "/api/v1"
@@ -68,7 +68,13 @@ class QPUConfig(BaseSettings):
         return self._client
 
 
+class APIConfig(BaseSettings):
+    host: str
+    port: int
+
+
 class Config(BaseSettings):
+    api: APIConfig
     database: DatabaseConfig
     scheduler: SchedulerConfig
     logging: dict[str, Any]
@@ -76,8 +82,30 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=".env",
+        env_prefix="WARDEN_",
         env_nested_delimiter="_",
     )
+
+    @model_validator(mode="after")
+    def _ensure_log_directories(self):
+        handlers = self.logging.get("handlers")
+        if not isinstance(handlers, dict):
+            return self
+
+        for handler_conf in handlers.values():
+            if not isinstance(handler_conf, dict):
+                continue
+
+            filename = handler_conf.get("filename")
+            if not filename:
+                continue
+
+            path = Path(str(filename))
+            parent = path.parent
+            if str(parent) not in ("", "."):
+                parent.mkdir(parents=True, exist_ok=True)
+
+        return self
 
     @classmethod
     def settings_customise_sources(
@@ -101,7 +129,7 @@ class Config(BaseSettings):
             return _load_config_file(Path(__file__).parent / "config.sample.yaml")
 
         def yaml_config_source():
-            return _load_config_file(Path(__file__).parent / "config.yaml")
+            return _load_config_file(Path.cwd() / "config.yaml")
 
         return (
             env_settings,  # Highest precedence: from env variables

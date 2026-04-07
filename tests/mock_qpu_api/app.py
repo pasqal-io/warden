@@ -1,15 +1,15 @@
-"""Mock PasqOS api for Warden testing and development"""
+"""Mock QPU API for Warden testing and development"""
 
 from fastapi import FastAPI
 
-from mock_pasqos_api.routes import jobs, programs, system
+from mock_qpu_api.routes import jobs, programs, system
 
 PREFIX = "/api/v1"
 
 
 def create_app():
     app = FastAPI(
-        title="Mocked PasqOS API",
+        title="Mocked QPU API",
         description="",
         version="0.1.0",
     )
@@ -20,12 +20,12 @@ def create_app():
 
     @app.get("/")
     async def ping():
-        return {"message", "Mocked PasqOS API is up."}
+        return {"message", "Mocked QPU API is up."}
 
     return app
 
 
 # Only creating app object if called from root of repo
 # with makefile target
-if __name__ == "mock_pasqos_api.app":
+if __name__ == "mock_qpu_api.app":
     app = create_app()

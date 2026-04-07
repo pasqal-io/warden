@@ -1,8 +1,8 @@
-# Pasqos Mock API
+# QPU Mock API
 
-Mock version of the PasqOS API for for development/testing purposes.
+Mock version of the QPU API for for development/testing purposes.
 
-Eventually using this mock api for e2e tests and resilience to failures of PasqOS by
+Eventually using this mock api for e2e tests and resilience to failures of QPU by
 using this mock for chaos engineering.
 
 ## Scope
@@ -34,9 +34,9 @@ Only handles nominal behavior for Warden compatibility, meaning:
 From the base of the Warden repo:
 
 ```bash
-make start-pasqos-mock
+make start-qpu-mock
 # Or with auto reload when modifying API
-make start-pasqos-mock-dev
+make start-qpu-mock-dev
 ```
 
 ## Next steps

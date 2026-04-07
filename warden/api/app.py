@@ -1,5 +1,4 @@
 import logging
-import logging.config
 
 from fastapi import FastAPI
 
@@ -9,8 +8,7 @@ from warden.api.routes.dependencies.qpu_client import init_qpu_client
 from warden.lib.config import Config
 
 
-def create_app(config: Config = Config()):
-    logging.config.dictConfig(config.logging)
+def create_app(config: Config):
     app = FastAPI(
         title="Warden API",
         description="Receives, validates, and stores jobs for execution",

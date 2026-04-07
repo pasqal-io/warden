@@ -1,10 +1,10 @@
-"""Mock PasqOS Programs API route"""
+"""Mock QPU Programs API route"""
 
 from fastapi import APIRouter
 
-from mock_pasqos_api.models import JSendResponse
-from mock_pasqos_api.models.system import QPU, QPUOperational
-from mock_pasqos_api.samples import DUMMY_QPU_SPECS
+from mock_qpu_api.models import JSendResponse
+from mock_qpu_api.models.system import QPU, QPUOperational
+from mock_qpu_api.samples import DUMMY_QPU_SPECS
 
 router = APIRouter(prefix="/system")
 

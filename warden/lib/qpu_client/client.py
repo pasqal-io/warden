@@ -122,7 +122,7 @@ class HTTPClientWrapper:
 
 
 class QPUClient:
-    """PasqOS client
+    """QPU client
 
     Args:
         qpu_conf: QPUConfig object
@@ -205,7 +205,7 @@ class QPUClient:
 
 
 class AsyncQPUClient:
-    """HTTP Client to interact with the pasqos API."""
+    """HTTP Client to interact with the QPU API."""
 
     def __init__(self, qpu_conf: QPUConfig):
         self.conf = qpu_conf

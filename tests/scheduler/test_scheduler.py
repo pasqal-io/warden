@@ -47,7 +47,7 @@ async def test_run_nominal(
 
     Test rationale:
     - Create N_JOBS dummy jobs to run
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - To return QPU status as "UP"
         - To accept job creation requests
         - To return "RUNNING" and then "DONE" status for each job
@@ -169,7 +169,7 @@ async def test_run_qpu_down(
     Test rationale:
     - Set qpu_polling_timeout_s to a positive time
     - Create N_JOBS dummy jobs to run
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - To always return QPU status as "DOWN"
         - No need to mock jobs calls
     - Run scheduler until:
@@ -251,7 +251,7 @@ async def test_run_job_timeout(
         - Out of which, half will be canceled, half will return as done because
             job information was outdated and associated program was done when
             when we try to cancel it.
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - To return QPU status as "UP"
         - To accept job creation requests
         - To return "DONE" job status for each job not in JOB_TIMEOUT_IDS

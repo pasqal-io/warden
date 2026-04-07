@@ -1,0 +1,13 @@
+[Unit]
+Description=API service
+PartOf=warden.target
+
+[Service]
+WorkingDirectory=/opt/warden
+ExecStart=/opt/warden/venv/bin/python -m warden.api.main
+Restart=always
+RestartSec=3
+SyslogIdentifier=warden
+
+[Install]
+WantedBy=multi-user.target

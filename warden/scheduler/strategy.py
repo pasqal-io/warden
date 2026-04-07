@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from warden.lib.models import Job
@@ -23,7 +23,13 @@ class FifoScheduler(Scheduler):
         stmt = (
             select(Job)
             .where(Job.status.in_(["PENDING", "RUNNING"]))
-            .order_by(Job.backend_id.asc().nulls_last(), Job.created_at, Job.id)
+            .order_by(
+                # Rank jobs with an assigned backend before pending ones without
+                case((Job.backend_id.is_(None), 1), else_=0),
+                Job.backend_id.asc(),
+                Job.created_at,
+                Job.id,
+            )
             .limit(1)
         )
         res = await session.execute(stmt)

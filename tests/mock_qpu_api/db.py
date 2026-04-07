@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from mock_pasqos_api.models.jobs import Job, JobCreation, JobStatus
-from mock_pasqos_api.models.program import Program, ProgramStatus
-from mock_pasqos_api.samples import FAKE_RESULTS
+from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
+from mock_qpu_api.models.program import Program, ProgramStatus
+from mock_qpu_api.samples import FAKE_RESULTS
 
 FAKE_JOB_DB: dict[str, Job] = {}
 FAKE_PROGRAM_DB: dict[str, Program] = {}

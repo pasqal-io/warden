@@ -22,13 +22,13 @@ async def test_run_scheduler_integration(
     strategy: str,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
-    mock_pasqos_api_app: FastAPI,
+    mock_qpu_api_app: FastAPI,
 ):
-    """Test nominal behavior of scheduler with mock pasqos api
+    """Test nominal behavior of scheduler with mock qpu api
 
     Test rationale:
     - Inject httpx client through the config with
-      a FastAPI TestClient requesting directly to the ASGI 'mock_pasqos_api' app
+      a FastAPI TestClient requesting directly to the ASGI 'mock_qpu_api' app
     - Create N_JOBS dummy jobs to run
     - Run scheduler until:
         - All jobs have a "DONE" status in DB
@@ -58,7 +58,7 @@ async def test_run_scheduler_integration(
     #################################
     # Injecting FastAPI ASGI client #
     #################################
-    conf.qpu._client = TestClient(app=mock_pasqos_api_app)
+    conf.qpu._client = TestClient(app=mock_qpu_api_app)
     #################################
 
     ##################
