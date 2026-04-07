@@ -44,6 +44,7 @@ class LocalQPUWorker:
     ) -> None:
         """Submit job to run on the QPU"""
 
+        # Object to store job information to send to the db
         qpu_job = QPUJobInfo()
 
         qpu_job = await self._poll_qpu(queue=queue, qpu_job=qpu_job)
@@ -63,7 +64,7 @@ class LocalQPUWorker:
         logger.info("Job created on QPU")
 
         qpu_job = await self._poll_job(queue, qpu_job)
-        if qpu_job.status not in ["CANCELED", "ERROR"]:
+        if qpu_job.status not in ("CANCELED", "ERROR"):
             logger.info("Job execution done")
         return
 
@@ -134,23 +135,23 @@ class LocalQPUWorker:
                     qpu_job = self.qpu_job_to_error(qpu_job)
                     await queue.put(qpu_job)
                     break
-                await queue.put(qpu_job)
                 logger.info("Job cancellation done")
+                await queue.put(qpu_job)
                 break
             qpu_job = self._get_job_poll(qpu_job)
             await queue.put(qpu_job)
         return qpu_job
 
     def _get_job_poll(self, qpu_job: QPUJobInfo) -> QPUJobInfo:
-        """Get job info and if update, send to db commit"""
         try:
+            # When polling the job status, we set no_retry=True as we are
+            # in the job polling loop that will handle the retry of the requests
+            # until an eventual timout of the job
             qpu_job = self.client.get_job(qpu_job, no_retry=True)
+            logger.info(f"Job status: {qpu_job.status}")
         except QPUClientRequestError as e:
-            logger.error(f"Got an error while polling job status: {e}. ")
             logger.error(
+                f"Got an error while polling job status: {e}."
                 f"Continuing polling, last known job status: {qpu_job.status}."
             )
-            return qpu_job
-
-        logger.info(f"Job status: {qpu_job.status}")
         return qpu_job
