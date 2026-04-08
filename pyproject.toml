@@ -28,10 +28,6 @@ postgres = ["asyncpg", "psycopg"]
 mariadb = ["asyncmy"]
 
 
-[tool.poetry.scripts]
-start = "warden.api.main:app"
-start-scheduler = "warden.scheduler.main:main"
-
 [tool.poetry.group.dev.dependencies]
 debugpy = "^1.8.20"
 pytest = "^9.0.2"
