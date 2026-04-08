@@ -480,7 +480,7 @@ async def test_run_retry_transient_errors(
         - To accept job creation requests
         - To return "RUNNING" and then "DONE" status for each job
     - Run scheduler until:
-        - All jobs have a "DONE" status is DB
+        - All jobs have a "DONE" status in DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS
     """
