@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 import yaml
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_PREFIX = "/api/v1"
@@ -75,6 +75,27 @@ class Config(BaseSettings):
         env_file=".env",
         env_nested_delimiter="_",
     )
+
+    @model_validator(mode="after")
+    def _ensure_log_directories(self):
+        handlers = self.logging.get("handlers")
+        if not isinstance(handlers, dict):
+            return self
+
+        for handler_conf in handlers.values():
+            if not isinstance(handler_conf, dict):
+                continue
+
+            filename = handler_conf.get("filename")
+            if not filename:
+                continue
+
+            path = Path(str(filename))
+            parent = path.parent
+            if str(parent) not in ("", "."):
+                parent.mkdir(parents=True, exist_ok=True)
+
+        return self
 
     @classmethod
     def settings_customise_sources(
