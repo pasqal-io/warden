@@ -18,10 +18,32 @@ install-mariadb: install
 	pip install -r requirements.txt -r requirements-mariadb.txt
 
 start: migrate
-	python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
-
-start-scheduler:
-	python  -m warden.scheduler
+	@bash -c '\
+	set -uo pipefail; \
+	PIDS=(); \
+	cleanup() { \
+		trap - SIGINT SIGTERM EXIT; \
+		if [ "$${#PIDS[@]}" -gt 0 ]; then \
+			kill -TERM "$${PIDS[@]}" 2>/dev/null || true; \
+			for pid in "$${PIDS[@]}"; do \
+				wait "$$pid" 2>/dev/null || true; \
+			done; \
+		fi; \
+	}; \
+	on_signal() { \
+		cleanup; \
+		exit 0; \
+	}; \
+	trap on_signal SIGINT SIGTERM; \
+	trap cleanup EXIT; \
+	${PYTHON} -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207 & PIDS+=($$!); \
+	${PYTHON} -m warden.scheduler & PIDS+=($$!); \
+	set +e; \
+	wait -n "$${PIDS[@]}"; \
+	STATUS=$$?; \
+	set -e; \
+	cleanup; \
+	exit $$STATUS'
 
 ping:
 	curl localhost:4207
@@ -40,7 +62,32 @@ install-dev:
 	$(MAKE) migrate
 
 start-dev: migrate
-	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207
+	@bash -c '\
+	set -uo pipefail; \
+	PIDS=(); \
+	cleanup() { \
+		trap - SIGINT SIGTERM EXIT; \
+		if [ "$${#PIDS[@]}" -gt 0 ]; then \
+			kill -TERM "$${PIDS[@]}" 2>/dev/null || true; \
+			for pid in "$${PIDS[@]}"; do \
+				wait "$$pid" 2>/dev/null || true; \
+			done; \
+		fi; \
+	}; \
+	on_signal() { \
+		cleanup; \
+		exit 0; \
+	}; \
+	trap on_signal SIGINT SIGTERM; \
+	trap cleanup EXIT; \
+	${PYTHON} -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207 & PIDS+=($$!); \
+	${PYTHON} -m debugpy --listen 0.0.0.0:8889 -m warden.scheduler & PIDS+=($$!); \
+	set +e; \
+	wait -n "$${PIDS[@]}"; \
+	STATUS=$$?; \
+	set -e; \
+	cleanup; \
+	exit $$STATUS'
 
 test:
 	poetry run pytest
@@ -63,4 +110,4 @@ run-db:
 
 # Usage: make alembic ARGS="upgrade head"
 alembic:
-	python -m alembic -c warden/api/alembic.ini $(ARGS)
+	${PYTHON} -m alembic -c warden/api/alembic.ini $(ARGS)
