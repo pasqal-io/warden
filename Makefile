@@ -17,7 +17,7 @@ install-pg: install
 install-mariadb: install
 	pip install -r requirements.txt -r requirements-mariadb.txt
 
-start: migrate
+run: migrate
 	@bash -c '\
 	set -uo pipefail; \
 	PIDS=(); \
@@ -45,6 +45,9 @@ start: migrate
 	cleanup; \
 	exit $$STATUS'
 
+# Legacy "start" target, prefer run target instead
+start: run
+
 ping:
 	curl localhost:4207
 
@@ -61,7 +64,7 @@ install-dev:
 	poetry install --with dev --all-extras
 	$(MAKE) migrate
 
-start-dev: migrate
+dev: migrate
 	@bash -c '\
 	set -uo pipefail; \
 	PIDS=(); \
@@ -88,6 +91,9 @@ start-dev: migrate
 	set -e; \
 	cleanup; \
 	exit $$STATUS'
+
+# Legacy "start-dev" target, prefer dev target instead
+start-dev: dev
 
 test:
 	poetry run pytest
