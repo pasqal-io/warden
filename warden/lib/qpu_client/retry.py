@@ -21,6 +21,8 @@ class UnhandledError(QPUClientRequestError):
 
 class NoRetryHTTPStatus(QPUClientRequestError):
     def __init__(self, http_status_error: HTTPStatusError):
+        self.response = http_status_error.response
+        self.request = http_status_error.request
         message = (
             f"Caught not-retryable http status code: '{http_status_error.response.status_code}' "
             f"error for request '{http_status_error.request}'."
@@ -63,7 +65,10 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
             else:
                 raise UnhandledError(e)
 
-            if attempt >= max or no_retry:
+            if no_retry:
+                raise QPUClientRequestError(e)
+
+            if attempt >= max:
                 raise MaxRetryError(e)
 
         @wraps(func)

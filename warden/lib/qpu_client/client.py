@@ -8,7 +8,7 @@ from typing import Any
 from httpx import AsyncClient, Response
 
 from warden.lib.config import QPUConfig
-from warden.lib.qpu_client.retry import retry
+from warden.lib.qpu_client.retry import NoRetryHTTPStatus, retry
 from warden.lib.qpu_client.types import (
     QPUInfo,
     QPUJobInfo,
@@ -177,24 +177,24 @@ class QPUClient:
 
     def cancel_job(self, job_info: QPUJobInfo) -> QPUJobInfo:
         """Terminates the execution of a given job ID."""
-        program_id = job_info.program_id
-        program_status = self.get_program_status(program_id)
-
-        # TODO: reformat program_status
-        if program_status in [
-            '"RUNNING"',
-            '"WAITING"',
-            '"PAUSED"',
-            '"CREATED"',
-            '"COMPILING"',
-            '"PENDING_CALIBRATION"',
-        ]:
+        try:
             response = self.client.put(f"/jobs/{job_info.uid}/cancel")
             data = response.json()["data"]
             return QPUJobInfo(**data)
-        else:
+        except NoRetryHTTPStatus as e:
+            resp = e.response
+            ret_code = resp.json()["code"]
+            data = resp.json()["data"]
+            cant_cancel_job_code = "3003"
+            if (resp.status_code != 400) or (cant_cancel_job_code not in ret_code):
+                raise e
+            # Can't cancel job beacause associated program can't be aborted | canceled
+            # That probably means that our job information is outdated so we fetch it again
+            # and return
+            logger.warning(
+                f"Job can't be cancelled, program is in '{data['status']}' state."
+            )
             job_info = self.get_job(job_info)
-            logger.error(f"Job can't be cancelled, is in '{job_info.status}' state.")
             return job_info
 
 

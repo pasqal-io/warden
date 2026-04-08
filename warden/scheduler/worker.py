@@ -130,7 +130,7 @@ class LocalQPUWorker:
                 try:
                     qpu_job = self.client.cancel_job(qpu_job)
                 except QPUClientRequestError as e:
-                    logger.error(f"Failed cancelling job, got error on request: {e}")
+                    logger.error(f"Failed cancelling job: {e}")
                     qpu_job = self.qpu_job_to_error(qpu_job)
                     await queue.put(qpu_job)
                     break

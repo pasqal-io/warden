@@ -267,9 +267,10 @@ async def test_run_main_scheduler_job_timeout(
 ):
     """Test scheduler behavior when jobs timeout
 
-    Expected behavior, jobs that timeout are canceled on the QPU and
-    return in "CANCELED" state. Except when by the time we try to cancel the job,
-    the associated program has had time to finish. In which case it will return "DONE"
+    Expected behavior: jobs that timeout are canceled on the QPU and
+        return in "CANCELED" state.
+    Except when we can't cancel the job because in this case the associated
+        program has had time to finish. In which case it will return "DONE" state
 
 
     Test rationale:
@@ -280,16 +281,12 @@ async def test_run_main_scheduler_job_timeout(
     - PasqOS API is mocked:
         - To return QPU status as "UP"
         - To accept job creation requests
-        - To return "RUNNING" and then "DONE" status for each job
-        - For JOB_TIMEOUT_ID:
+        - To return "RUNNING" and then "DONE" status for each non-timeout job
+        - For each ID in JOB_TIMEOUT_IDS:
             - Add N_JOB_POLLING_BEFORE_TIMEOUT "RUNNING" status return
             - Mock the job canceling API calls
-                - Mock half the associated program being "DONE"
-                  or the other half "RUNNING"
-                - When associated program status is "DONE", job finally
-                  returns as "DONE"
-                - When associated program status is "RUNNING", job finally
-                  returns as "CANCEL"
+                - Mock half the jobs not being cancelable because program is DONE
+                - Other jobs return as CANCELED
     - Run scheduler until:
         - All jobs are either "DONE" or "CANCELED"
         - Test timout after TEST_TIMOUT_S
@@ -396,7 +393,7 @@ async def test_run_main_scheduler_job_timeout(
         if job_uid in JOB_TIMEOUT_IDS:
             # Half the timeout jobs are actually done
             # before we try to cancel them
-            program_status = ["RUNNING", "DONE"][job_timeout_counter % 2]
+            is_cancelable = [True, False][job_timeout_counter % 2]
             job_timeout_counter += 1
 
             for _ in range(N_JOB_POLLING_BEFORE_TIMEOUT):
@@ -407,19 +404,6 @@ async def test_run_main_scheduler_job_timeout(
                     json=return_running_json,
                 )
             # Job cancellation requests
-            return_cancelled_job_program = {
-                "data": {
-                    "uid": QPU_PROGRAM_UID,
-                    "status": program_status,
-                    # ...
-                }
-            }
-            httpx_mock.add_response(
-                method="GET",
-                status_code=200,
-                url=PROGRAM_API + f"/{QPU_PROGRAM_UID}",
-                json=return_cancelled_job_program,
-            )
             return_cancelled_job_status = {
                 "data": {
                     "uid": job_uid,
@@ -432,7 +416,17 @@ async def test_run_main_scheduler_job_timeout(
                     "end_datetime": None,
                 }
             }
-            if program_status == "RUNNING":
+            return_cannot_cancel_program = {
+                "code": "ABCD3003",
+                "data": {
+                    "description": "Cannot cancel program.",
+                    # Program status
+                    "status": "DONE",
+                },
+                "message": "Bad request.",
+                "status": "fail",
+            }
+            if is_cancelable:
                 # Job can be canceled
                 httpx_mock.add_response(
                     method="PUT",
@@ -441,6 +435,12 @@ async def test_run_main_scheduler_job_timeout(
                     json=return_cancelled_job_status,
                 )
             else:
+                httpx_mock.add_response(
+                    method="PUT",
+                    status_code=400,
+                    url=JOB_API + f"/{job_uid}/cancel",
+                    json=return_cannot_cancel_program,
+                )
                 # Job can't be canceled
                 # We just fetch the job status again
                 httpx_mock.add_response(
@@ -450,6 +450,7 @@ async def test_run_main_scheduler_job_timeout(
                     json=return_done_json,
                 )
         else:
+            # Normal non-timeout job
             httpx_mock.add_response(
                 method="GET",
                 status_code=200,
@@ -821,7 +822,7 @@ async def test_run_main_scheduler_job_creation_client_error(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
-async def test_run_main_scheduler_job_timeout_client_error(
+async def test_run_main_scheduler_job_client_error_timeout(
     strategy: str,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
@@ -907,20 +908,6 @@ async def test_run_main_scheduler_job_timeout_client_error(
             method="GET", url=JOB_API + f"/{id}", status_code=500, is_reusable=True
         )
         # Job cancellation requests
-        # Return associated program
-        return_cancelled_job_program = {
-            "data": {
-                "uid": QPU_PROGRAM_UID,
-                "status": "RUNNING",
-                # ...
-            }
-        }
-        httpx_mock.add_response(
-            method="GET",
-            status_code=200,
-            url=PROGRAM_API + f"/{QPU_PROGRAM_UID}",
-            json=return_cancelled_job_program,
-        )
         # Unable to cancel job
         httpx_mock.add_response(
             method="PUT",
