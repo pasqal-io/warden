@@ -14,7 +14,14 @@ For optional/dev requirements, check [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Installation
 
-You should run these commands once after cloning the repo, and every time you update Warden.
+Quick install/update (one-liner):
+
+```bash
+# curl -fsSL https://raw.githubusercontent.com/pasqal-io/warden/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/pasqal-io/warden/ac9173bb463cf70198f8611eebbbfff1b4a83e40/install.sh | sudo bash
+```
+
+## More details
 
 Create the default config file `warden/config/warden.yaml` (creates a backup of your existing config if it exists):
 
