@@ -31,7 +31,7 @@ async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int):
 def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
     """
     The main scheduler task is an infinite loop that we don't await.
-    It case it encounters an unhandled exception during the test,
+    In case it encounters an unhandled exception during the test,
     the test will just timeout and the exceptions encountered in
     the main scheduler task will not be raised and will make debugging
     the tests much more difficult.
