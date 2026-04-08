@@ -5,5 +5,5 @@
 WITH_PG=0
 WITH_MARIADB=0
 
-# The Python interpreter to use
-PYTHON=python3
+# The Python interpreter to use, 3.11 and 3.12 are supported
+PYTHON?=python3
