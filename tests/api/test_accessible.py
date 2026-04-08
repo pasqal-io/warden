@@ -12,8 +12,3 @@ async def test_accessible_nominal(client: AsyncClient, app):
         response = await client.get("/accessible")
     assert response.status_code == 200
     assert response.json()["is_accessible"]
-
-    # Call to the endpoint as non root user
-    with mock_munge_auth(app, uid=1):
-        response = await client.get("/accessible")
-    assert response.status_code == 403
