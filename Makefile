@@ -50,7 +50,7 @@ run: migrate
 	}; \
 	trap on_signal SIGINT SIGTERM; \
 	trap cleanup EXIT; \
-	$(VENV)/bin/python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207 & PIDS+=($$!); \
+	$(VENV)/bin/python -m warden.api.main & PIDS+=($$!); \
 	$(VENV)/bin/python -m warden.scheduler & PIDS+=($$!); \
 	set +e; \
 	wait -n "$${PIDS[@]}"; \
@@ -97,7 +97,7 @@ dev: migrate
 	}; \
 	trap on_signal SIGINT SIGTERM; \
 	trap cleanup EXIT; \
-	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207 & PIDS+=($$!); \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8888 -m warden.api.main --reload & PIDS+=($$!); \
 	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8889 -m warden.scheduler & PIDS+=($$!); \
 	set +e; \
 	wait -n "$${PIDS[@]}"; \

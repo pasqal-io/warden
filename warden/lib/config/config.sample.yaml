@@ -1,3 +1,9 @@
+api:
+  # API bind address
+  host: 0.0.0.0
+  # API bind port
+  port: 4207
+
 database:
   # echo: false # Optional, SQLAlchemy echo
 

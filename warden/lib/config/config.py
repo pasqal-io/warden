@@ -65,7 +65,13 @@ class QPUConfig(BaseSettings):
         return self._client
 
 
+class APIConfig(BaseSettings):
+    host: str = Field(default="0.0.0.0")
+    port: int = Field(default=4207)
+
+
 class Config(BaseSettings):
+    api: APIConfig
     database: DatabaseConfig
     scheduler: SchedulerConfig
     logging: dict[str, Any]

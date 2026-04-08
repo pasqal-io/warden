@@ -4,7 +4,7 @@ PartOf=warden.target
 
 [Service]
 WorkingDirectory=/opt/warden
-ExecStart=/opt/warden/venv/bin/python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
+ExecStart=/opt/warden/venv/bin/python -m warden.api.main
 Restart=always
 RestartSec=3
 SyslogIdentifier=warden
