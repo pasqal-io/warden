@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/pasqal-io/warden/ac9173bb463cf70198
 
 ## More details
 
-Create the default config file `warden/lib/config/config.yaml` (creates a backup of your existing config if it exists):
+Create the default config file `config.yaml` at the project root (creates a backup of your existing config if it exists):
 
 The config file is created automatically by `make install` if it does not exist.
 
@@ -51,10 +51,10 @@ make run
 ## Configuration
 
 Configuration is done:
-1. using the config file `warden/lib/config/config.yaml`
+1. using the config file `config.yaml` at the project root
 2. using environment variables - takes precedence over the config file
 
-Configuration keys from `warden/lib/config/config.yaml` can be set or overridden by environment variables, by converting the key path to uppercase and separating nested keys with underscores.
+Configuration keys from `config.yaml` can be set or overridden by environment variables, by converting the key path to uppercase and separating nested keys with underscores.
 
 For example, given the following YAML:
 
@@ -74,7 +74,7 @@ The following options are configurable:
 
 - Database backend
 - API bind address and port
-- Logging (see `warden/lib/config/config.yaml` for more configuration details)
+- Logging (see `config.yaml` for more configuration details)
 
 ### API server
 
@@ -104,15 +104,15 @@ Below is a table of all configuration variables available for Warden's database:
 | `DATABASE_PASSWORD` (env var) | Password for the database user (PostgreSQL/MariaDB)                          |                   | If using Postgres/MariaDB | `secretpassword`                            |
 
 **Note:**
-- **IT IS RECOMMENDED NOT TO SAVE PASSWORDS IN CLEARTEXT FILES SUCH AS `warden/lib/config/config.yaml`!**
+- **IT IS RECOMMENDED NOT TO SAVE PASSWORDS IN CLEARTEXT FILES SUCH AS `config.yaml`!**
 - Only `DATABASE_BACKEND` and `DATABASE_NAME` are required for SQLite (default), which are set in the default config file.
 - For PostgreSQL, you must provide at least `DATABASE_USER` and `DATABASE_PASSWORD`, and often `DATABASE_HOST` and `DATABASE_PORT` depending on your environment.
-- All variables can be set in the `warden/lib/config/config.yaml` file (but passwords _should_ not) _or_ as an environment variable.
+- All variables can be set in the `config.yaml` file (but passwords _should_ not) _or_ as an environment variable.
 
 Example for PostgreSQL:
 
 ```yaml
-# warden/lib/config/config.yaml
+# config.yaml
 database:
   backend: postgres
   name: warden

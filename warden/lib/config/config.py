@@ -125,7 +125,7 @@ class Config(BaseSettings):
             return _load_config_file(Path(__file__).parent / "config.sample.yaml")
 
         def yaml_config_source():
-            return _load_config_file(Path(__file__).parent / "config.yaml")
+            return _load_config_file(Path.cwd() / "config.yaml")
 
         return (
             env_settings,  # Highest precedence: from env variables

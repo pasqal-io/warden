@@ -19,7 +19,7 @@ make install-dev
 This will:
 - Install Poetry
 - Install dependencies
-- Create the default `warden/lib/config/config.yaml` file if it does not exist yet
+- Create the default `config.yaml` file at the project root if it does not exist yet
 - Run migrations for the default SQLite DB
 
 ## Run dev server

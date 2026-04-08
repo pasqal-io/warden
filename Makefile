@@ -12,10 +12,27 @@ endif
 
 # cluster admin commands
 
-$(INSTALL_DIR)warden/lib/config/config.yaml:
-	cp --backup=numbered warden/lib/config/config.sample.yaml warden/lib/config/config.yaml
+config.yaml:
+	@new_config="warden/lib/config/config.sample.yaml"; \
+	if [ ! -f config.yaml ]; then \
+		cp "$$new_config" config.yaml; \
+		exit 0; \
+	fi; \
+	if cmp -s "$$new_config" config.yaml; then \
+		exit 0; \
+	fi; \
+	last_i=0; \
+	i=1; \
+	while [ -e "config.backup-$$i.yaml" ]; do \
+		last_i=$$i; \
+		i=$$((i + 1)); \
+	done; \
+	if [ "$$last_i" -eq 0 ] || ! cmp -s config.yaml "config.backup-$$last_i.yaml"; then \
+		cp config.yaml "config.backup-$$i.yaml"; \
+	fi; \
+	cp "$$new_config" config.yaml
 
-$(VENV)/bin/python: $(INSTALL_DIR)warden/lib/config/config.yaml
+$(VENV)/bin/python: config.yaml
 	@if [ -z "$(PYTHON)" ]; then \
 		echo "Usage: make venv PYTHON=/path/to/python"; \
 		exit 1; \
@@ -72,8 +89,7 @@ alembic:
 
 .PHONY: install-dev start-dev start-mock-pasqos start-mock-pasqos-dev test lint-check lint-fix update-requirements run-db alembic
 
-install-dev:
-	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
+install-dev: config.yaml
 	$(VENV)/bin/python -m pip install poetry==2.3.3
 	poetry install --with dev --all-extras
 	$(MAKE) migrate

@@ -28,3 +28,4 @@ read -p "Press Enter to continue with installation..."
 
 # Run make install
 make install
+echo "Configuration file created at: ${INSTALL_DIR}/config.yaml"

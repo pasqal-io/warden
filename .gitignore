@@ -19,4 +19,7 @@ __pycache__/
 .env.*
 !.env.sample
 
+config.yaml
+config.*.yaml
+
 venv
