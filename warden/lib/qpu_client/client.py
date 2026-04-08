@@ -188,7 +188,7 @@ class QPUClient:
             cant_cancel_job_code = "3003"
             if (resp.status_code != 400) or (cant_cancel_job_code not in ret_code):
                 raise e
-            # Can't cancel job beacause associated program can't be aborted | canceled
+            # Can't cancel job because associated program can't be aborted | canceled
             # That probably means that our job information is outdated so we fetch it again
             # and return
             logger.warning(
