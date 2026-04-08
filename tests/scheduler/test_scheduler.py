@@ -279,9 +279,10 @@ async def test_run_job_timeout(
     # Do not set timeout time to a multiple of interval time
     # to have a deterministic number of polling requests
     # and not be impacted by micro-timing variation within the test
-    JOB_POLLING_INTERVAL_S = 0.02
-    JOB_POLLING_TIMEOUT_S = 0.05
+    JOB_POLLING_INTERVAL_S = 0.04
+    JOB_POLLING_TIMEOUT_S = 0.06
 
+    # +1 for initial poll before while loop
     N_JOB_POLLING_BEFORE_TIMEOUT = (
         int(math.ceil(JOB_POLLING_TIMEOUT_S / JOB_POLLING_INTERVAL_S)) + 1
     )
