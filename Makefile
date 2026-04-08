@@ -1,33 +1,50 @@
-PYTHON ?= python
+include config.mk
 
-.PHONY: init-config install install-pg install-mariadb start ping migrate lint format
+.PHONY: install install-pg install-mariadb start ping alembic migrate lint format
+
+INSTALL_FLAGS=
+ifeq ($(WITH_PG),1)
+INSTALL_FLAGS  += -r requirements-pg.txt
+endif
+ifeq ($(WITH_MARIADB),1)
+INSTALL_FLAGS  += -r requirements-mariadb.txt
+endif
 
 # cluster admin commands
 
-init-config:
+$(INSTALL_DIR)warden/lib/config/config.yaml:
 	cp --backup=numbered warden/lib/config/config.sample.yaml warden/lib/config/config.yaml
 
-install:
-	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
-	python -m pip install -r requirements.txt
+$(VENV)/bin/python: $(INSTALL_DIR)warden/lib/config/config.yaml
+	@if [ -z "$(PYTHON)" ]; then \
+		echo "Usage: make venv PYTHON=/path/to/python"; \
+		exit 1; \
+	fi
+	@if [ -d $(VENV) ]; then \
+		echo "$(VENV) already created"; \
+	else \
+		echo "Creating $(VENV) with $(PYTHON)"; \
+		$(PYTHON) -m venv $(VENV); \
+		echo "Virtualenv created in $(VENV) using $(PYTHON)"; \
+	fi
 
-install-pg: install
-	python -m pip install -r requirements.txt -r requirements-pg.txt
-
-install-mariadb: install
-	python -m pip install -r requirements.txt -r requirements-mariadb.txt
+install: $(VENV)/bin/python
+	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
 
 start: migrate
-	python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
+	$(VENV)/bin/python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
 
 start-scheduler: migrate
-	python -m warden.scheduler
-
-ping:
-	curl localhost:4207
+	$(VENV)/bin/python -m warden.scheduler
 
 migrate:
 	$(MAKE) alembic ARGS="upgrade head"
+
+alembic:
+	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)
+
+ping:
+	curl localhost:4207
 
 # dev/contributors methods
 
@@ -67,6 +84,3 @@ update-requirements:
 run-db:
 	docker compose up -d
 
-# Usage: make alembic ARGS="upgrade head"
-alembic:
-	python -m alembic -c warden/api/alembic.ini $(ARGS)
