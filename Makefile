@@ -17,7 +17,7 @@ install-pg: install
 install-mariadb: install
 	pip install -r requirements.txt -r requirements-mariadb.txt
 
-start: migrate
+run: migrate
 	@bash -c '\
 	set -uo pipefail; \
 	PIDS=(); \
@@ -61,7 +61,7 @@ install-dev:
 	poetry install --with dev --all-extras
 	$(MAKE) migrate
 
-start-dev: migrate
+dev: migrate
 	@bash -c '\
 	set -uo pipefail; \
 	PIDS=(); \
