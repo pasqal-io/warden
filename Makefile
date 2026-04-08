@@ -31,11 +31,36 @@ $(VENV)/bin/python: $(INSTALL_DIR)warden/lib/config/config.yaml
 install: $(VENV)/bin/python
 	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
 
-start: migrate
-	$(VENV)/bin/python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
+run: migrate
+	@bash -c '\
+	set -uo pipefail; \
+	PIDS=(); \
+	cleanup() { \
+		trap - SIGINT SIGTERM EXIT; \
+		if [ "$${#PIDS[@]}" -gt 0 ]; then \
+			kill -TERM "$${PIDS[@]}" 2>/dev/null || true; \
+			for pid in "$${PIDS[@]}"; do \
+				wait "$$pid" 2>/dev/null || true; \
+			done; \
+		fi; \
+	}; \
+	on_signal() { \
+		cleanup; \
+		exit 0; \
+	}; \
+	trap on_signal SIGINT SIGTERM; \
+	trap cleanup EXIT; \
+	$(VENV)/bin/python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207 & PIDS+=($$!); \
+	$(VENV)/bin/python -m warden.scheduler & PIDS+=($$!); \
+	set +e; \
+	wait -n "$${PIDS[@]}"; \
+	STATUS=$$?; \
+	set -e; \
+	cleanup; \
+	exit $$STATUS'
 
-start-scheduler: migrate
-	$(VENV)/bin/python -m warden.scheduler
+ping:
+	curl localhost:4207
 
 migrate:
 	$(MAKE) alembic ARGS="upgrade head"
@@ -43,21 +68,43 @@ migrate:
 alembic:
 	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)
 
-ping:
-	curl localhost:4207
-
 # dev/contributors methods
 
 .PHONY: install-dev start-dev start-mock-pasqos start-mock-pasqos-dev test lint-check lint-fix update-requirements run-db alembic
 
 install-dev:
 	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
-	python -m pip install poetry==2.3.3
+	$(VENV)/bin/python -m pip install poetry==2.3.3
 	poetry install --with dev --all-extras
 	$(MAKE) migrate
 
-start-dev: migrate
-	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207
+dev: migrate
+	@bash -c '\
+	set -uo pipefail; \
+	PIDS=(); \
+	cleanup() { \
+		trap - SIGINT SIGTERM EXIT; \
+		if [ "$${#PIDS[@]}" -gt 0 ]; then \
+			kill -TERM "$${PIDS[@]}" 2>/dev/null || true; \
+			for pid in "$${PIDS[@]}"; do \
+				wait "$$pid" 2>/dev/null || true; \
+			done; \
+		fi; \
+	}; \
+	on_signal() { \
+		cleanup; \
+		exit 0; \
+	}; \
+	trap on_signal SIGINT SIGTERM; \
+	trap cleanup EXIT; \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207 & PIDS+=($$!); \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8889 -m warden.scheduler & PIDS+=($$!); \
+	set +e; \
+	wait -n "$${PIDS[@]}"; \
+	STATUS=$$?; \
+	set -e; \
+	cleanup; \
+	exit $$STATUS'
 
 start-mock-pasqos:
 	cd tests && uvicorn mock_pasqos_api.app:app
@@ -83,4 +130,3 @@ update-requirements:
 
 run-db:
 	docker compose up -d
-
