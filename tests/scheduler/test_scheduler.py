@@ -1,6 +1,7 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
+import json
 import random
 from datetime import datetime, timedelta
 
@@ -111,7 +112,9 @@ async def test_run_nominal(
                 "uid": id,
                 "batch_id": SLURM_USER_ID,
                 "status": "DONE",
-                "result": '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]',
+                "result": json.dumps(
+                    [{"counter": {"0001": 1, "0010": 2, "0100": 3, "1000": 4}}]
+                ),
                 "program_id": QPU_PROGRAM_UID,
                 "created_datetime": NOW.isoformat(),
                 "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
@@ -542,7 +545,9 @@ async def test_run_retry_transient_errors(
                 "uid": id,
                 "batch_id": SLURM_USER_ID,
                 "status": "DONE",
-                "result": '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]',
+                "result": json.dumps(
+                    [{"counter": {"0001": 1, "0010": 2, "0100": 3, "1000": 4}}]
+                ),
                 "program_id": QPU_PROGRAM_UID,
                 "created_datetime": NOW.isoformat(),
                 "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),

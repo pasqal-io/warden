@@ -1,9 +1,46 @@
+import json
+
 import pytest
-from conftest import mock_munge_auth
-from httpx import AsyncClient
+from conftest import mock_munge_auth, mock_qpu_client
+from httpx import AsyncClient, Request, Response
+from pulser.devices import DigitalAnalogDevice
 
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
+
+
+@pytest.fixture
+def cudaq_payload() -> dict:
+    return {
+        "shots": 100,
+        "sequence": {
+            "setup": {
+                "ahs_register": {
+                    "sites": [[0.0, 0.0], [5e-6, 0.0], [0.0, 5e-6], [5e-6, 5e-6]],
+                    "filling": [1, 1, 1, 1],
+                }
+            },
+            "hamiltonian": {
+                "drivingFields": [
+                    {
+                        "amplitude": {
+                            "pattern": "uniform",
+                            "time_series": {"values": [0.0, 1e6], "times": [0.0, 1e-7]},
+                        },
+                        "phase": {
+                            "pattern": "uniform",
+                            "time_series": {"values": [0.0, 0.0], "times": [0.0, 1e-7]},
+                        },
+                        "detuning": {
+                            "pattern": "uniform",
+                            "time_series": {"values": [0.0, 0.0], "times": [0.0, 1e-7]},
+                        },
+                    }
+                ],
+                "localDetuning": [],
+            },
+        },
+    }
 
 
 @pytest.mark.asyncio
@@ -189,3 +226,73 @@ async def test_jobs_auth(client: AsyncClient):
     for method, route in test_cases:
         response = await client.request(method, route)
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload(
+    client: AsyncClient, app, cudaq_payload: dict
+):
+    """Assert that /jobs accepts CUDA-Q payload and stores normalized Pulser sequence."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    qpu_specs = json.loads(DigitalAnalogDevice.to_abstract_repr())
+    qpu_specs["name"] = "FRESNEL_CAN1"
+
+    def handler(request: Request) -> Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/api/v1/system")
+        return Response(200, json={"data": {"specs": qpu_specs}})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=cudaq_payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 200
+    job_id = response.json()["id"]
+
+    async_session = app.state.db_session_factory
+    async with async_session() as session:
+        job = await session.get(Job, job_id)
+    assert job is not None
+    assert isinstance(job.sequence, str)
+    sequence_dict = json.loads(job.sequence)
+    assert "operations" in sequence_dict
+    assert sequence_dict["device"]["name"] == "FRESNEL_CAN1"
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
+    client: AsyncClient, app, cudaq_payload: dict
+):
+    """Assert that CUDA-Q payload creation returns 503 when fetching QPU specs fails."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    def handler(request: Request) -> Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/api/v1/system")
+        return Response(503, json={"detail": "upstream unavailable"})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=cudaq_payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Failed to fetch QPU specs."

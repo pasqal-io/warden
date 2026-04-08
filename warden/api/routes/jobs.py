@@ -1,6 +1,8 @@
+import asyncio
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
+from httpx import HTTPStatusError, RequestError
 from sqlalchemy import select
 
 from warden.api.routes.dependencies.auth import (
@@ -9,8 +11,11 @@ from warden.api.routes.dependencies.auth import (
     verify_session,
 )
 from warden.api.routes.dependencies.db import DBSessionDep
+from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.jobs import Job, JobCreate, JobResponse
+from warden.api.utils.cudaq import normalize_job_sequence
 from warden.lib.models.sessions import Session
+from warden.lib.qpu_client.client import AsyncQPUClient
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
@@ -21,10 +26,28 @@ async def create_job(
     job: JobCreate,
     db: DBSessionDep,
     session: Session = Depends(verify_session),
+    qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
+    if isinstance(job.sequence, str):
+        normalized_sequence = job.sequence
+    else:
+        try:
+            qpu_specs = await qpu_client.get_specs()
+        except (RequestError, HTTPStatusError) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Failed to fetch QPU specs.",
+            ) from exc
+        try:
+            normalized_sequence = await asyncio.to_thread(
+                normalize_job_sequence, job.sequence, qpu_specs
+            )
+        except (ValueError, TypeError, NotImplementedError, KeyError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     new_job = Job(
         shots=job.shots,
-        sequence=job.sequence,
+        sequence=normalized_sequence,
         session_id=session.id,
     )
     db.add(new_job)

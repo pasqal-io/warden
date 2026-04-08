@@ -136,6 +136,13 @@ class QPUClient:
         """Base URI of the QPU (IP/version)."""
         return self._base_uri
 
+    @staticmethod
+    def _normalize_job_result(result: Any) -> str | None:
+        """Return job result as JSON text when payload is not already a string."""
+        if result is None or isinstance(result, str):
+            return result
+        return json.dumps(result)
+
     def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
         response = self.client.get("/system/operational")
@@ -152,6 +159,7 @@ class QPUClient:
         """Gets information on a submitted job."""
         response = self.client.get(f"/jobs/{job.uid}", no_retry)
         data = response.json()["data"]
+        data["result"] = self._normalize_job_result(data.get("result"))
         return QPUJobInfo(**data)
 
     def get_program_status(self, program_id: int) -> str:

@@ -1,16 +1,18 @@
 import json
 from contextlib import contextmanager
-from typing import Generator
+from typing import Callable, Generator
 
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, MockTransport, Request, Response
 
 from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
-from warden.lib.config.config import APIConfig, Config, SqliteConfig
+from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.lib.config.config import APIConfig, Config, QPUConfig, SqliteConfig
 from warden.lib.db.database import Base
+from warden.lib.qpu_client.client import AsyncQPUClient
 
 
 @pytest.fixture
@@ -36,6 +38,29 @@ async def client(app) -> AsyncClient:
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+MAX_RETRY = 10
+
+
+def make_qpu_client(handler: Callable[[Request], Response]) -> AsyncQPUClient:
+    """Create a QPUClient with a mocked HTTP transport."""
+    config = QPUConfig(uri="http://mock-qpu", retry_max=MAX_RETRY, retry_sleep_s=0)
+    client = AsyncQPUClient(config)
+    client.client = AsyncClient(
+        base_url=config.uri + "/api/v1", transport=MockTransport(handler)
+    )
+    return client
+
+
+@contextmanager
+def mock_qpu_client(
+    app, handler: Callable[[Request], Response]
+) -> Generator[None, None, None]:
+    app.dependency_overrides[get_qpu_client] = lambda: make_qpu_client(handler)
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_qpu_client, None)
 
 
 @contextmanager
