@@ -29,8 +29,8 @@ mariadb = ["asyncmy"]
 
 
 [tool.poetry.scripts]
-start = "uvicorn warden.main:app --reload --host 0.0.0.0 --port 8000"
-start-scheduler = "scheduler.main:main"
+start = "warden.api.main:app"
+start-scheduler = "warden.scheduler.main:main"
 
 [tool.poetry.group.dev.dependencies]
 debugpy = "^1.8.20"
