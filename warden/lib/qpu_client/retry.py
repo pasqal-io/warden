@@ -61,7 +61,7 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
                 pass
             elif isinstance(e, HTTPStatusError):
                 if e.response.status_code not in RETRY_HTTP_EXIT_CODES:
-                    raise NotRetriedHTTPStatus(e)
+                    raise NotRetriedHTTPStatus(e) from e
             else:
                 raise UnhandledError(e) from e
 
@@ -73,9 +73,9 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
                     return func(*args, **kwargs)
                 except Exception as e:
                     if no_retry:
-                        raise QPUClientRequestError(e)
+                        raise QPUClientRequestError(e) from e
                     if attempt >= max:
-                        raise MaxRetryError(e)
+                        raise MaxRetryError(e) from e
                     _handle_exception(e)
                 time.sleep(sleep_s)
                 attempt += 1
@@ -88,9 +88,9 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
                     return await func(*args, **kwargs)
                 except Exception as e:
                     if no_retry:
-                        raise QPUClientRequestError(e)
+                        raise QPUClientRequestError(e) from e
                     if attempt >= max:
-                        raise MaxRetryError(e)
+                        raise MaxRetryError(e) from e
                     _handle_exception(e)
                 await asyncio.sleep(sleep_s)
                 attempt += 1

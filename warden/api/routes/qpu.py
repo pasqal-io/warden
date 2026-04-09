@@ -1,10 +1,10 @@
 from logging import getLogger
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.qpu import QPUSpecsResponse
-from warden.lib.qpu_client.client import AsyncQPUClient
+from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/qpu")
@@ -23,4 +23,7 @@ async def get_specs(
     With the `Device` object, one can create a Pulser `Sequence` which defines the
     pulses to be executed on the QPU.
     """
-    return QPUSpecsResponse(specs=await client.get_specs())
+    try:
+        return QPUSpecsResponse(specs=await client.get_specs())
+    except QPUClientRequestError as e:
+        raise HTTPException(500, detail=f"Failed getting device specs: {e}")
