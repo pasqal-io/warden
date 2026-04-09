@@ -1,7 +1,6 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
-import math
 import random
 from datetime import datetime, timedelta
 
@@ -245,19 +244,26 @@ async def test_run_job_timeout(
 
 
     Test rationale:
-    - Set job_polling_timout to a positive number to avoid
-      infinite job status polling
+    - Set job_polling_timout to 0, jobs not DONE after the first status request
+      will be considered timedout.
     - Create N_JOBS dummy jobs to run
-    - Select N_JOBS_TIMEOUT random job ID that will timeout
+    - Select N_JOBS_TIMEOUT random job IDs that will timeout
+        - Out of which, half will be canceled, half will return as done because
+            job information was outdated and associated program was done when
+            when we try to cancel it.
     - PasqOS API is mocked:
         - To return QPU status as "UP"
         - To accept job creation requests
-        - To return "RUNNING" and then "DONE" status for each non-timeout job
+        - To return "DONE" job status for each job not in JOB_TIMEOUT_IDS
         - For each ID in JOB_TIMEOUT_IDS:
-            - Add N_JOB_POLLING_BEFORE_TIMEOUT "RUNNING" status return
+            - To return "RUNNING" job status, which will trigger the job cancelation.
             - Mock the job canceling API calls
-                - Jobs not in JOB_TIMEOUT_CANCELED_ID will return as DONE
-                - Jobs in JOB_TIMEOUT_CANCELED_ID return as CANCELED
+                - Jobs not in JOB_TIMEOUT_CANCELED_ID:
+                    - Mock a 400 response to the /job/ID/cancel request
+                    - Return a "DONE" job status in the subsequent job status
+                      request
+                - Jobs in JOB_TIMEOUT_CANCELED_ID:
+                    - Mock a 200 response to the /job/ID/cancel request
     - Run scheduler until:
         - All jobs are either "DONE" or "CANCELED"
         - Test timout after TEST_TIMOUT_S
@@ -278,26 +284,10 @@ async def test_run_job_timeout(
     JOB_TIMEOUT_IDS = random.sample([i for i in range(N_JOBS - 1)], N_JOBS_TIMEOUT)
     JOB_TIMEOUT_CANCELED_ID = JOB_TIMEOUT_IDS[0::2]
 
-    # Do not set timeout time to a multiple of interval time
-    # to have a deterministic number of polling requests
-    # and not be impacted by micro-timing variation within the test
-    JOB_POLLING_INTERVAL_S = 0.04
-    JOB_POLLING_TIMEOUT_S = 0.06
-
-    # +1 for initial poll before while loop
-    N_JOB_POLLING_BEFORE_TIMEOUT = (
-        int(math.ceil(JOB_POLLING_TIMEOUT_S / JOB_POLLING_INTERVAL_S)) + 1
-    )
-
     conf: Config = build_conf(strategy, QPU_URI)
-    # Set job_polling_timeout_s to a non-negative value to
-    # avoid infinite job status polling
-    conf.scheduler.job_polling_interval_s = (
-        JOB_POLLING_INTERVAL_S  # <----- IMPORTANT TO THIS TEST
-    )
-    conf.scheduler.job_polling_timeout_s = (
-        JOB_POLLING_TIMEOUT_S  # <----- IMPORTANT TO THIS TEST
-    )
+    # Set job_polling_timeout_s to 0 to force timeout
+    # if the first job status poll is not "DONE"
+    conf.scheduler.job_polling_timeout_s = 0  # <----- IMPORTANT TO THIS TEST
 
     ##################
     ### TEST SETUP ###
@@ -359,13 +349,12 @@ async def test_run_job_timeout(
             # Half the timeout jobs are actually done
             # before we try to cancel them
 
-            for _ in range(N_JOB_POLLING_BEFORE_TIMEOUT):
-                httpx_mock.add_response(
-                    method="GET",
-                    status_code=200,
-                    url=JOB_API + f"/{job_uid}",
-                    json=return_running_json,
-                )
+            httpx_mock.add_response(
+                method="GET",
+                status_code=200,
+                url=JOB_API + f"/{job_uid}",
+                json=return_running_json,
+            )
             # Job cancellation requests
             return_cancelled_job_status = {
                 "data": {
@@ -413,13 +402,6 @@ async def test_run_job_timeout(
                     json=return_done_json,
                 )
         else:
-            # Normal non-timeout job
-            httpx_mock.add_response(
-                method="GET",
-                status_code=200,
-                url=JOB_API + f"/{job_uid}",
-                json=return_running_json,
-            )
             httpx_mock.add_response(
                 method="GET",
                 status_code=200,
