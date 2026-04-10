@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from warden.lib.db.database import Base
@@ -32,3 +33,22 @@ class AccessibilitySettings(Base):
         default=lambda: datetime.now(timezone.utc),
         doc="Accessibility update timestamp",
     )
+
+
+async def get_latest_accessibility_settings(
+    db_session: AsyncSession,
+) -> AccessibilitySettings:
+    """Get the most recent accessibility settings record in db"""
+    result = await db_session.execute(
+        select(AccessibilitySettings).order_by(desc(AccessibilitySettings.id)).limit(1)
+    )
+    settings = result.scalar_one_or_none()
+
+    if settings is None:
+        # Create initial record with default behavior
+        settings = AccessibilitySettings()
+        db_session.add(settings)
+        await db_session.commit()
+        await db_session.refresh(settings)
+
+    return settings
