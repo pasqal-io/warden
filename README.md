@@ -111,3 +111,17 @@ Secrets are defined as environment variables:
 ```bash
 DATABASE_PASSWORD=secretpassword
 ```
+
+### Warden accessibility
+
+You can configure Warden to reject incomming jobs by running the following target as root user:
+
+```bash
+make update-accessbility IS_ACCESSIBLE=false MESSAGE="Disable Warden accessibility"
+```
+
+Accept jobs again by configuring Warden:
+
+```bash
+make update-accessbility IS_ACCESSIBLE=true MESSAGE="Enable Warden accessibility"
+```
