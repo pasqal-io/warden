@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio.engine import async_engine_from_config
 # Import models to be tracked by alembic
 from warden.lib.config import Config
 from warden.lib.db.database import Base, build_db_url
+from warden.lib.models import AccessibilitySettings, Job, Session  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

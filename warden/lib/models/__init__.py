@@ -1,6 +1,7 @@
 # Make sure to import all models here so that they are tracked by alembic
 
+from .accessible import AccessibilitySettings
 from .jobs import Job
 from .sessions import Session
 
-__all__ = ["Job", "Session"]
+__all__ = ["Job", "Session", "AccessibilitySettings"]
