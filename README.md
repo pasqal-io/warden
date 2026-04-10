@@ -14,13 +14,18 @@ For optional/dev requirements, check [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Installation
 
-You should run these commands once after cloning the repo, and every time you update Warden.
-
-Create the default config file `warden/config/warden.yaml` (creates a backup of your existing config if it exists):
+Quick install/update (one-liner):
 
 ```bash
-make init-config
+# curl -fsSL https://raw.githubusercontent.com/pasqal-io/warden/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/pasqal-io/warden/ac9173bb463cf70198f8611eebbbfff1b4a83e40/install.sh | sudo bash
 ```
+
+## More details
+
+Create the default config file `config.yaml` at the project root (creates a backup of your existing config if it exists):
+
+The config file is created automatically by `make install` if it does not exist.
 
 Install Warden dependencies:
 
@@ -40,16 +45,16 @@ make install-mariadb
 ## Run Warden
 
 ```bash
-make start
+make run
 ```
 
 ## Configuration
 
 Configuration is done:
-1. using the config file `warden/config/config.yaml`
+1. using the config file `config.yaml` at the project root
 2. using environment variables - takes precedence over the config file
 
-Configuration keys from `warden/config/config.yaml` can be set or overridden by environment variables, by converting the key path to uppercase and separating nested keys with underscores.
+Configuration keys from `config.yaml` can be set or overridden by environment variables, by converting the key path to uppercase and separating nested keys with underscores.
 
 For example, given the following YAML:
 
@@ -68,7 +73,17 @@ DATABASE_PASSWORD="secret"
 The following options are configurable:
 
 - Database backend
-- Logging (see `warden/config/config.yaml` for more configuration details)
+- API bind address and port
+- Logging (see `config.yaml` for more configuration details)
+
+### API server
+
+The API server host and port are configurable through the YAML config or environment:
+
+| Path/Variable        | Description                                                               | Default           | Required | Example Value                                    |
+|----------------------|---------------------------------------------------------------------------|-------------------|----------|--------------------------------------------------|
+| `api.host` (config file) <br> `API_HOST` (env var) | API bind host address                                                   | `0.0.0.0`         | No       | `127.0.0.1`                                      |
+| `api.port` (config file) <br> `API_PORT` (env var) | API bind port                                                           | `4207`            | No       | `8080`                                           |
 
 ### Database
 
@@ -89,15 +104,15 @@ Below is a table of all configuration variables available for Warden's database:
 | `DATABASE_PASSWORD` (env var) | Password for the database user (PostgreSQL/MariaDB)                          |                   | If using Postgres/MariaDB | `secretpassword`                            |
 
 **Note:**
-- **IT IS RECOMMENDED NOT TO SAVE PASSWORDS IN CLEARTEXT FILES SUCH AS `warden/config/config.yaml`!**
+- **IT IS RECOMMENDED NOT TO SAVE PASSWORDS IN CLEARTEXT FILES SUCH AS `config.yaml`!**
 - Only `DATABASE_BACKEND` and `DATABASE_NAME` are required for SQLite (default), which are set in the default config file.
 - For PostgreSQL, you must provide at least `DATABASE_USER` and `DATABASE_PASSWORD`, and often `DATABASE_HOST` and `DATABASE_PORT` depending on your environment.
-- All variables can be set in the `warden/config/config.yaml` file (but passwords _should_ not) _or_ as an environment variable.
+- All variables can be set in the `config.yaml` file (but passwords _should_ not) _or_ as an environment variable.
 
 Example for PostgreSQL:
 
 ```yaml
-# warden/config/config.yaml
+# config.yaml
 database:
   backend: postgres
   name: warden

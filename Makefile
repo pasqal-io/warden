@@ -1,27 +1,80 @@
-PYTHON ?= python
+include config.mk
 
-.PHONY: init-config install install-pg install-mariadb start ping migrate lint format
+.PHONY: install install-pg install-mariadb start ping alembic migrate lint format
+
+INSTALL_FLAGS=
+ifeq ($(WITH_PG),1)
+INSTALL_FLAGS  += -r requirements-pg.txt
+endif
+ifeq ($(WITH_MARIADB),1)
+INSTALL_FLAGS  += -r requirements-mariadb.txt
+endif
 
 # cluster admin commands
 
-init-config:
-	cp --backup=numbered warden/lib/config/config.sample.yaml warden/lib/config/config.yaml
+config.yaml:
+	@new_config="warden/lib/config/config.sample.yaml"; \
+	if [ ! -f config.yaml ]; then \
+		cp "$$new_config" config.yaml; \
+		exit 0; \
+	fi; \
+	if cmp -s "$$new_config" config.yaml; then \
+		exit 0; \
+	fi; \
+	last_i=0; \
+	i=1; \
+	while [ -e "config.backup-$$i.yaml" ]; do \
+		last_i=$$i; \
+		i=$$((i + 1)); \
+	done; \
+	if [ "$$last_i" -eq 0 ] || ! cmp -s config.yaml "config.backup-$$last_i.yaml"; then \
+		cp config.yaml "config.backup-$$i.yaml"; \
+	fi; \
+	cp "$$new_config" config.yaml
 
-install:
-	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
-	pip install -r requirements.txt
+$(VENV)/bin/python: config.yaml
+	@if [ -z "$(PYTHON)" ]; then \
+		echo "Usage: make venv PYTHON=/path/to/python"; \
+		exit 1; \
+	fi
+	@if [ -d $(VENV) ]; then \
+		echo "$(VENV) already created"; \
+	else \
+		echo "Creating $(VENV) with $(PYTHON)"; \
+		$(PYTHON) -m venv $(VENV); \
+		echo "Virtualenv created in $(VENV) using $(PYTHON)"; \
+	fi
 
-install-pg: install
-	pip install -r requirements.txt -r requirements-pg.txt
+install: $(VENV)/bin/python
+	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
 
-install-mariadb: install
-	pip install -r requirements.txt -r requirements-mariadb.txt
-
-start: migrate
-	python -m uvicorn warden.api.main:app --host 0.0.0.0 --port 4207
-
-start-scheduler:
-	python  -m warden.scheduler
+run: migrate
+	@bash -c '\
+	set -uo pipefail; \
+	PIDS=(); \
+	cleanup() { \
+		trap - SIGINT SIGTERM EXIT; \
+		if [ "$${#PIDS[@]}" -gt 0 ]; then \
+			kill -TERM "$${PIDS[@]}" 2>/dev/null || true; \
+			for pid in "$${PIDS[@]}"; do \
+				wait "$$pid" 2>/dev/null || true; \
+			done; \
+		fi; \
+	}; \
+	on_signal() { \
+		cleanup; \
+		exit 0; \
+	}; \
+	trap on_signal SIGINT SIGTERM; \
+	trap cleanup EXIT; \
+	$(VENV)/bin/python -m warden.api.main & PIDS+=($$!); \
+	$(VENV)/bin/python -m warden.scheduler & PIDS+=($$!); \
+	set +e; \
+	wait -n "$${PIDS[@]}"; \
+	STATUS=$$?; \
+	set -e; \
+	cleanup; \
+	exit $$STATUS'
 
 ping:
 	curl localhost:4207
@@ -29,18 +82,45 @@ ping:
 migrate:
 	$(MAKE) alembic ARGS="upgrade head"
 
+alembic:
+	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)
+
 # dev/contributors methods
 
 .PHONY: install-dev start-dev start-mock-pasqos start-mock-pasqos-dev test lint-check lint-fix update-requirements run-db alembic
 
-install-dev:
-	@test -f warden/lib/config/config.yaml || $(MAKE) init-config
-	python -m pip install poetry==2.3.3
+install-dev: config.yaml
+	$(VENV)/bin/python -m pip install poetry==2.3.3
 	poetry install --with dev --all-extras
 	$(MAKE) migrate
 
-start-dev: migrate
-	poetry run python -m debugpy --listen 0.0.0.0:8888 -m uvicorn warden.api.main:app --reload --host 0.0.0.0 --port 4207
+dev: migrate
+	@bash -c '\
+	set -uo pipefail; \
+	PIDS=(); \
+	cleanup() { \
+		trap - SIGINT SIGTERM EXIT; \
+		if [ "$${#PIDS[@]}" -gt 0 ]; then \
+			kill -TERM "$${PIDS[@]}" 2>/dev/null || true; \
+			for pid in "$${PIDS[@]}"; do \
+				wait "$$pid" 2>/dev/null || true; \
+			done; \
+		fi; \
+	}; \
+	on_signal() { \
+		cleanup; \
+		exit 0; \
+	}; \
+	trap on_signal SIGINT SIGTERM; \
+	trap cleanup EXIT; \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8888 -m warden.api.main --reload & PIDS+=($$!); \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8889 -m warden.scheduler & PIDS+=($$!); \
+	set +e; \
+	wait -n "$${PIDS[@]}"; \
+	STATUS=$$?; \
+	set -e; \
+	cleanup; \
+	exit $$STATUS'
 
 start-mock-pasqos:
 	cd tests && uvicorn mock_pasqos_api.app:app
@@ -66,7 +146,3 @@ update-requirements:
 
 run-db:
 	docker compose up -d
-
-# Usage: make alembic ARGS="upgrade head"
-alembic:
-	python -m alembic -c warden/api/alembic.ini $(ARGS)

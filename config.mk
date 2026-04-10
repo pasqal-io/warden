@@ -1,0 +1,5 @@
+INSTALL_DIR=/opt/warden
+PYTHON=python3
+VENV=venv
+WITH_PG=1
+WITH_MARIADB=0

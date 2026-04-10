@@ -47,9 +47,6 @@ jobs:
       - name: Install dependencies
         run: poetry install --with dev --all-extras
 
-      - name: Initialise default config
-        run: make init-config
-
       - name: Lint — ruff lint/format check
         run: make lint-check
 

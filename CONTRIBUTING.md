@@ -19,23 +19,15 @@ make install-dev
 This will:
 - Install Poetry
 - Install dependencies
-- Create the default `warden/lib/config/config.yaml` file if it does not exist yet
+- Create the default `config.yaml` file at the project root if it does not exist yet
 - Run migrations for the default SQLite DB
 
 ## Run dev server
 
-```bash
-make install
-```
-
-## Run in development mode
-
 > You will need a database instance accessible locally. For convenience a simple sqlite DB is provided as a default. This db was already initialized if you ran the `make install-dev` above. See below for more details about the DB.
 
-Run the API with hot-reload:
-
 ```bash
-make start-dev
+make dev
 ```
 
 Verify the API is running:
