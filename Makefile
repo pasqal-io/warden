@@ -35,7 +35,6 @@ define ACCESSIBLE_POST_JSON_PAYLOAD
 {"is_accessible": $(IS_ACCESSIBLE), "message": "$(MESSAGE)"}
 endef
 
-# Usage: make update-accessible ACCESSIBLE=true MESSAGE="Update message"
 update-accessible:
 
 	@if [ -z "$(IS_ACCESSIBLE)" ]; then \
