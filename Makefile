@@ -23,9 +23,6 @@ start: migrate
 start-scheduler:
 	python  -m warden.scheduler
 
-ping:
-	curl localhost:4207
-
 migrate:
 	$(MAKE) alembic ARGS="upgrade head"
 
@@ -51,6 +48,9 @@ update-accessible:
 		-H "X-Munge-Cred: $$(munge -n)" \
 		-H "Content-Type: application/json" \
 		-d '$(ACCESSIBLE_POST_JSON_PAYLOAD)'
+
+ping:
+	curl $(URL)
 
 # dev/contributors methods
 
