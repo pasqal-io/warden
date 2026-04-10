@@ -1,3 +1,3 @@
-from .main import main
+from warden.scheduler.main import main
 
 main()

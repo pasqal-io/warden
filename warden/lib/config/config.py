@@ -57,6 +57,9 @@ class SchedulerConfig(BaseSettings):
 class QPUConfig(BaseSettings):
     uri: str
 
+    retry_max: int
+    retry_sleep_s: float
+
     _client = PrivateAttr(default_factory=httpx.Client)
 
     @property

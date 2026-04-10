@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient, MockTransport, Request, Response
 
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.lib.config import QPUConfig
 from warden.lib.qpu_client.client import AsyncQPUClient
 
 
@@ -80,10 +81,16 @@ def qpu_specs() -> dict:
     }
 
 
+MAX_RETRY = 10
+
+
 def make_qpu_client(handler: Callable[[Request], Response]) -> AsyncQPUClient:
     """Create a QPUClient with a mocked HTTP transport."""
-    client = AsyncQPUClient(uri="http://mock-qpu")
-    client.client = AsyncClient(transport=MockTransport(handler))
+    config = QPUConfig(uri="http://mock-qpu", retry_max=MAX_RETRY, retry_sleep_s=0)
+    client = AsyncQPUClient(config)
+    client.client = AsyncClient(
+        base_url=config.uri + "/api/v1", transport=MockTransport(handler)
+    )
     return client
 
 
@@ -109,6 +116,34 @@ async def test_get_specs_success(client: AsyncClient, app, qpu_specs: dict):
 
     def handler(request: Request) -> Response:
         return Response(200, json={"data": {"specs": qpu_specs}})
+
+    with mock_qpu_client(app, handler):
+        response = await client.get("/qpu/specs")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["specs"] == json.dumps(qpu_specs)
+
+
+@pytest.mark.asyncio
+async def test_get_specs_success_retry(client: AsyncClient, app, qpu_specs: dict):
+    """Nominal test case: assert that QPU specs are returned successfully
+    even after transient PasqOS error retry.
+
+    1. Mock the QPU HTTP response to return a known specs payload after
+       several 503 errors
+    2. Call GET /qpu/specs
+    3. Assert the response matches the mocked specs
+    """
+
+    mem = 0
+
+    def handler(request: Request) -> Response:
+        nonlocal mem
+        if mem == MAX_RETRY - 1:
+            return Response(200, json={"data": {"specs": qpu_specs}})
+        mem += 1
+        return Response(503, json={"error": "QPU unavailable"})
 
     with mock_qpu_client(app, handler):
         response = await client.get("/qpu/specs")

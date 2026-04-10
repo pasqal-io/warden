@@ -6,7 +6,7 @@ from warden.lib.qpu_client.client import AsyncQPUClient
 
 def init_qpu_client(app: FastAPI, qpu_config: QPUConfig):
     """Initialize the QPU client."""
-    app.state.qpu_client = AsyncQPUClient(qpu_config.uri)
+    app.state.qpu_client = AsyncQPUClient(qpu_config)
 
 
 def get_qpu_client(request: Request) -> AsyncQPUClient:
