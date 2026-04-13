@@ -10,11 +10,6 @@ class JobCreate(BaseModel):
     shots: int
 
 
-class JobPatch(BaseModel):
-    status: str
-    results: str
-
-
 class JobResponse(BaseModel):
     id: int
     user_id: str

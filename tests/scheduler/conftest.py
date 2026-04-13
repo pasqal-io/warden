@@ -1,5 +1,6 @@
 """Pytest fixture and configurations"""
 
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -7,7 +8,7 @@ from warden.lib.config.config import Config, SqliteConfig
 from warden.lib.db.database import Base, build_db_url
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest.fixture(scope="session")
 def config_db():
     db_config = SqliteConfig(backend="sqlite", name="scheduler_test.db", echo=False)
     yield Config(database=db_config)

@@ -58,6 +58,12 @@ qpu:
   # Local Pasqal QPU API configuration
   uri: http://localhost:4300
 
+  # Request retry policy
+  # Max number of retries to the QPU API in case of 
+  # transient errors during requests
+  retry_max: 10
+  # Time between request retries
+  retry_sleep_s: 1
 
 logging:
   version: 1

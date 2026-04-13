@@ -13,8 +13,7 @@ from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from warden.lib.db.database import Base
-
-from .sessions import Session
+from warden.lib.models.sessions import Session
 
 
 class Job(Base):
