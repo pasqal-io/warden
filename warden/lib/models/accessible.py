@@ -8,6 +8,12 @@ from warden.lib.db.database import Base
 
 
 class AccessibilitySettings(Base):
+    """Table to store accessibility settings status and history.
+
+    Latest row's is_acecssible attribute represents the current state
+    of Warden's /accessible endpoint.
+    """
+
     __tablename__ = "accessibility_settings"
 
     id: Mapped[int] = mapped_column(

@@ -65,9 +65,7 @@ async def verify_root(identity: MungeIdentity = Depends(munge_identity)) -> None
     # TODO: is the slurm UID necessarily 0?
     # Otherwise make it configurable
     if identity.uid != 0:
-        raise HTTPException(
-            status_code=403, detail="Endpoint restricted to slurm root user."
-        )
+        raise HTTPException(status_code=403, detail="Endpoint restricted to root user.")
     return identity
 
 

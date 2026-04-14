@@ -114,14 +114,14 @@ DATABASE_PASSWORD=secretpassword
 
 ### Configure accessibility
 
-You can configure Warden to reject all incomming jobs by running the following target as root user:
+You can configure Warden to reject all incoming jobs by running the following target as root user:
 
 ```bash
-make update-accessbility IS_ACCESSIBLE=false MESSAGE="Scheduled QPU maintenance"
+make set-accessible IS_ACCESSIBLE=false MESSAGE="Scheduled QPU maintenance"
 ```
 
 Configure Warden to accept jobs again by configuring:
 
 ```bash
-make update-accessbility IS_ACCESSIBLE=true MESSAGE="Maintenance done"
+make set-accessible IS_ACCESSIBLE=true MESSAGE="Maintenance done"
 ```

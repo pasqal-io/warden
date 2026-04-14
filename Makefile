@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: init-config install install-pg install-mariadb start ping migrate lint format update-accessible
+.PHONY: init-config install install-pg install-mariadb start ping migrate lint format set-accessible
 
 # cluster admin commands
 
@@ -35,11 +35,11 @@ define ACCESSIBLE_POST_JSON_PAYLOAD
 {"is_accessible": $(IS_ACCESSIBLE), "message": "$(MESSAGE)"}
 endef
 
-update-accessible:
+set-accessible:
 
 	@if [ -z "$(IS_ACCESSIBLE)" ]; then \
 		echo "ERROR 'IS_ACCESSIBLE' is required."; \
-		echo "Usage: make update-accessible IS_ACCESSIBLE=[true|false] MESSAGE=\"Update\""; \
+		echo "Usage: make set-accessible IS_ACCESSIBLE=[true|false] MESSAGE=\"Update\""; \
 		exit 1; \
 	fi
 
