@@ -35,6 +35,7 @@ config.yaml:
 	fi; \
 	cp "$$new_config" config.yaml
 
+# Note: the --copies flag is used to create a copy of the binaries, since a symlink may not always work
 $(VENV)/bin/python: config.yaml
 	@if [ -z "$(PYTHON)" ]; then \
 		echo "Usage: make venv PYTHON=/path/to/python"; \
@@ -44,7 +45,7 @@ $(VENV)/bin/python: config.yaml
 		echo "$(VENV) already created"; \
 	else \
 		echo "Creating $(VENV) with $(PYTHON)"; \
-		$(PYTHON) -m venv $(VENV); \
+		$(PYTHON) -m venv --copies $(VENV); \
 		echo "Virtualenv created in $(VENV) using $(PYTHON)"; \
 	fi
 

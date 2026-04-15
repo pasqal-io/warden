@@ -1,0 +1,15 @@
+# /etc/systemd/system/warden.service
+[Unit]
+Description=Warden
+
+[Service]
+WorkingDirectory=/opt/warden
+Environment="WARDEN_QPU_URI=http://localhost:8005"
+Environment="WARDEN_API_PORT=8006"
+ExecStart=make run
+Restart=always
+RestartSec=3
+SyslogIdentifier=warden
+
+[Install]
+WantedBy=multi-user.target

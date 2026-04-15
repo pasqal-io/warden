@@ -1,3 +1,0 @@
-[Unit]
-Description=Warden
-Wants=warden.scheduler.service warden.api.service
