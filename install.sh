@@ -96,8 +96,6 @@ fi
 # Change to the cloned directory
 cd "$INSTALL_DIR"
 
-git checkout an/test-install
-
 # Wait for user input
 while true; do
     warn "Open ${INSTALL_DIR}/config.mk to review the configuration before proceeding with installation."
