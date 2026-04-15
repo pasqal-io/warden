@@ -1,9 +1,9 @@
 include config.mk
 
 
-.PHONY: init-config install install-pg install-mariadb start ping migrate lint format set-accessible
-
-.PHONY: install install-pg install-mariadb start ping alembic migrate lint format
+.PHONY: alembic dev install install-dev lint-check lint-fix migrate ping run \
+ run-db run-with-python set-accessible start-mock-qpu start-mock-qpu-dev \
+ test update-requirements
 
 INSTALL_FLAGS=
 ifeq ($(WITH_PG),1)
@@ -115,8 +115,6 @@ alembic:
 	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)
 
 # dev/contributors methods
-
-.PHONY: install-dev start-dev start-mock-qpu start-mock-qpu-dev test lint-check lint-fix update-requirements run-db alembic
 
 install-dev: config.yaml
 	$(VENV)/bin/python -m pip install poetry==2.3.3

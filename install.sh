@@ -114,6 +114,6 @@ info "Running installation..."
 make install
 
 success "Installation complete! You can now:"
-printf "%b\n" "1. Configure the Warden installation by editing the ${COLOR_BOLD}${INSTALL_DIR}/config.yaml${COLOR_RESET}"
+printf "%b\n" "1. Configure the Warden installation by editing the ${COLOR_BOLD}${INSTALL_DIR}/config.yaml${COLOR_RESET} file"
 printf "%b\n" "2. Run ${COLOR_BOLD}cd ${INSTALL_DIR} && make run${COLOR_RESET} to start Warden."
 printf "%b\n" "3. Check the full configuration guide in the README at https://github.com/pasqal-io/warden"
