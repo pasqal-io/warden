@@ -118,7 +118,7 @@ alembic:
 
 install-dev: config.yaml
 	$(VENV)/bin/python -m pip install poetry==2.3.3
-	poetry install --with dev --all-extras
+	$(VENV)/bin/python -m poetry install --with dev --all-extras
 	$(MAKE) migrate
 
 dev: migrate
