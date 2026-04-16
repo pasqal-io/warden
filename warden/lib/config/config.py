@@ -5,8 +5,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 import yaml
-from pydantic import Field, PrivateAttr, model_validator
-from pydantic import BeforeValidator, Field, PrivateAttr
+from pydantic import BeforeValidator, Field, PrivateAttr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_PREFIX = "/api/v1"
@@ -69,10 +68,6 @@ class QPUConfig(BaseSettings):
         return self._client
 
 
-class APIConfig(BaseSettings):
-    host: str
-    port: int
-
 def coerce_to_str(v):
     for item in v:
         if type(item) not in (str, int):
@@ -80,9 +75,11 @@ def coerce_to_str(v):
     return [str(item) for item in v]
 
 
-class UsersConfig(BaseSettings):
-    # processing authorized_list as strings but allowing users to input numbers
-    authorized_list: Annotated[list[str], BeforeValidator(coerce_to_str)]
+class APIConfig(BaseSettings):
+    host: str
+    port: int
+    # processing authorized_users as strings but allowing users to input numbers
+    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)]
 
 
 class Config(BaseSettings):
@@ -91,7 +88,6 @@ class Config(BaseSettings):
     scheduler: SchedulerConfig
     logging: dict[str, Any]
     qpu: QPUConfig
-    users: UsersConfig
 
     model_config = SettingsConfigDict(
         env_file=".env",

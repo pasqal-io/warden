@@ -32,9 +32,9 @@ async def test_create_session_no_auth(client):
 
 @pytest.mark.asyncio
 async def test_create_session_non_authorized_user(client, app):
-    """Creating a session using a non-authorized user when authorized_list is not empty"""
+    """Creating a session using a non-authorized user when authorized_users is not empty"""
     # Setting authorized user list
-    app.state.users_config.authorized_list = ["2000"]
+    app.state.authorized_users = ["2000"]
 
     payload = {"user_id": "1000", "slurm_job_id": "1"}
     with mock_munge_auth(app, uid=0):
@@ -44,9 +44,9 @@ async def test_create_session_non_authorized_user(client, app):
 
 @pytest.mark.asyncio
 async def test_create_session_authorized_user(client, app):
-    """Creating a session using an authorized user when authorized_list is not empty"""
+    """Creating a session using an authorized user when authorized_users is not empty"""
     # Setting authorized user list
-    app.state.users_config.authorized_list = ["1000"]
+    app.state.authorized_users = ["1000"]
 
     payload = {"user_id": "1000", "slurm_job_id": "1"}
     with mock_munge_auth(app, uid=0):

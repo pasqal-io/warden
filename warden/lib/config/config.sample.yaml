@@ -3,6 +3,10 @@ api:
   host: 0.0.0.0
   # API bind port
   port: 4207
+  # List of user id authorized to create new jobs on the QPU by creating a new session.
+  # Must be list of strings or integers.
+  # If userlist is empty, all users are authorized.
+  authorized_users: []
 
 database:
   # echo: false # Optional, SQLAlchemy echo
@@ -70,11 +74,6 @@ qpu:
   retry_max: 10
   # Time between request retries
   retry_sleep_s: 1
-
-users:
-  # List of user id authorized to access Warden, must be list of strings or integers.
-  # If userlist is empty, all users are authorized.
-  authorized_list: []
 
 logging:
   version: 1
