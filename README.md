@@ -78,6 +78,14 @@ The API server host and port are configurable through the YAML config or environ
 | `api.host` | `WARDEN_API_HOST` | API bind host address   | `0.0.0.0` | Yes      | `127.0.0.1`   |
 | `api.port` | `WARDEN_API_PORT` | API bind port           | `4207`    | Yes      | `8080`        |
 
+The API server can also be configured to only accept new jobs from configured user IDs:
+
+| Path       | Description             | Default   | Required | Example Value |
+|------------|-------------------------|-----------|----------|---------------|
+| `api.authorized_users` | List of user IDs auhorized to create new jobs  | `[]` | Yes      | `["1000", "2000", "0"]`   |
+
+The default value `[]` allows all users to create new jobs.
+
 ### Database
 
 Warden supports the following databases:

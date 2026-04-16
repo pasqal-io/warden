@@ -23,7 +23,9 @@ async def create_session(
     _=Depends(verify_root),
 ) -> SessionResponse:
     if authorized_users != [] and payload.user_id not in authorized_users:
-        logger.info(f"Unauthorized user: {payload.user_id} attempting to create a session.")
+        logger.info(
+            f"Unauthorized user: {payload.user_id} attempting to create a session."
+        )
         raise HTTPException(status_code=403, detail="User ID not authorized.")
     new_session = Session(
         user_id=str(payload.user_id),
