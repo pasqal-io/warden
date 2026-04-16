@@ -64,8 +64,9 @@ WARDEN_DATABASE_PASSWORD="secret"
 
 The following options are configurable:
 
-- Database backend
 - API bind address and port
+- QPU API uri
+- Database backend
 - Scheduler polling intervals
 - Logging (see `config.yaml` for more configuration details)
 
@@ -73,10 +74,19 @@ The following options are configurable:
 
 The API server host and port are configurable through the YAML config or environment:
 
-| Path       | Variable   | Description             | Default   | Required | Example Value |
-|------------|------------|-------------------------|-----------|----------|---------------|
+| Path       | Variable          | Description             | Default   | Required | Example Value |
+|------------|-------------------|-------------------------|-----------|----------|---------------|
 | `api.host` | `WARDEN_API_HOST` | API bind host address   | `0.0.0.0` | Yes      | `127.0.0.1`   |
-| `api.port` | `WARDEN_API_PORT` | API bind port           | `4207`    | Yes      | `8080`        |
+| `api.port` | `WARDEN_API_PORT` | API bind port           | `8006`    | Yes      | `8080`        |
+
+### QPU 
+
+Warden's access to the PASQAL QPU can be configured through the YAML config or environment:
+
+| Path       | Variable          | Description             | Default                 | Required | Example Value             |
+|------------|-------------------|-------------------------|-------------------------|----------|---------------------------|
+| `qpu.uri`  | `WARDEN_QPU_URI`  | PASQAL QPU API uri      | `http://localhost:8005` | Yes      | `http://127.0.0.1:8005`   |
+
 
 The API server can also be configured to only accept new jobs from configured user IDs:
 

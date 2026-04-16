@@ -2,7 +2,7 @@ api:
   # API bind address
   host: 0.0.0.0
   # API bind port
-  port: 4207
+  port: 8006
   # List of user id authorized to create new jobs on the QPU by creating a new session.
   # Must be list of strings or integers.
   # If userlist is empty, all users are authorized.
@@ -66,7 +66,7 @@ scheduler:
 
 qpu:
   # Local Pasqal QPU API configuration
-  uri: http://localhost:4300
+  uri: http://localhost:8005
 
   # Request retry policy
   # Max number of retries to the QPU API in case of 

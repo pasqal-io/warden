@@ -65,4 +65,6 @@ DUMMY_QPU_SPECS = {
     ],
     "is_virtual": False,
 }
-FAKE_RESULTS = str({"counters": {"0001": 1, "0010": 2, "0100": 3, "1000": 4}})
+FAKE_RESULTS = str(
+    {"counter": {"0000": 477, "0010": 3, "0110": 1, "0001": 8, "0100": 7, "1000": 4}}
+)

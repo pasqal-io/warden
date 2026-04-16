@@ -30,6 +30,7 @@ async def create_job(
     db.add(new_job)
     await db.flush()
     await db.commit()
+    logger.info(f"Created warden job {new_job.id} for slurm job {session.slurm_job_id}")
     return JobResponse.from_model(new_job)
 
 

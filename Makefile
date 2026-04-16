@@ -86,7 +86,7 @@ migrate:
 	$(MAKE) alembic ARGS="upgrade head"
 
 # cluster admin warden requests 
-URL ?= http://localhost:4207
+URL ?= http://localhost:8006
 MESSAGE ?= Update
 
 define ACCESSIBLE_POST_JSON_PAYLOAD
