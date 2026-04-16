@@ -3,9 +3,9 @@ import logging
 from fastapi import FastAPI
 
 from warden.api.routes import accessible, jobs, qpu, sessions
+from warden.api.routes.dependencies.authorized_users import init_authorized_users
 from warden.api.routes.dependencies.db import init_db
 from warden.api.routes.dependencies.qpu_client import init_qpu_client
-from warden.api.routes.dependencies.authorized_users import init_authorized_users
 from warden.lib.config import Config
 
 
