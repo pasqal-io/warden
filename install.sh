@@ -1,6 +1,7 @@
 #!/bin/bash
 
 DEFAULT_INSTALL_DIR="/opt/warden"
+WARDEN_VERSION="v0.1.0"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     COLOR_BOLD=$'\033[1m'
@@ -86,7 +87,7 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     # Update the existing repository
     info "Updating existing checkout in $INSTALL_DIR..."
     cd "$INSTALL_DIR"
-    git pull
+    git fetch --tags origin
 else
     # Clone the repository
     info "Cloning Warden into $INSTALL_DIR..."
@@ -95,6 +96,8 @@ fi
 
 # Change to the cloned directory
 cd "$INSTALL_DIR"
+info "Checking out Warden ${WARDEN_VERSION}..."
+git checkout "$WARDEN_VERSION"
 
 # Wait for user input
 while true; do
