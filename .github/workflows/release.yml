@@ -1,0 +1,170 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, with or without the leading v
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  POETRY_VERSION: "2.3.3"
+  TRIVY_VERSION: "0.70.0"
+
+jobs:
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        id: release-meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME}"
+          fi
+
+          version="${version#v}"
+          tag="v${version}"
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export>=1.8"
+
+      - name: Verify pyproject version matches release version
+        env:
+          EXPECTED_VERSION: ${{ steps.release-meta.outputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import tomllib
+
+          pyproject = pathlib.Path("pyproject.toml")
+          version = tomllib.loads(pyproject.read_text(encoding="utf-8"))["tool"]["poetry"]["version"]
+          expected = os.environ["EXPECTED_VERSION"]
+
+          if version != expected:
+              raise SystemExit(
+                  f"pyproject.toml version {version!r} does not match release version {expected!r}"
+              )
+
+          print(f"Verified release version {version}")
+          PY
+
+      - name: Export requirements into a temporary directory
+        run: make update-requirements REQUIREMENTS_EXPORT_DIR="$RUNNER_TEMP/requirements-export"
+
+      - name: Fail if committed exports drift from Poetry
+        run: |
+          python .github/scripts/check_requirements_drift.py \
+            --expected-dir "$GITHUB_WORKSPACE" \
+            --generated-dir "$RUNNER_TEMP/requirements-export"
+
+      - name: Smoke test pip install path
+        run: |
+          python -m venv "$RUNNER_TEMP/pip-smoke"
+          "$RUNNER_TEMP/pip-smoke/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/pip-smoke/bin/python" -m pip install -r requirements.txt
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+
+      - name: Generate SBOM artifacts
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/sbom"
+
+          trivy fs \
+            --skip-files poetry.lock \
+            --detection-priority comprehensive \
+            --file-patterns 'pip:^requirements\.txt$' \
+            --scanners vuln,license \
+            --format cyclonedx \
+            --output "$RUNNER_TEMP/sbom/warden-sbom.cdx.json" \
+            .
+
+          trivy fs \
+            --skip-files poetry.lock \
+            --detection-priority comprehensive \
+            --file-patterns 'pip:^requirements-pg\.txt$' \
+            --scanners vuln,license \
+            --format cyclonedx \
+            --output "$RUNNER_TEMP/sbom/warden-sbom-pg.cdx.json" \
+            .
+
+          trivy fs \
+            --skip-files poetry.lock \
+            --detection-priority comprehensive \
+            --file-patterns 'pip:^requirements-mariadb\.txt$' \
+            --scanners vuln,license \
+            --format cyclonedx \
+            --output "$RUNNER_TEMP/sbom/warden-sbom-mariadb.cdx.json" \
+            .
+
+      - name: Collect artifacts and checksums
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cp "$RUNNER_TEMP"/sbom/*.json "$RUNNER_TEMP/release-assets/"
+
+          for file in "$RUNNER_TEMP"/release-assets/*; do
+            sha256sum "$file" > "$file.sha256"
+          done
+
+      - name: Create GitHub Release if needed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release-meta.outputs.tag }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists."
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --generate-notes \
+          || gh release view "$TAG" >/dev/null 2>&1
+
+      - name: Upload release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release-meta.outputs.tag }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          assets=("$RUNNER_TEMP"/release-assets/*)
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets were collected." >&2
+            exit 1
+          fi
+
+          gh release upload "$TAG" "${assets[@]}" --clobber

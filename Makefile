@@ -12,6 +12,7 @@ endif
 ifeq ($(WITH_MARIADB),1)
 INSTALL_FLAGS  += -r requirements-mariadb.txt
 endif
+REQUIREMENTS_EXPORT_DIR ?= .
 
 # cluster admin commands
 
@@ -168,9 +169,10 @@ lint-fix:
 	poetry run ruff format .
 
 update-requirements:
-	poetry export -f requirements.txt --output requirements.txt
-	poetry export -f requirements.txt --extras postgres --output requirements-pg.txt
-	poetry export -f requirements.txt --extras mariadb --output requirements-mariadb.txt
+	mkdir -p "$(REQUIREMENTS_EXPORT_DIR)"
+	poetry export -f requirements.txt --output "$(REQUIREMENTS_EXPORT_DIR)/requirements.txt"
+	poetry export -f requirements.txt --extras postgres --output "$(REQUIREMENTS_EXPORT_DIR)/requirements-pg.txt"
+	poetry export -f requirements.txt --extras mariadb --output "$(REQUIREMENTS_EXPORT_DIR)/requirements-mariadb.txt"
 
 run-db:
 	docker compose up -d
