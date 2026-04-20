@@ -86,11 +86,13 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     # Update the existing repository
     info "Updating existing checkout in $INSTALL_DIR..."
     cd "$INSTALL_DIR"
+    git checkout v0.1.0
     git pull
 else
     # Clone the repository
     info "Cloning Warden into $INSTALL_DIR..."
     git clone https://github.com/pasqal-io/warden "$INSTALL_DIR"
+    git checkout v0.1.0
 fi
 
 # Change to the cloned directory
