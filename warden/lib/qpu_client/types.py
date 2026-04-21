@@ -1,5 +1,6 @@
 """Useful data types for QPU API parsing"""
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal, TypeAlias
 
@@ -20,6 +21,14 @@ class QPUJobInfo:
     start_datetime: datetime | None = None
     end_datetime: datetime | None = None
     logs: str | None = None
+
+    def to_error(self) -> "QPUJobInfo":
+        """Returns a copy of qpu_job with status attribute set to ERROR"""
+        return replace(self, status="ERROR")
+
+    def set_logs(self, logs: str) -> "QPUJobInfo":
+        """Returns a copy of qpu_job with logs attribute set to provided logs"""
+        return replace(self, logs=logs)
 
 
 @dataclass

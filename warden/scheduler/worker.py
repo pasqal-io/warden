@@ -1,7 +1,6 @@
 """Worker to send jobs to QPU"""
 
 import asyncio
-import dataclasses
 import logging
 from asyncio import Queue
 from datetime import datetime
@@ -16,6 +15,22 @@ from warden.lib.qpu_client import (
 from warden.scheduler.errors import QPUDownError
 
 logger = logging.getLogger(__name__)
+
+
+class JobLogHandler(logging.Handler):
+    def __init__(self, level=0):
+        super().__init__(level)
+        self.logs_records: list[str] = []
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.logs_records.append(msg)
+        except Exception:
+            self.handleError(record)
+
+    def get_logs(self) -> str:
+        return "\n".join(self.logs_records)
 
 
 class LocalQPUWorker:
@@ -39,14 +54,24 @@ class LocalQPUWorker:
             return False
         return (datetime.now() - start).total_seconds() > timeout_s
 
-    @staticmethod
-    def qpu_job_to_error(qpu_job: QPUJobInfo) -> QPUJobInfo:
-        """Returns a copy of qpu_job with status attribute set to ERROR"""
-        return dataclasses.replace(qpu_job, status="ERROR")
-
     async def execute_job(
         self, queue: Queue, nb_run: int, sequence: str, batch_id: str | None = None
     ) -> None:
+        """Wrap job execution to capture job execution logs and update those logs in the queue"""
+
+        # User-visible logs should only be > INFO level
+        job_log_handler = JobLogHandler(logging.INFO)
+        logger.addHandler(job_log_handler)
+
+        qpu_job_info = await self._execute_job(queue, nb_run, sequence, batch_id)
+
+        # Update the job logs at the end of the job execution
+        qpu_job_info = qpu_job_info.set_logs(job_log_handler.get_logs())
+        await queue.put(qpu_job_info)
+
+    async def _execute_job(
+        self, queue: Queue, nb_run: int, sequence: str, batch_id: str | None = None
+    ) -> QPUJobInfo:
         """Execute job on the QPU"""
 
         # Object to store job status and information to send to the db
@@ -54,7 +79,7 @@ class LocalQPUWorker:
 
         qpu_job = await self.poll_qpu(queue=queue, qpu_job=qpu_job)
         if qpu_job.status == "ERROR":
-            return
+            return qpu_job
         logger.info("QPU is operational")
 
         qpu_job = await self.create_job(
@@ -65,12 +90,13 @@ class LocalQPUWorker:
             batch_id=batch_id,
         )
         if qpu_job.status == "ERROR":
-            return
+            return qpu_job
         logger.info("Job created on QPU")
 
         qpu_job = await self.await_job_execution(queue, qpu_job)
         if qpu_job.status not in ("CANCELED", "ERROR"):
             logger.info("Job execution done")
+        return qpu_job
 
     async def poll_qpu(self, queue: Queue, qpu_job: QPUJobInfo) -> QPUJobInfo:
         """Check the QPU status"""
@@ -91,11 +117,11 @@ class LocalQPUWorker:
                 f"{self.conf_sched.qpu_polling_timeout_s} seconds. Aborting. "
                 "Submit when the QPU's status is 'UP'. "
             )
-            qpu_job = self.qpu_job_to_error(qpu_job)
+            qpu_job = qpu_job.to_error()
             await queue.put(qpu_job)
         except QPUClientRequestError as e:
             logger.error(f"Failed polling QPU status: {e}")
-            qpu_job = self.qpu_job_to_error(qpu_job)
+            qpu_job = qpu_job.to_error()
             await queue.put(qpu_job)
         return qpu_job
 
@@ -116,7 +142,7 @@ class LocalQPUWorker:
             )
         except QPUClientRequestError as e:
             logger.error(f"Failed creating job: {e}")
-            qpu_job = self.qpu_job_to_error(qpu_job)
+            qpu_job = qpu_job.to_error()
             await queue.put(qpu_job)
         return qpu_job
 
@@ -138,7 +164,7 @@ class LocalQPUWorker:
                     qpu_job = self.qpu_client.cancel_job(qpu_job)
                 except (JobCancelationError, QPUClientRequestError) as e:
                     logger.error(f"Failed cancelling job: {e}")
-                    qpu_job = self.qpu_job_to_error(qpu_job)
+                    qpu_job = qpu_job.to_error()
                     await queue.put(qpu_job)
                     continue
                 logger.info("Job cancellation done")
