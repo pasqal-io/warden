@@ -19,6 +19,7 @@ class QPUJobInfo:
     created_datetime: datetime | None = None
     start_datetime: datetime | None = None
     end_datetime: datetime | None = None
+    logs: str | None = None
 
 
 @dataclass

@@ -58,3 +58,18 @@ async def get_job(
     if job is None:
         raise HTTPException(404, detail="Job not found")
     return JobResponse.from_model(job)
+
+
+@router.get("/{id}/logs")
+async def get_job_logs(
+    id: int,
+    session: DBSessionDep,
+    identity: MungeIdentity = Depends(munge_identity),
+):
+    result = await session.execute(
+        select(Job).where(Job.user_id == identity.uid, Job.id == id)
+    )
+    job = result.scalars().one_or_none()
+    if job is None:
+        raise HTTPException(404, detail="Job not found")
+    return {"logs": job.logs}
