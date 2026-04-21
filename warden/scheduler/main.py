@@ -88,7 +88,7 @@ async def async_commit(queue: Queue, session: AsyncSession, job: Job):
 
         # Signals that data received in `queue.get()` was processed
         queue.task_done()
-        logger.debug(f"Job {job.id} updated")
+        logger.debug(f"Job {job.id} updated in db")
 
 
 def _write_info_to_job(job: Job, qpu_job: QPUJobInfo) -> None:
@@ -99,6 +99,7 @@ def _write_info_to_job(job: Job, qpu_job: QPUJobInfo) -> None:
     job.started_at = qpu_job.start_datetime
     job.ended_at = qpu_job.end_datetime
     job.results = qpu_job.result
+    job.logs = qpu_job.logs
 
 
 async def shutdown(engine: AsyncEngine):

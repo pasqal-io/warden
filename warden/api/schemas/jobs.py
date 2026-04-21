@@ -26,3 +26,13 @@ class JobResponse(BaseModel):
             status=job.status,
             results=job.results,
         )
+
+
+class JobLogResponse(BaseModel):
+    logs: str | None
+
+    @classmethod
+    def from_model(cls, job: Job) -> "JobResponse":
+        return cls(
+            logs=job.logs,
+        )
