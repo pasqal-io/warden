@@ -6,7 +6,7 @@
 On top of the requirements from [README.md](README.md), the following are required
 
 - docker compose
-- [poetry](https://python-poetry.org/docs/#installation)
+- A Python interpreter (default: `python3`)
 
 ## Getting started
 
@@ -17,10 +17,24 @@ make install-dev
 ```
 
 This will:
-- Install Poetry
+- Create the local `venv` if missing
+- Install Poetry in the selected Python environment
+- Configure Poetry to use in-project virtualenvs (`.venv`)
 - Install dependencies
 - Create the default `config.yaml` file at the project root if it does not exist yet
 - Run migrations for the default SQLite DB
+
+## Shared Poetry setup targets
+
+To keep local setup and CI setup aligned, Poetry bootstrap is centralized in `Makefile` targets:
+
+- `make poetry-bootstrap`: install pinned Poetry and configure in-project virtualenvs
+- `make poetry-install-dev`: install dev dependencies with all extras
+- `make poetry-setup-dev`: convenience target combining the two commands above
+
+`make install-dev` reuses these targets and then runs migrations.
+
+When updating CI or onboarding docs, prefer reusing these targets rather than duplicating inline Poetry setup commands.
 
 ## Run dev server
 
