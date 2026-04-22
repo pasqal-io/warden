@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_records(path: Path) -> dict[str, frozenset[str]]:
+def read_requirements(path: Path) -> dict[str, frozenset[str]]:
     if not path.exists():
         raise FileNotFoundError(path)
 
@@ -85,8 +85,8 @@ def normalize_record(record: str) -> tuple[str, tuple[str, ...]]:
 
 
 def compare_file(expected_path: Path, generated_path: Path) -> dict[str, object]:
-    expected = read_records(expected_path)
-    generated = read_records(generated_path)
+    expected = read_requirements(expected_path)
+    generated = read_requirements(generated_path)
 
     only_in_expected = sorted(set(expected) - set(generated))
     only_in_generated = sorted(set(generated) - set(expected))
