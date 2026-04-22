@@ -90,13 +90,6 @@ jobs:
                 marker,
                 ":warning: **requirements exports are out of date**",
                 "",
-                "The committed `requirements*.txt` files differ from a fresh Poetry export.",
-                "",
-                "Run:",
-                "```bash",
-                "make update-requirements",
-                "```",
-                "",
                 report || "_No drift details available._",
               ].join("\n");
 
