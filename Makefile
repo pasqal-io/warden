@@ -132,7 +132,6 @@ poetry-setup-dev: poetry-bootstrap poetry-install-dev
 
 install-dev: $(VENV)/bin/python
 	$(MAKE) poetry-setup-dev
-	$(MAKE) migrate
 
 dev: migrate
 	@bash -c '\

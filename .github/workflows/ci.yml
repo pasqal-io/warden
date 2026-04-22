@@ -165,7 +165,7 @@ jobs:
             venv-${{ runner.os }}-py${{ matrix.python-version }}-
 
       - name: Install dependencies
-        run: make poetry-setup-dev POETRY_PYTHON=python
+        run: make poetry-setup-dev POETRY_PYTHON=python3
 
       - name: Lint — ruff lint/format check
         run: make lint-check
@@ -176,6 +176,9 @@ jobs:
   sbom:
     name: SBOM (Trivy)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -186,16 +189,117 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libmunge-dev
-
       - name: Install dependencies
-        run: make poetry-setup-dev POETRY_PYTHON=python
+        run: make poetry-setup-dev POETRY_PYTHON=python3
 
       - name: Generate SBOM artifacts
         uses: ./.github/actions/generate-sbom
         with:
           output-dir: ${{ runner.temp }}/sbom
+
+      - name: Evaluate SBOM vulnerabilities
+        id: sbom-vulns
+        shell: bash
+        run: |
+          set +e
+          python .github/scripts/check_sbom_vulnerabilities.py \
+            --sbom-dir "$RUNNER_TEMP/sbom" \
+            --glob "*.json" \
+            --report "$RUNNER_TEMP/sbom-vulnerabilities-report.md" \
+            > "$RUNNER_TEMP/sbom-vulnerabilities-stdout.md"
+          status=$?
+          set -e
+
+          cat "$RUNNER_TEMP/sbom-vulnerabilities-stdout.md" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" -eq 2 ]; then
+            echo "critical_vulns=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=critical vulnerabilities found in SBOM::Review SBOM report details and remediate critical issues."
+            exit 0
+          fi
+
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+
+          echo "critical_vulns=false" >> "$GITHUB_OUTPUT"
+
+      - name: Update PR comment with SBOM vulnerability status
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        env:
+          CRITICAL_VULNS: ${{ steps.sbom-vulns.outputs.critical_vulns }}
+          VULN_REPORT: ${{ runner.temp }}/sbom-vulnerabilities-stdout.md
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- sbom-critical-vuln-warning -->";
+            const hasCriticalVulns = process.env.CRITICAL_VULNS === "true";
+            const reportPath = process.env.VULN_REPORT;
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, "utf8").trim()
+              : "";
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            );
+
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.type === "Bot" &&
+                comment.body?.includes(marker)
+            );
+
+            if (hasCriticalVulns) {
+              const body = [
+                marker,
+                ":warning: **critical vulnerabilities were detected in generated SBOM artifacts**",
+                "",
+                report || "_No SBOM vulnerability details available._",
+              ].join("\n");
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                core.info(`Updated existing SBOM vulnerability comment (${existing.id}).`);
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body,
+                });
+                core.info("Created SBOM vulnerability comment.");
+              }
+            } else {
+              if (!existing) {
+                core.info("No existing SBOM vulnerability comment to resolve.");
+                return;
+              }
+
+              const body = [
+                marker,
+                ":white_check_mark: **no critical SBOM vulnerabilities detected**",
+                "",
+                "This PR previously reported critical SBOM vulnerabilities, but the latest",
+                "CI run found none with CRITICAL severity in generated SBOM artifacts.",
+              ].join("\n");
+
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info(`Marked SBOM vulnerability comment as resolved (${existing.id}).`);
+            }
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # 7.0.1
