@@ -15,7 +15,6 @@ permissions:
   contents: write
 
 env:
-  POETRY_VERSION: "2.3.3"
   TRIVY_VERSION: "0.70.0"
 
 jobs:
@@ -50,8 +49,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry
-        run: pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export>=1.8"
+      - name: Bootstrap Poetry environment
+        run: make poetry-bootstrap POETRY_PYTHON=python3 POETRY_EXTRA_PACKAGES="poetry-plugin-export>=1.8"
 
       - name: Verify pyproject version matches release version
         env:
@@ -88,43 +87,14 @@ jobs:
           python -m venv "$RUNNER_TEMP/pip-smoke"
           "$RUNNER_TEMP/pip-smoke/bin/python" -m pip install --upgrade pip
           "$RUNNER_TEMP/pip-smoke/bin/python" -m pip install -r requirements.txt
-
-      - name: Install Trivy
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sudo sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+          "$RUNNER_TEMP/pip-smoke/bin/python" -m pip install -r requirements-pg.txt
+          "$RUNNER_TEMP/pip-smoke/bin/python" -m pip install -r requirements-mariadb.txt
 
       - name: Generate SBOM artifacts
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/sbom"
-
-          trivy fs \
-            --skip-files poetry.lock \
-            --detection-priority comprehensive \
-            --file-patterns 'pip:^requirements\.txt$' \
-            --scanners vuln,license \
-            --format cyclonedx \
-            --output "$RUNNER_TEMP/sbom/warden-sbom.cdx.json" \
-            .
-
-          trivy fs \
-            --skip-files poetry.lock \
-            --detection-priority comprehensive \
-            --file-patterns 'pip:^requirements-pg\.txt$' \
-            --scanners vuln,license \
-            --format cyclonedx \
-            --output "$RUNNER_TEMP/sbom/warden-sbom-pg.cdx.json" \
-            .
-
-          trivy fs \
-            --skip-files poetry.lock \
-            --detection-priority comprehensive \
-            --file-patterns 'pip:^requirements-mariadb\.txt$' \
-            --scanners vuln,license \
-            --format cyclonedx \
-            --output "$RUNNER_TEMP/sbom/warden-sbom-mariadb.cdx.json" \
-            .
+        uses: ./.github/actions/generate-sbom
+        with:
+          trivy-version: ${{ env.TRIVY_VERSION }}
+          output-dir: ${{ runner.temp }}/sbom
 
       - name: Collect artifacts and checksums
         shell: bash

@@ -172,3 +172,34 @@ jobs:
 
       - name: Run tests
         run: poetry run pytest
+
+  sbom:
+    name: SBOM (Trivy)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libmunge-dev
+
+      - name: Install dependencies
+        run: make poetry-setup-dev POETRY_PYTHON=python
+
+      - name: Generate SBOM artifacts
+        uses: ./.github/actions/generate-sbom
+        with:
+          output-dir: ${{ runner.temp }}/sbom
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # 7.0.1
+        with:
+          name: sbom-${{ github.run_id }}
+          path: ${{ runner.temp }}/sbom/*.json
+          if-no-files-found: error
