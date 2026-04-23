@@ -2,7 +2,6 @@ import asyncio
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
-from httpx import HTTPStatusError, RequestError
 from sqlalchemy import select
 
 from warden.api.routes.dependencies.auth import (
@@ -15,7 +14,7 @@ from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.jobs import Job, JobCreate, JobResponse
 from warden.api.utils.cudaq import normalize_job_sequence
 from warden.lib.models.sessions import Session
-from warden.lib.qpu_client.client import AsyncQPUClient
+from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
@@ -33,7 +32,7 @@ async def create_job(
     else:
         try:
             qpu_specs = await qpu_client.get_specs()
-        except (RequestError, HTTPStatusError) as exc:
+        except QPUClientRequestError as exc:
             raise HTTPException(
                 status_code=503,
                 detail="Failed to fetch QPU specs.",

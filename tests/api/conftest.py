@@ -39,6 +39,7 @@ async def client(app) -> AsyncClient:
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
+
 MAX_RETRY = 10
 
 
