@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, MockTransport, Request, Response
+from pulser.devices import DigitalAnalogDevice
 
 from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
@@ -199,3 +200,10 @@ def serialized_sequence() -> str:
             },
         }
     )
+
+
+@pytest.fixture
+def qpu_specs() -> str:
+    specs = json.loads(DigitalAnalogDevice.to_abstract_repr())
+    specs["name"] = "FRESNEL_CAN1"
+    return json.dumps(specs)

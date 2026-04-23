@@ -3,7 +3,6 @@ import json
 import pytest
 from conftest import mock_munge_auth, mock_qpu_client
 from httpx import AsyncClient, Request, Response
-from pulser.devices import DigitalAnalogDevice
 
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
@@ -230,7 +229,7 @@ async def test_jobs_auth(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload(
-    client: AsyncClient, app, cudaq_payload: dict
+    client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
 ):
     """Assert that /jobs accepts CUDA-Q payload and stores normalized Pulser sequence."""
     user_id = 1000
@@ -243,13 +242,10 @@ async def test_create_job_with_cudaq_payload(
     assert response.status_code == 200
     session_id = response.json()["id"]
 
-    qpu_specs = json.loads(DigitalAnalogDevice.to_abstract_repr())
-    qpu_specs["name"] = "FRESNEL_CAN1"
-
     def handler(request: Request) -> Response:
         assert request.method == "GET"
         assert request.url.path.endswith("/api/v1/system")
-        return Response(200, json={"data": {"specs": qpu_specs}})
+        return Response(200, json={"data": {"specs": json.loads(qpu_specs)}})
 
     with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
         response = await client.post(
