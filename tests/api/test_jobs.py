@@ -292,3 +292,37 @@ async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Failed to fetch QPU specs."
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
+    client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
+):
+    """Assert that invalid CUDA-Q payload returns 422 from normalization errors."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    valid_payload = json.loads(json.dumps(cudaq_payload))
+    invalid_payload=valid_payload["sequence"]["hamiltonian"]["drivingFields"][0]["amplitude"][
+        "pattern"
+    ] = "non-uniform"
+
+    def handler(request: Request) -> Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/api/v1/system")
+        return Response(200, json={"data": {"specs": json.loads(qpu_specs)}})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=invalid_payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 422
+    assert "not supported for amplitude" in response.json()["detail"]
