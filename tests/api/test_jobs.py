@@ -310,9 +310,9 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
     session_id = response.json()["id"]
 
     valid_payload = json.loads(json.dumps(cudaq_payload))
-    invalid_payload=valid_payload["sequence"]["hamiltonian"]["drivingFields"][0]["amplitude"][
-        "pattern"
-    ] = "non-uniform"
+    invalid_payload = valid_payload["sequence"]["hamiltonian"]["drivingFields"][0][
+        "amplitude"
+    ]["pattern"] = "non-uniform"
 
     def handler(request: Request) -> Response:
         assert request.method == "GET"

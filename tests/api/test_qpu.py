@@ -59,7 +59,7 @@ async def test_get_specs_qpu_unavailable(client: AsyncClient, app):
 
     1. Mock the QPU HTTP response to return a 503
     2. Call GET /qpu/specs
-    3. Assert the response returns a 500 error
+    3. Assert the response returns a 503 error
     """
 
     def handler(request: Request) -> Response:
@@ -68,7 +68,7 @@ async def test_get_specs_qpu_unavailable(client: AsyncClient, app):
     with mock_qpu_client(app, handler):
         response = await client.get("/qpu/specs")
 
-    assert response.status_code == 500
+    assert response.status_code == 503
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_get_specs_connection_refused(client: AsyncClient, app):
 
     1. Mock the QPU HTTP transport to raise a connection error
     2. Call GET /qpu/specs
-    3. Assert the response returns a 500 error
+    3. Assert the response returns a 503 error
     """
 
     def handler(request: Request) -> Response:
@@ -86,7 +86,7 @@ async def test_get_specs_connection_refused(client: AsyncClient, app):
     with mock_qpu_client(app, handler):
         response = await client.get("/qpu/specs")
 
-    assert response.status_code == 500
+    assert response.status_code == 503
 
 
 @pytest.mark.asyncio
@@ -95,7 +95,7 @@ async def test_get_specs_host_unreachable(client: AsyncClient, app):
 
     1. Mock the QPU HTTP transport to raise a connection error (host unreachable)
     2. Call GET /qpu/specs
-    3. Assert the response returns a 500 error
+    3. Assert the response returns a 503 error
     """
 
     def handler(request: Request) -> Response:
@@ -104,4 +104,4 @@ async def test_get_specs_host_unreachable(client: AsyncClient, app):
     with mock_qpu_client(app, handler):
         response = await client.get("/qpu/specs")
 
-    assert response.status_code == 500
+    assert response.status_code == 503

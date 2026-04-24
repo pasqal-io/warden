@@ -26,4 +26,4 @@ async def get_specs(
     try:
         return QPUSpecsResponse(specs=await client.get_specs())
     except QPUClientRequestError as e:
-        raise HTTPException(500, detail=f"Failed getting device specs: {e}")
+        raise HTTPException(503, detail=f"Failed getting device specs: {e}")
