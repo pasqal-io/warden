@@ -325,4 +325,5 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
         )
 
     assert response.status_code == 422
-    assert "not supported for amplitude" in response.json()["detail"]
+    assert "non-uniform" in response.json()["detail"][0]["input"]
+    assert "model_attributes_type" in response.json()["detail"][0]["type"]
