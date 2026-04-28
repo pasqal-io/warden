@@ -1,15 +1,29 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator, TypeAdapter, ValidationError
 
 from warden.lib.models.jobs import Job
 
 
+def _try_parse_AHSSequence(sequence: Any):
+    if not isinstance(sequence, str):
+        return sequence
+    try:
+        data = json.loads(sequence)
+        TypeAdapter(AHSSequence).validate_python(data)
+        return data
+    except (ValidationError, ValueError, json.JSONDecodeError):
+        return sequence
+
+
 class JobCreate(BaseModel):
-    sequence: str | AHSSequence
+    sequence: Annotated[
+        Union[AHSSequence, str], BeforeValidator(_try_parse_AHSSequence)
+    ]
     shots: int
 
 

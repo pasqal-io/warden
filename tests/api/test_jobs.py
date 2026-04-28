@@ -9,37 +9,48 @@ from warden.lib.models.sessions import Session
 
 
 @pytest.fixture
-def cudaq_payload() -> dict:
-    return {
-        "shots": 100,
-        "sequence": {
-            "setup": {
-                "ahs_register": {
-                    "sites": [[0.0, 0.0], [5e-6, 0.0], [0.0, 5e-6], [5e-6, 5e-6]],
-                    "filling": [1, 1, 1, 1],
-                }
-            },
-            "hamiltonian": {
-                "drivingFields": [
-                    {
-                        "amplitude": {
-                            "pattern": "uniform",
-                            "time_series": {"values": [0.0, 1e6], "times": [0.0, 1e-7]},
-                        },
-                        "phase": {
-                            "pattern": "uniform",
-                            "time_series": {"values": [0.0, 0.0], "times": [0.0, 1e-7]},
-                        },
-                        "detuning": {
-                            "pattern": "uniform",
-                            "time_series": {"values": [0.0, 0.0], "times": [0.0, 1e-7]},
-                        },
+def cudaq_payload() -> str:
+    return json.dumps(
+        {
+            "shots": 100,
+            "sequence": {
+                "setup": {
+                    "ahs_register": {
+                        "sites": [[0.0, 0.0], [5e-6, 0.0], [0.0, 5e-6], [5e-6, 5e-6]],
+                        "filling": [1, 1, 1, 1],
                     }
-                ],
-                "localDetuning": [],
+                },
+                "hamiltonian": {
+                    "drivingFields": [
+                        {
+                            "amplitude": {
+                                "pattern": "uniform",
+                                "time_series": {
+                                    "values": [0.0, 1e6],
+                                    "times": [0.0, 1e-7],
+                                },
+                            },
+                            "phase": {
+                                "pattern": "uniform",
+                                "time_series": {
+                                    "values": [0.0, 0.0],
+                                    "times": [0.0, 1e-7],
+                                },
+                            },
+                            "detuning": {
+                                "pattern": "uniform",
+                                "time_series": {
+                                    "values": [0.0, 0.0],
+                                    "times": [0.0, 1e-7],
+                                },
+                            },
+                        }
+                    ],
+                    "localDetuning": [],
+                },
             },
-        },
-    }
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -228,7 +239,7 @@ async def test_jobs_auth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_job_with_cudaq_payload(
+async def test_create_job_with_cudaq_payload_nominal(
     client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
 ):
     """Assert that /jobs accepts CUDA-Q payload and stores normalized Pulser sequence."""
