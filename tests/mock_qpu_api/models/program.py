@@ -15,6 +15,7 @@ class ProgramStatus(Enum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
     DONE = "DONE"
+    ERROR = "ERROR"
     CANCELED = "CANCELED"
 
 
