@@ -1,6 +1,8 @@
+import json
+
 import pytest
-from conftest import mock_munge_auth
-from httpx import AsyncClient
+from conftest import mock_munge_auth, mock_qpu_client
+from httpx import AsyncClient, Request, Response
 
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
@@ -189,3 +191,103 @@ async def test_jobs_auth(client: AsyncClient):
     for method, route in test_cases:
         response = await client.request(method, route)
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_nominal(
+    client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
+):
+    """Assert that /jobs accepts CUDA-Q payload and stores normalized Pulser sequence."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    def handler(request: Request) -> Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/api/v1/system")
+        return Response(200, json={"data": {"specs": json.loads(qpu_specs)}})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=cudaq_payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 200
+    job_id = response.json()["id"]
+
+    async_session = app.state.db_session_factory
+    async with async_session() as session:
+        job = await session.get(Job, job_id)
+    assert job is not None
+    assert isinstance(job.sequence, str)
+    sequence_dict = json.loads(job.sequence)
+    assert "operations" in sequence_dict
+    assert sequence_dict["device"]["name"] == "FRESNEL_CAN1"
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
+    client: AsyncClient, app, cudaq_payload: dict
+):
+    """Assert that CUDA-Q payload creation returns 503 when fetching QPU specs fails."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    def handler(request: Request) -> Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/api/v1/system")
+        return Response(503, json={"detail": "upstream unavailable"})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=cudaq_payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Failed to fetch QPU specs."
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
+    client: AsyncClient, app, cudaq_sequence: str, qpu_specs: str
+):
+    """Assert that invalid CUDA-Q payload returns 422 from normalization errors."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    sequence = json.loads(cudaq_sequence)
+    sequence["hamiltonian"]["drivingFields"][0]["amplitude"]["pattern"] = "non-uniform"
+    invalid_payload = {"shots": 100, "sequence": json.dumps(sequence)}
+
+    def handler(request: Request) -> Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/api/v1/system")
+        return Response(200, json={"data": {"specs": json.loads(qpu_specs)}})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=invalid_payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 422
+    assert "non-uniform" in response.json()["detail"]

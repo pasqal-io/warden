@@ -17,6 +17,7 @@ greenlet = "^3.3.0"
 sqlalchemy = "^2.0.45"
 aiosqlite = "^0.20"
 httpx = "^0.28.1"
+pulser = "^1.7"
 
 # Optional DBs
 psycopg = { extras = ["binary"], version = "^3.3.2", optional = true }

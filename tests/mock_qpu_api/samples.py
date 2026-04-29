@@ -1,3 +1,5 @@
+import json
+
 DUMMY_QPU_SPECS = {
     "name": "FRESNEL",
     "dimensions": 2,
@@ -65,6 +67,6 @@ DUMMY_QPU_SPECS = {
     ],
     "is_virtual": False,
 }
-FAKE_RESULTS = str(
+FAKE_RESULTS = json.dumps(
     {"counter": {"0000": 477, "0010": 3, "0110": 1, "0001": 8, "0100": 7, "1000": 4}}
 )
