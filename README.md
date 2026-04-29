@@ -13,6 +13,8 @@ Middleware for the integration of a QPU into an HPC center. It is composed of tw
 
 For optional/dev requirements, check [CONTRIBUTING.md](CONTRIBUTING.md)
 
+Release process documentation lives in [RELEASING.md](RELEASING.md).
+
 ## Installation
 
 Quick install/update (one-liner) - follow the instructions:

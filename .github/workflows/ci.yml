@@ -7,6 +7,132 @@ on:
   pull_request:
 
 jobs:
+  requirements-drift:
+    name: Requirements Drift Warning
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Bootstrap Poetry environment
+        run: make poetry-bootstrap POETRY_PYTHON=python3 POETRY_EXTRA_PACKAGES="poetry-plugin-export>=1.8"
+
+      - name: Export requirements into a temporary directory
+        run: make update-requirements REQUIREMENTS_EXPORT_DIR="$RUNNER_TEMP/requirements-export"
+
+      - name: Compare committed and generated exports
+        id: compare-exports
+        shell: bash
+        run: |
+          set +e
+          python .github/scripts/check_requirements_drift.py \
+            --expected-dir "$GITHUB_WORKSPACE" \
+            --generated-dir "$RUNNER_TEMP/requirements-export" \
+            --report "$RUNNER_TEMP/requirements-drift-report.md" \
+            > "$RUNNER_TEMP/requirements-drift-stdout.md"
+          status=$?
+          set -e
+
+          cat "$RUNNER_TEMP/requirements-drift-stdout.md" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" -eq 2 ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=requirements exports are out of date::Run 'make update-requirements' and commit the updated requirements files."
+            exit 0
+          fi
+
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+
+          echo "drift=false" >> "$GITHUB_OUTPUT"
+
+      - name: Update PR comment with drift status
+        uses: actions/github-script@v8
+        env:
+          DRIFT: ${{ steps.compare-exports.outputs.drift }}
+          DRIFT_REPORT: ${{ runner.temp }}/requirements-drift-stdout.md
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- requirements-drift-warning -->";
+            const hasDrift = process.env.DRIFT === "true";
+            const reportPath = process.env.DRIFT_REPORT;
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, "utf8").trim()
+              : "";
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            );
+
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.type === "Bot" &&
+                comment.body?.includes(marker)
+            );
+
+            if (hasDrift) {
+              const body = [
+                marker,
+                ":warning: **requirements exports are out of date**",
+                "",
+                report || "_No drift details available._",
+              ].join("\n");
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                core.info(`Updated existing requirements drift comment (${existing.id}).`);
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body,
+                });
+                core.info("Created requirements drift comment.");
+              }
+            } else {
+              if (!existing) {
+                core.info("No existing drift comment to resolve.");
+                return;
+              }
+
+              const body = [
+                marker,
+                ":white_check_mark: **requirements exports are now in sync**",
+                "",
+                "This PR previously had requirements drift, but the latest CI run confirms",
+                "that committed `requirements*.txt` files match a fresh Poetry export.",
+              ].join("\n");
+
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info(`Marked requirements drift comment as resolved (${existing.id}).`);
+            }
+
   lint-and-test:
     name: Lint & Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -30,12 +156,6 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libmunge-dev
 
-      - name: Install Poetry
-        run: pip install poetry==2.3.3
-
-      - name: Configure Poetry to use in-project virtualenvs
-        run: poetry config virtualenvs.in-project true
-
       - name: Cache Poetry virtualenv
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -45,10 +165,145 @@ jobs:
             venv-${{ runner.os }}-py${{ matrix.python-version }}-
 
       - name: Install dependencies
-        run: poetry install --with dev --all-extras
+        run: make poetry-setup-dev POETRY_PYTHON=python3
 
       - name: Lint — ruff lint/format check
         run: make lint-check
 
       - name: Run tests
         run: poetry run pytest
+
+  sbom:
+    name: SBOM (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: make poetry-setup-dev POETRY_PYTHON=python3
+
+      - name: Generate SBOM artifacts
+        uses: ./.github/actions/generate-sbom
+        with:
+          output-dir: ${{ runner.temp }}/sbom
+
+      - name: Evaluate SBOM vulnerabilities
+        id: sbom-vulns
+        shell: bash
+        run: |
+          set +e
+          python .github/scripts/check_sbom_vulnerabilities.py \
+            --sbom-dir "$RUNNER_TEMP/sbom" \
+            --glob "*.json" \
+            --report "$RUNNER_TEMP/sbom-vulnerabilities-report.md" \
+            > "$RUNNER_TEMP/sbom-vulnerabilities-stdout.md"
+          status=$?
+          set -e
+
+          cat "$RUNNER_TEMP/sbom-vulnerabilities-stdout.md" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" -eq 2 ]; then
+            echo "critical_vulns=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=critical vulnerabilities found in SBOM::Review SBOM report details and remediate critical issues."
+            exit 0
+          fi
+
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+
+          echo "critical_vulns=false" >> "$GITHUB_OUTPUT"
+
+      - name: Update PR comment with SBOM vulnerability status
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        env:
+          CRITICAL_VULNS: ${{ steps.sbom-vulns.outputs.critical_vulns }}
+          VULN_REPORT: ${{ runner.temp }}/sbom-vulnerabilities-stdout.md
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- sbom-critical-vuln-warning -->";
+            const hasCriticalVulns = process.env.CRITICAL_VULNS === "true";
+            const reportPath = process.env.VULN_REPORT;
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, "utf8").trim()
+              : "";
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            );
+
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.type === "Bot" &&
+                comment.body?.includes(marker)
+            );
+
+            if (hasCriticalVulns) {
+              const body = [
+                marker,
+                ":warning: **critical vulnerabilities were detected in generated SBOM artifacts**",
+                "",
+                report || "_No SBOM vulnerability details available._",
+              ].join("\n");
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                core.info(`Updated existing SBOM vulnerability comment (${existing.id}).`);
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body,
+                });
+                core.info("Created SBOM vulnerability comment.");
+              }
+            } else {
+              if (!existing) {
+                core.info("No existing SBOM vulnerability comment to resolve.");
+                return;
+              }
+
+              const body = [
+                marker,
+                ":white_check_mark: **no critical SBOM vulnerabilities detected**",
+                "",
+                "This PR previously reported critical SBOM vulnerabilities, but the latest",
+                "CI run found none with CRITICAL severity in generated SBOM artifacts.",
+              ].join("\n");
+
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info(`Marked SBOM vulnerability comment as resolved (${existing.id}).`);
+            }
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # 7.0.1
+        with:
+          name: sbom-${{ github.run_id }}
+          path: ${{ runner.temp }}/sbom/*.json
+          if-no-files-found: error

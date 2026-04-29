@@ -41,7 +41,7 @@ class MaxRetryError(QPUClientRequestError):
 
 def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
     """
-    Return retry decorator for requests to PasqOS API with HTTPX client
+    Return retry decorator for requests to QPU API with HTTPX client
 
     Args:
         max (int): Max number of retry attempts.
