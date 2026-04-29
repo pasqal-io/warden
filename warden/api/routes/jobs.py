@@ -65,7 +65,7 @@ async def get_job_logs(
     id: int,
     session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
-):
+) -> JobLogResponse:
     result = await session.execute(
         select(Job).where(Job.user_id == identity.uid, Job.id == id)
     )

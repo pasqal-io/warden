@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from warden.lib.models.jobs import Job
 
@@ -29,10 +29,12 @@ class JobResponse(BaseModel):
 
 
 class JobLogResponse(BaseModel):
-    logs: str | None
+    logs: str = Field(default="There are no logs for this job")
 
     @classmethod
     def from_model(cls, job: Job) -> "JobResponse":
+        if job.logs is None:
+            return cls()
         return cls(
             logs=job.logs,
         )
