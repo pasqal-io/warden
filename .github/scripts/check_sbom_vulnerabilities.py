@@ -56,7 +56,7 @@ def normalize_severity(value: str | None) -> str:
     return value.strip().upper() or "UNKNOWN"
 
 
-def best_severity(vulnerability: dict[str, Any]) -> str:
+def highest_severity(vulnerability: dict[str, Any]) -> str:
     ratings = vulnerability.get("ratings", [])
     if not isinstance(ratings, list) or not ratings:
         return "UNKNOWN"
@@ -147,7 +147,7 @@ def format_vulnerability_entry(
     vulnerability: dict[str, Any], component_map: dict[str, str]
 ) -> str:
     vuln_id = str(vulnerability.get("id") or "UNKNOWN-ID")
-    severity = best_severity(vulnerability)
+    severity = highest_severity(vulnerability)
     affects = vulnerability.get("affects", [])
 
     affected_components: list[str] = []
@@ -171,7 +171,7 @@ def vulnerability_table_row(
     vulnerability: dict[str, Any], component_map: dict[str, str]
 ) -> dict[str, str]:
     vuln_id = str(vulnerability.get("id") or "UNKNOWN-ID")
-    severity = best_severity(vulnerability)
+    severity = highest_severity(vulnerability)
     affects = vulnerability.get("affects", [])
 
     affected_components: list[str] = []
@@ -213,7 +213,7 @@ def inspect_sbom(path: Path) -> dict[str, Any]:
         if not isinstance(vulnerability, dict):
             continue
 
-        severity = best_severity(vulnerability)
+        severity = highest_severity(vulnerability)
         by_severity[severity] = by_severity.get(severity, 0) + 1
         if severity == "CRITICAL":
             critical_entries.append(
