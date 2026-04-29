@@ -10,6 +10,7 @@ from warden.lib.models.jobs import Job
 
 
 def _try_parse_AHSSequence(sequence: Any):
+    """Try parsing input sequence as a CudaQ payload"""
     if not isinstance(sequence, str):
         return sequence
     try:

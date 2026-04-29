@@ -8,51 +8,6 @@ from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
 
 
-@pytest.fixture
-def cudaq_payload() -> str:
-    return json.dumps(
-        {
-            "shots": 100,
-            "sequence": {
-                "setup": {
-                    "ahs_register": {
-                        "sites": [[0.0, 0.0], [5e-6, 0.0], [0.0, 5e-6], [5e-6, 5e-6]],
-                        "filling": [1, 1, 1, 1],
-                    }
-                },
-                "hamiltonian": {
-                    "drivingFields": [
-                        {
-                            "amplitude": {
-                                "pattern": "uniform",
-                                "time_series": {
-                                    "values": [0.0, 1e6],
-                                    "times": [0.0, 1e-7],
-                                },
-                            },
-                            "phase": {
-                                "pattern": "uniform",
-                                "time_series": {
-                                    "values": [0.0, 0.0],
-                                    "times": [0.0, 1e-7],
-                                },
-                            },
-                            "detuning": {
-                                "pattern": "uniform",
-                                "time_series": {
-                                    "values": [0.0, 0.0],
-                                    "times": [0.0, 1e-7],
-                                },
-                            },
-                        }
-                    ],
-                    "localDetuning": [],
-                },
-            },
-        }
-    )
-
-
 @pytest.mark.asyncio
 async def test_job_nominal_flow_success(
     client: AsyncClient, app, serialized_sequence: str
@@ -240,7 +195,7 @@ async def test_jobs_auth(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload_nominal(
-    client: AsyncClient, app, cudaq_payload: str, qpu_specs: str
+    client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
 ):
     """Assert that /jobs accepts CUDA-Q payload and stores normalized Pulser sequence."""
     user_id = 1000
@@ -278,7 +233,7 @@ async def test_create_job_with_cudaq_payload_nominal(
 
 @pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
-    client: AsyncClient, app, cudaq_payload: str
+    client: AsyncClient, app, cudaq_payload: dict
 ):
     """Assert that CUDA-Q payload creation returns 503 when fetching QPU specs fails."""
     user_id = 1000
@@ -307,7 +262,7 @@ async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
 
 @pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
-    client: AsyncClient, app, cudaq_payload: str, qpu_specs: str
+    client: AsyncClient, app, cudaq_sequence: str, qpu_specs: str
 ):
     """Assert that invalid CUDA-Q payload returns 422 from normalization errors."""
     user_id = 1000
@@ -320,11 +275,9 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
     assert response.status_code == 200
     session_id = response.json()["id"]
 
-    valid_payload = json.loads(cudaq_payload)
-    invalid_payload = valid_payload["sequence"]["hamiltonian"]["drivingFields"][0][
-        "amplitude"
-    ]["pattern"] = "non-uniform"
-    invalid_payload = json.dumps(invalid_payload)
+    sequence = json.loads(cudaq_sequence)
+    sequence["hamiltonian"]["drivingFields"][0]["amplitude"]["pattern"] = "non-uniform"
+    invalid_payload = {"shots": 100, "sequence": json.dumps(sequence)}
 
     def handler(request: Request) -> Response:
         assert request.method == "GET"
@@ -337,5 +290,4 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
         )
 
     assert response.status_code == 422
-    assert "non-uniform" in response.json()["detail"][0]["input"]
-    assert "model_attributes_type" in response.json()["detail"][0]["type"]
+    assert "non-uniform" in response.json()["detail"]

@@ -203,6 +203,53 @@ def serialized_sequence() -> str:
 
 
 @pytest.fixture
+def cudaq_sequence() -> str:
+    return json.dumps(
+        {
+            "setup": {
+                "ahs_register": {
+                    "sites": [[0.0, 0.0], [5e-6, 0.0], [0.0, 5e-6], [5e-6, 5e-6]],
+                    "filling": [1, 1, 1, 1],
+                }
+            },
+            "hamiltonian": {
+                "drivingFields": [
+                    {
+                        "amplitude": {
+                            "pattern": "uniform",
+                            "time_series": {
+                                "values": [0.0, 1e6],
+                                "times": [0.0, 1e-7],
+                            },
+                        },
+                        "phase": {
+                            "pattern": "uniform",
+                            "time_series": {
+                                "values": [0.0, 0.0],
+                                "times": [0.0, 1e-7],
+                            },
+                        },
+                        "detuning": {
+                            "pattern": "uniform",
+                            "time_series": {
+                                "values": [0.0, 0.0],
+                                "times": [0.0, 1e-7],
+                            },
+                        },
+                    }
+                ],
+                "localDetuning": [],
+            },
+        }
+    )
+
+
+@pytest.fixture
+def cudaq_payload(cudaq_sequence: str) -> dict:
+    return {"shots": 100, "sequence": cudaq_sequence}
+
+
+@pytest.fixture
 def qpu_specs() -> str:
     specs = json.loads(DigitalAnalogDevice.to_abstract_repr())
     specs["name"] = "FRESNEL_CAN1"
