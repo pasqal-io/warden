@@ -1,3 +1,5 @@
+import json
+import os
 from datetime import datetime
 
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
@@ -44,10 +46,14 @@ def get_job(uid: int) -> Job | None:
         job.start_datetime = datetime.now()
         update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING:
-        job.status = JobStatus.DONE
-        job.result = FAKE_RESULTS
+        result = run_qutip_job(job) if uses_qutip_backend() else FAKE_RESULTS
+        job.status = JobStatus.DONE if result is not None else JobStatus.ERROR
+        job.result = result
         job.end_datetime = datetime.now()
-        update_program_status(uid=uid, status=ProgramStatus.DONE)
+        program_status = (
+            ProgramStatus.DONE if result is not None else ProgramStatus.ERROR
+        )
+        update_program_status(uid=uid, status=program_status)
     return job
 
 
@@ -79,3 +85,21 @@ def update_program_status(uid: int, status: ProgramStatus) -> None:
         # TODO: handle error
         return
     FAKE_PROGRAM_DB[uid].status = status
+
+
+def uses_qutip_backend() -> bool:
+    return os.environ.get("MOCK_QPU_API_BACKEND") == "qutip"
+
+
+def run_qutip_job(job: Job) -> str | None:
+    from pulser import Sequence
+    from pulser_simulation import QutipBackendV2
+
+    try:
+        sequence = Sequence.from_abstract_repr(job.pulser_sequence)
+        result = QutipBackendV2(sequence, mimic_qpu=True).run()
+        return json.dumps(
+            {"counter": dict(result.final_state.sample(num_shots=job.nb_run))}
+        )
+    except Exception:
+        return None

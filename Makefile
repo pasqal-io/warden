@@ -3,7 +3,7 @@ include config.mk
 
 .PHONY: alembic dev install install-dev lint-check lint-fix migrate ping run \
  run-db run-with-python set-accessible start-mock-qpu start-mock-qpu-dev \
- test update-requirements
+ start-qutip-qpu start-qutip-qpu-dev test update-requirements
 
 INSTALL_FLAGS=
 ifeq ($(WITH_PG),1)
@@ -155,6 +155,12 @@ start-mock-qpu: $(VENV)/bin/python
 
 start-mock-qpu-dev: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
+
+start-qutip-qpu: $(VENV)/bin/python
+	MOCK_QPU_API_BACKEND=qutip $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --app-dir tests --host 0.0.0.0 --port 8005
+
+start-qutip-qpu-dev: $(VENV)/bin/python
+	MOCK_QPU_API_BACKEND=qutip $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests --host 0.0.0.0 --port 8005
 
 test:
 	poetry run pytest
