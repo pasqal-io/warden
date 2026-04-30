@@ -1,0 +1,52 @@
+name: Generate SBOM artifacts
+description: Install Trivy and generate CycloneDX SBOM files from installed Python environments.
+
+inputs:
+  trivy-version:
+    description: Trivy version without leading v
+    required: false
+    default: "0.70.0"
+  output-dir:
+    description: Directory where SBOM JSON files will be written
+    required: false
+    default: "sbom"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Trivy
+      shell: bash
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          | sudo sh -s -- -b /usr/local/bin "v${{ inputs.trivy-version }}"
+
+    - name: Generate SBOM artifacts
+      shell: bash
+      run: |
+        output_dir="${{ inputs.output-dir }}"
+        mkdir -p "$output_dir"
+        work_dir="${RUNNER_TEMP:-/tmp}/sbom-site-packages"
+        mkdir -p "$work_dir"
+
+        build_and_scan() {
+          local requirements_file="$1"
+          local artifact_name="$2"
+          local venv_dir="$work_dir/.venv-${artifact_name}"
+
+          python3 -m venv "$venv_dir"
+          "$venv_dir/bin/python" -m pip install --upgrade pip
+          "$venv_dir/bin/python" -m pip install -r "$requirements_file"
+
+          VIRTUAL_ENV="$venv_dir" trivy fs \
+            --detection-priority comprehensive \
+            --scanners vuln,license \
+            --format cyclonedx \
+            --output "$output_dir/$artifact_name" \
+            --skip-files poetry.lock,**/poetry.lock \
+            --file-patterns "pip:$requirements_file" \
+            .
+        }
+
+        build_and_scan requirements.txt warden-sbom.cdx.json
+        build_and_scan requirements-pg.txt warden-sbom-pg.cdx.json
+        build_and_scan requirements-mariadb.txt warden-sbom-mariadb.cdx.json

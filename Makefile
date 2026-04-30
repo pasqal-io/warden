@@ -1,9 +1,9 @@
 include config.mk
 
 
-.PHONY: alembic dev install install-dev lint-check lint-fix migrate ping run \
- run-db run-with-python set-accessible start-mock-qpu start-mock-qpu-dev \
- test update-requirements revision get-logs
+.PHONY: alembic dev install install-dev lint-check lint-fix migrate ping poetry-bootstrap \
+ poetry-install-dev poetry-setup-dev run run-db run-with-python set-accessible \
+ start-mock-qpu start-mock-qpu-dev test update-requirements revision get-logs
 
 INSTALL_FLAGS=
 ifeq ($(WITH_PG),1)
@@ -12,6 +12,10 @@ endif
 ifeq ($(WITH_MARIADB),1)
 INSTALL_FLAGS  += -r requirements-mariadb.txt
 endif
+REQUIREMENTS_EXPORT_DIR ?= .
+POETRY_VERSION ?= 2.3.3
+POETRY_PYTHON ?= $(VENV)/bin/python
+POETRY_EXTRA_PACKAGES ?=
 
 # cluster admin commands
 
@@ -122,10 +126,17 @@ alembic:
 
 # dev/contributors methods
 
-install-dev: config.yaml
-	$(VENV)/bin/python -m pip install poetry==2.3.3
-	$(VENV)/bin/python -m poetry install --with dev --all-extras
-	$(MAKE) migrate
+poetry-bootstrap:
+	$(POETRY_PYTHON) -m pip install poetry==$(POETRY_VERSION) $(POETRY_EXTRA_PACKAGES)
+	$(POETRY_PYTHON) -m poetry config virtualenvs.in-project true
+
+poetry-install-dev:
+	$(POETRY_PYTHON) -m poetry install --with dev --all-extras
+
+poetry-setup-dev: poetry-bootstrap poetry-install-dev
+
+install-dev: $(VENV)/bin/python
+	$(MAKE) poetry-setup-dev
 
 dev: migrate
 	@bash -c '\
@@ -173,9 +184,11 @@ lint-fix:
 	poetry run ruff format .
 
 update-requirements:
-	poetry export -f requirements.txt --output requirements.txt
-	poetry export -f requirements.txt --extras postgres --output requirements-pg.txt
-	poetry export -f requirements.txt --extras mariadb --output requirements-mariadb.txt
+	poetry lock
+	mkdir -p "$(REQUIREMENTS_EXPORT_DIR)"
+	poetry export -f requirements.txt --output "$(REQUIREMENTS_EXPORT_DIR)/requirements.txt"
+	poetry export -f requirements.txt --extras postgres --output "$(REQUIREMENTS_EXPORT_DIR)/requirements-pg.txt"
+	poetry export -f requirements.txt --extras mariadb --output "$(REQUIREMENTS_EXPORT_DIR)/requirements-mariadb.txt"
 
 run-db:
 	docker compose up -d

@@ -458,7 +458,7 @@ async def test_run_retry_transient_errors(
 
     Test rationale:
     - Create N_JOBS dummy jobs to run
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - For each requests to return a list of RETRYABLE transient errors
           before returning the actual response
         - To return QPU status as "UP"
@@ -590,20 +590,20 @@ async def test_run_retry_transient_errors(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
-async def test_run_pasqos_api_unreachable(
+async def test_run_qpu_api_unreachable(
     strategy: str,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
 ):
-    """Test scheduler behavior when PasqOS API is unreachable.
+    """Test scheduler behavior when QPU API is unreachable.
 
     Expected behavior is that all jobs are set to "ERROR" status
     after retries fail.
 
     Test rationale:
     - Create a dummy jobs to run
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - To return QPU status as "Down"
     - Run scheduler until:
         - All jobs have a "ERROR" status is DB
@@ -661,14 +661,14 @@ async def test_run_job_creation_client_error(
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
 ):
-    """Test scheduler behavior when PasqOS API fails to create a job
+    """Test scheduler behavior when QPU API fails to create a job
 
     Expected behavior is that all jobs return as ERROR after the
     request fails after retries.
 
     Test rationale:
     - Create N_JOBS dummy jobs to run
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - To return QPU status as "UP"
         - Return exceptions when attempting to create a job
     - Run scheduler until:
@@ -748,12 +748,12 @@ async def test_run_job_client_error_timeout(
     - Configure job timout to non-negative value to avoid
       infinite polling
     - Create N_JOBS dummy jobs to run
-    - PasqOS API is mocked:
+    - QPU API is mocked:
         - To return QPU status as "UP"
         - To accept job creation request
         - To return 500 errors when polling job status
         - To return 500 errors when trying to cancel job
-          (it's the same backend request in PasqOS)
+          (it's the same backend request in QPU)
     - Run scheduler until:
         - All jobs have an "ERROR" status is DB
         - Test timeout after TEST_TIMEOUT_S

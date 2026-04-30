@@ -128,7 +128,7 @@ async def test_get_specs_success(client: AsyncClient, app, qpu_specs: dict):
 @pytest.mark.asyncio
 async def test_get_specs_success_retry(client: AsyncClient, app, qpu_specs: dict):
     """Nominal test case: assert that QPU specs are returned successfully
-    even after transient PasqOS error retry.
+    even after transient QPU error retry.
 
     1. Mock the QPU HTTP response to return a known specs payload after
        several 503 errors
