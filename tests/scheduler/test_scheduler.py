@@ -55,6 +55,7 @@ async def test_run_nominal(
         - All jobs have a "DONE" status is DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS
+    - Check "DONE" jobs have the right results
     """
 
     ##################
@@ -69,6 +70,7 @@ async def test_run_nominal(
     ##################
     ### TEST SETUP ###
     ##################
+    DUMMY_RESULTS = '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]'
 
     # QPU status
     httpx_mock.add_response(
@@ -111,7 +113,7 @@ async def test_run_nominal(
                 "uid": id,
                 "batch_id": SLURM_USER_ID,
                 "status": "DONE",
-                "result": '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]',
+                "result": DUMMY_RESULTS,
                 "program_id": QPU_PROGRAM_UID,
                 "created_datetime": NOW.isoformat(),
                 "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
@@ -134,10 +136,10 @@ async def test_run_nominal(
     # Populate DB with jobs to run
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == "DONE")
+    stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
 
     async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
+        while (await session.execute(stmt_count)).scalar() != N_JOBS:
             await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
 
     ##################
@@ -151,8 +153,11 @@ async def test_run_nominal(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_success(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        stmt_all = select(Job).where(Job.status == "DONE")
+        jobs_done = (await session.execute(stmt_all)).scalars().all()
+        assert len(jobs_done) == N_JOBS
+        for job in jobs_done:
+            assert job.results == DUMMY_RESULTS
 
 
 @pytest.mark.asyncio

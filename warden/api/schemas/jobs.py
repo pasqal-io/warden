@@ -33,7 +33,7 @@ class JobLogResponse(BaseModel):
 
     @classmethod
     def from_model(cls, job: Job) -> "JobResponse":
-        if job.logs is None:
+        if job.logs in (None, ""):
             return cls()
         return cls(
             logs=job.logs,
