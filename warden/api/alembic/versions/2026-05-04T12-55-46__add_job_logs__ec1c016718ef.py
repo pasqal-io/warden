@@ -1,8 +1,8 @@
-"""Add job logs
+"""add job logs
 
-Revision ID: bdfad8e5b387
+Revision ID: ec1c016718ef
 Revises: da94eef65e12
-Create Date: 2026-04-21 08:40:35.453263
+Create Date: 2026-05-04 12:55:46.363941
 
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "bdfad8e5b387"
+revision: str = "ec1c016718ef"
 down_revision: Union[str, Sequence[str], None] = "da94eef65e12"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column(
             "logs",
             sa.Text().with_variant(sa.Text(length=16777215), "mysql"),
-            nullable=True,
+            nullable=False,
         ),
     )
     # ### end Alembic commands ###

@@ -53,7 +53,8 @@ class Job(Base):
     )
     logs: Mapped[str | None] = mapped_column(
         Text().with_variant(Text(16777215), "mysql"),
-        nullable=True,
+        nullable=False,
+        default="",
         doc="Logs associated with the job execution.",
     )
     shots: Mapped[int] = mapped_column(

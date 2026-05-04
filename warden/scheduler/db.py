@@ -2,7 +2,7 @@
 
 import logging
 
-from sqlalchemy import case, func, update
+from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.models import Job
@@ -31,13 +31,8 @@ async def job_update_commiter(
                                 "results": job_update.result,
                                 "started_at": job_update.started_at,
                                 "ended_at": job_update.ended_at,
-                                "logs": case(
-                                    (
-                                        func.coalesce(Job.logs, "") == "",
-                                        job_update.new_logs,
-                                    ),
-                                    else_=Job.logs + job_update.new_logs,
-                                ),
+                                "logs": func.coalesce(Job.logs, "")
+                                + job_update.new_logs,
                             }
                         )
                     )

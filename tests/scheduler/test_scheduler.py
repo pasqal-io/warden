@@ -1,6 +1,7 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
+import logging
 import random
 from datetime import datetime, timedelta
 
@@ -41,6 +42,7 @@ async def test_run_nominal(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test that the scheduler is able to process
     a list of jobs when the QPU is up and running
@@ -55,12 +57,15 @@ async def test_run_nominal(
         - All jobs have a "DONE" status is DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS
-    - Check "DONE" jobs have the right results
+    - Check "DONE" jobs have the right results and non-empty logs
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 10
@@ -158,6 +163,7 @@ async def test_run_nominal(
         assert len(jobs_done) == N_JOBS
         for job in jobs_done:
             assert job.results == DUMMY_RESULTS
+            assert job.logs != ""
 
 
 @pytest.mark.asyncio
@@ -167,6 +173,7 @@ async def test_run_qpu_down(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test that the scheduler sets jobs to ERROR
     when the QPU is not responsive for a while
@@ -181,11 +188,15 @@ async def test_run_qpu_down(
         - All jobs have an "ERROR" status
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "ERROR") = N_JOBS
+    - Check those jobs have non-empty logs
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 3
@@ -228,8 +239,12 @@ async def test_run_qpu_down(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_error(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        stmt_all = select(Job).where(Job.status == EXPECTED_STATUS)
+        all_jobs = (await session.execute(stmt_all)).scalars().all()
+        assert len(all_jobs) == N_JOBS
+        for job in all_jobs:
+            assert "ERROR" in job.logs
+            assert "Aborting" in job.logs
 
 
 @pytest.mark.asyncio
