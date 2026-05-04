@@ -136,6 +136,8 @@ jobs:
   lint-and-test:
     name: Lint & Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     strategy:
       fail-fast: false
