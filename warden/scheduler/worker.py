@@ -83,7 +83,7 @@ class JobLoggingHandler(logging.Handler):
 
 
 class JobFilter(logging.Filter):
-    """Filter logs that should not be sent the the job's logs in db"""
+    """Filter logs that should not be sent to the job's logs in db"""
 
     def filter(self, record):
         """Send logs to be pushed to db by default"""
@@ -94,7 +94,7 @@ class JobFilter(logging.Filter):
 def record_logs(job_tracker: JobExecutionTracker):
     """Setups logger for current job executions recording of logs"""
 
-    # User-visible logs should only be > INFO level
+    # User-visible logs should only be >= INFO level
     job_log_handler = JobLoggingHandler(job_tracker, logging.INFO)
     job_log_handler.addFilter(JobFilter())
     job_log_handler.setFormatter(
@@ -209,7 +209,7 @@ class LocalQPUWorker:
             await job_tracker.push_update()
 
     async def await_job_execution(self, job_tracker: JobExecutionTracker) -> None:
-        """Polling the job status untill completion, error, or cancellation"""
+        """Polling the job status until completion, error, or cancellation"""
         polling_start = datetime.now()
         self._get_job_poll(job_tracker)
         await job_tracker.push_update()

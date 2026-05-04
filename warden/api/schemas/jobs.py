@@ -32,7 +32,7 @@ class JobLogResponse(BaseModel):
     logs: str = Field(default="There are no logs for this job")
 
     @classmethod
-    def from_model(cls, job: Job) -> "JobResponse":
+    def from_model(cls, job: Job) -> "JobLogResponse":
         if job.logs in (None, ""):
             return cls()
         return cls(
