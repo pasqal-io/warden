@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from asyncio import Queue
+from contextlib import contextmanager
 from datetime import datetime
 
 from warden.lib.config import Config
@@ -20,17 +21,19 @@ logger = logging.getLogger(__name__)
 
 
 class JobHandler:
-    """Handles current job and send updates to db"""
+    """Handles current job status and sends updates to db"""
 
     def __init__(self, queue: Queue):
         self.queue = queue
         self.qpu_job_info: QPUJobInfo = QPUJobInfo()
 
-        self._status: JobStatus | None = None
+        self._status: JobStatus = "PENDING"
         self._log_buffer: list[str] = []
 
     @property
     def status(self) -> JobStatus:
+        if self._status is None:
+            raise RuntimeError("")
         return self._status
 
     @property
@@ -52,13 +55,8 @@ class JobHandler:
 
     async def push_update(self):
         """Push update of job execution to db commit task through queue"""
-        # TODO: handle line breaks
         new_logs = "".join(self._log_buffer)
         self._log_buffer = []
-
-        # TODO: check this error handling
-        if self.status is None:
-            raise RuntimeError("Job status not set, something went wrong")
 
         await self.queue.put(
             JobUpdate(
@@ -73,7 +71,7 @@ class JobHandler:
 
 
 class JobLoggingHandler(logging.Handler):
-    """Direct scheduler.worker logs to the job's logs in db"""
+    """Emits job's logs in db through the JobHandler"""
 
     def __init__(self, job_handler: JobHandler, level=0):
         super().__init__(level)
@@ -88,11 +86,28 @@ class JobLoggingHandler(logging.Handler):
 
 
 class JobFilter(logging.Filter):
-    """Filter logs that should be sent the the job's logs in db"""
+    """Filter logs that should not be sent the the job's logs in db"""
 
     def filter(self, record):
         """Send logs to be pushed to db by default"""
         return getattr(record, "to_db", True)
+
+
+@contextmanager
+def record_logs(job_handler: JobHandler):
+    """Setups logger for current job executions recording of logs"""
+
+    # User-visible logs should only be > INFO level
+    job_log_handler = JobLoggingHandler(job_handler, logging.INFO)
+    job_log_handler.addFilter(JobFilter())
+    job_log_handler.setFormatter(
+        logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+    )
+    logger.addHandler(job_log_handler)
+    try:
+        yield
+    finally:
+        logger.removeHandler(job_log_handler)
 
 
 class LocalQPUWorker:
@@ -120,36 +135,29 @@ class LocalQPUWorker:
         self, queue: Queue, nb_run: int, sequence: str, batch_id: str | None = None
     ) -> None:
         """Execute job on the QPU"""
+
         job_handler = JobHandler(queue)
+        with record_logs(job_handler):
+            await self.poll_qpu(job_handler)
+            if job_handler.is_error():
+                return
+            logger.info("QPU is operational")
 
-        # User-visible logs should only be > INFO level
-        job_log_handler = JobLoggingHandler(job_handler, logging.INFO)
-        job_log_handler.addFilter(JobFilter())
-        job_log_handler.setFormatter(
-            logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
-        )
-        logger.addHandler(job_log_handler)
+            await self.create_job(
+                job_handler=job_handler,
+                nb_run=nb_run,
+                sequence=sequence,
+                batch_id=batch_id,
+            )
+            if job_handler.is_error():
+                return
+            logger.info("Job created on QPU")
 
-        await self.poll_qpu(job_handler)
-        if job_handler.is_error():
-            return
-        logger.info("QPU is operational")
+            await self.await_job_execution(job_handler)
+            if job_handler.status not in ("CANCELED", "ERROR"):
+                logger.info("Job execution done")
 
-        await self.create_job(
-            job_handler=job_handler,
-            nb_run=nb_run,
-            sequence=sequence,
-            batch_id=batch_id,
-        )
-        if job_handler.is_error():
-            return
-        logger.info("Job created on QPU")
-
-        await self.await_job_execution(job_handler)
-        if job_handler.status not in ("CANCELED", "ERROR"):
-            logger.info("Job execution done")
-
-        await job_handler.push_update()
+            await job_handler.push_update()
 
     async def poll_qpu(self, job_handler: JobHandler) -> None:
         """Check the QPU status"""
