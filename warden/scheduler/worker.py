@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from asyncio import Queue
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -15,7 +14,7 @@ from warden.lib.qpu_client import (
     QPUJobInfo,
 )
 from warden.scheduler.errors import QPUDownError
-from warden.scheduler.types import JobUpdate
+from warden.scheduler.types import JobUpdate, UpdateQueue
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 class JobExecutionTracker:
     """Handles current job status and sends updates to db"""
 
-    def __init__(self, queue: Queue):
+    def __init__(self, queue: UpdateQueue):
         self.queue = queue
         self.qpu_job_info: QPUJobInfo = QPUJobInfo()
 
@@ -32,8 +31,6 @@ class JobExecutionTracker:
 
     @property
     def status(self) -> JobStatus:
-        if self._status is None:
-            raise RuntimeError("")
         return self._status
 
     @property
@@ -132,7 +129,11 @@ class LocalQPUWorker:
         return (datetime.now() - start).total_seconds() > timeout_s
 
     async def execute_job(
-        self, queue: Queue, nb_run: int, sequence: str, batch_id: str | None = None
+        self,
+        queue: UpdateQueue,
+        nb_run: int,
+        sequence: str,
+        batch_id: str | None = None,
     ) -> None:
         """Execute job on the QPU"""
 
@@ -217,12 +218,10 @@ class LocalQPUWorker:
                 logger.warning(
                     f"Job timed out (max {self.conf_sched.job_polling_timeout_s} s). "
                     "Terminating its associated QPU job "
-                    f"{job_tracker.qpu_job_info.uid}."
+                    f"{job_tracker.job.uid}."
                 )
                 try:
-                    job_tracker.update_job(
-                        self.qpu_client.cancel_job(job_tracker.qpu_job_info)
-                    )
+                    job_tracker.update_job(self.qpu_client.cancel_job(job_tracker.job))
                 except (JobCancelationError, QPUClientRequestError) as e:
                     logger.error(f"Failed cancelling job: {e}")
                     job_tracker.to_error()

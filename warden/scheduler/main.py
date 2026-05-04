@@ -3,12 +3,10 @@
 import asyncio
 import logging.config
 import signal
-from asyncio import Queue
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
-    AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
@@ -16,8 +14,9 @@ from sqlalchemy.ext.asyncio import (
 from warden.lib.config import Config
 from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
+from warden.scheduler.db import job_update_commiter
 from warden.scheduler.strategy import schedulers
-from warden.scheduler.types import JobUpdate
+from warden.scheduler.types import UpdateQueue
 from warden.scheduler.worker import LocalQPUWorker
 
 QUEUE_MAXSIZE = 0
@@ -59,10 +58,12 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
             continue
         logger.info(f"Scheduling next job: {job.id}")
 
-        queue: Queue[JobUpdate] = Queue(maxsize=QUEUE_MAXSIZE)
+        queue = UpdateQueue(maxsize=QUEUE_MAXSIZE)
         # DB commit loop
         db_commit_task = asyncio.create_task(
-            async_commit(job_id=job.id, queue=queue, session_factory=session_factory)
+            job_update_commiter(
+                job_id=job.id, queue=queue, session_factory=session_factory
+            )
         )
 
         # QPU job execution
@@ -86,45 +87,6 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
             stmt = select(Job.status).where(Job.id == job.id)
             status = (await session.execute(stmt)).scalar_one_or_none()
         logger.info(f"Job {job.id} ended with status: {status}")
-
-
-async def async_commit(
-    job_id: int, queue: Queue, session_factory: async_sessionmaker[AsyncSession]
-):
-    """Async coroutine loop to continuously Job info during execution"""
-    while True:
-        job_update: JobUpdate = await queue.get()
-
-        async with session_factory() as session:
-            try:
-                async with session.begin():
-                    session.begin()
-                    stmt = (
-                        update(Job)
-                        .where(Job.id == job_id)
-                        .values(
-                            {
-                                "backend_id": job_update.backend_id,
-                                "status": job_update.status,
-                                "results": job_update.result,
-                                "started_at": job_update.started_at,
-                                "ended_at": job_update.ended_at,
-                                "logs": case(
-                                    (
-                                        func.coalesce(Job.logs, "") == "",
-                                        job_update.new_logs,
-                                    ),
-                                    else_=Job.logs + job_update.new_logs,
-                                ),
-                            }
-                        )
-                    )
-                    await session.execute(stmt)
-                logger.debug(f"Job {job_id} updated in db")
-            except Exception as e:
-                logger.error(f"DB Update failed: {e}")
-            finally:
-                queue.task_done()
 
 
 async def shutdown(engine: AsyncEngine):
