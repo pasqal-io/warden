@@ -12,7 +12,7 @@ class JobUpdate:
 
     status: JobStatus
     new_logs: str
-    backend_id: int | None = None
+    backend_id: str | None = None
     result: str | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None

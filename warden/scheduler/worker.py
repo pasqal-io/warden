@@ -59,7 +59,7 @@ class JobExecutionTracker:
             JobUpdate(
                 status=self.status,
                 new_logs=new_logs,
-                backend_id=self.qpu_job_info.uid,
+                backend_id=str(self.qpu_job_info.uid),
                 started_at=self.qpu_job_info.start_datetime,
                 ended_at=self.qpu_job_info.end_datetime,
                 result=self.qpu_job_info.result,
