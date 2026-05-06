@@ -1,12 +1,13 @@
 import asyncio
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TypeAlias
+
+from pydantic.dataclasses import dataclass
 
 from warden.lib.qpu_client.types import JobStatus
 
 
-@dataclass(frozen=True)
+@dataclass
 class JobUpdate:
     """Communication object between worker and db update task"""
 

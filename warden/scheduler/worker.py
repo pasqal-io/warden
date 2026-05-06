@@ -24,7 +24,7 @@ class JobExecutionTracker:
 
     def __init__(self, queue: UpdateQueue):
         self.queue = queue
-        self.qpu_job_info: QPUJobInfo = QPUJobInfo()
+        self.qpu_job_info: QPUJobInfo | None = None
 
         self._status: JobStatus = "PENDING"
         self._log_buffer: list[str] = []
@@ -35,6 +35,8 @@ class JobExecutionTracker:
 
     @property
     def job(self) -> QPUJobInfo:
+        if self.qpu_job_info is None:
+            raise RuntimeError("JobExecutionTracker has no previous QPUJobInfo")
         return self.qpu_job_info
 
     def update_job(self, qpu_job_info: QPUJobInfo):
@@ -55,16 +57,16 @@ class JobExecutionTracker:
         new_logs = "".join(self._log_buffer)
         self._log_buffer = []
 
-        await self.queue.put(
-            JobUpdate(
-                status=self.status,
-                new_logs=new_logs,
-                backend_id=str(self.qpu_job_info.uid),
-                started_at=self.qpu_job_info.start_datetime,
-                ended_at=self.qpu_job_info.end_datetime,
-                result=self.qpu_job_info.result,
-            )
+        update = JobUpdate(
+            status=self.status,
+            new_logs=new_logs,
         )
+        if self.qpu_job_info is not None:
+            update.backend_id = str(self.qpu_job_info.uid)
+            update.started_at = self.qpu_job_info.start_datetime
+            update.ended_at = self.qpu_job_info.end_datetime
+            update.result = self.qpu_job_info.result
+        await self.queue.put(update)
 
 
 class JobLoggingHandler(logging.Handler):

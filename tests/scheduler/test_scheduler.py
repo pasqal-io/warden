@@ -382,6 +382,7 @@ async def test_run_job_timeout(
                     "batch_id": SLURM_USER_ID,
                     "status": "CANCELED",
                     "result": None,
+                    "program_id": QPU_PROGRAM_UID,
                     # TODO: CHECK RETURN FIELDS HERE
                     "created_datetime": NOW.isoformat(),
                     "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
