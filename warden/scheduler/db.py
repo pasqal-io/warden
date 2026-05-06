@@ -21,16 +21,23 @@ async def job_update_commiter(
         async with session_factory() as session:
             try:
                 async with session.begin():
+                    values_update = {
+                        "backend_id": job_update.backend_id,
+                        "status": job_update.status,
+                        "results": job_update.result,
+                        "started_at": job_update.started_at,
+                        "ended_at": job_update.ended_at,
+                    }
+                    # Prevent updating None values to DB
+                    values_update = {
+                        k: v for (k, v) in values_update.items() if v is not None
+                    }
                     stmt = (
                         update(Job)
                         .where(Job.id == job_id)
                         .values(
                             {
-                                "backend_id": job_update.backend_id,
-                                "status": job_update.status,
-                                "results": job_update.result,
-                                "started_at": job_update.started_at,
-                                "ended_at": job_update.ended_at,
+                                **values_update,
                                 "logs": func.coalesce(Job.logs, "")
                                 + job_update.new_logs,
                             }
