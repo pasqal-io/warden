@@ -7,6 +7,3 @@ WITH_MARIADB=0
 
 # The Python interpreter to use
 PYTHON=python3
-
-# The virtual environment to use (automatically created if not exists)
-VENV=venv
