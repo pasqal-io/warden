@@ -14,7 +14,7 @@ from warden.lib.qpu_client import (
     QPUJobInfo,
 )
 from warden.scheduler.errors import QPUDownError
-from warden.scheduler.types import JobUpdate, UpdateQueue
+from warden.scheduler.types import JobUpdate, JobUpdateQueue
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class JobExecutionTracker:
     """Handles current job status and sends updates to db"""
 
-    def __init__(self, queue: UpdateQueue):
+    def __init__(self, queue: JobUpdateQueue):
         self.queue = queue
         self.qpu_job_info: QPUJobInfo | None = None
 
@@ -39,12 +39,14 @@ class JobExecutionTracker:
             raise RuntimeError("JobExecutionTracker has no previous QPUJobInfo")
         return self.qpu_job_info
 
-    def update_job(self, qpu_job_info: QPUJobInfo):
+    async def update_job(self, qpu_job_info: QPUJobInfo):
         self.qpu_job_info = qpu_job_info
         self._status = qpu_job_info.status
+        await self.push_update()
 
-    def to_error(self):
+    async def to_error(self):
         self._status = "ERROR"
+        await self.push_update()
 
     def is_error(self) -> bool:
         return self.status == "ERROR"
@@ -132,7 +134,7 @@ class LocalQPUWorker:
 
     async def execute_job(
         self,
-        queue: UpdateQueue,
+        queue: JobUpdateQueue,
         nb_run: int,
         sequence: str,
         batch_id: str | None = None,
@@ -160,6 +162,7 @@ class LocalQPUWorker:
             if job_tracker.status not in ("CANCELED", "ERROR"):
                 logger.info("Job execution done")
 
+            # Flush last updates before return
             await job_tracker.push_update()
 
     async def poll_qpu(self, job_tracker: JobExecutionTracker) -> None:
@@ -182,12 +185,10 @@ class LocalQPUWorker:
                 f"{self.conf_sched.qpu_polling_timeout_s} seconds. Aborting. "
                 "Submit when the QPU's status is 'UP'. "
             )
-            job_tracker.to_error()
-            await job_tracker.push_update()
+            await job_tracker.to_error()
         except QPUClientRequestError as e:
             logger.error(f"Failed polling QPU status: {e}")
-            job_tracker.to_error()
-            await job_tracker.push_update()
+            await job_tracker.to_error()
 
     async def create_job(
         self,
@@ -198,23 +199,21 @@ class LocalQPUWorker:
     ) -> None:
         """Create the job on the QPU"""
         try:
-            job_tracker.update_job(
-                self.qpu_client.create_job(
-                    nb_run=nb_run,
-                    abstract_sequence=sequence,
-                    batch_id=batch_id,
-                )
+            qpu_job_info = self.qpu_client.create_job(
+                nb_run=nb_run,
+                abstract_sequence=sequence,
+                batch_id=batch_id,
             )
+
+            await job_tracker.update_job(qpu_job_info)
         except QPUClientRequestError as e:
             logger.error(f"Failed creating job: {e}")
-            job_tracker.to_error()
-            await job_tracker.push_update()
+            await job_tracker.to_error()
 
     async def await_job_execution(self, job_tracker: JobExecutionTracker) -> None:
         """Polling the job status until completion, error, or cancellation"""
         polling_start = datetime.now()
-        self._get_job_poll(job_tracker)
-        await job_tracker.push_update()
+        await self._get_job_poll(job_tracker)
         while job_tracker.status not in ("ERROR", "DONE", "CANCELED"):
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
                 logger.warning(
@@ -223,26 +222,25 @@ class LocalQPUWorker:
                     f"{job_tracker.job.uid}."
                 )
                 try:
-                    job_tracker.update_job(self.qpu_client.cancel_job(job_tracker.job))
+                    qpu_job_info = self.qpu_client.cancel_job(job_tracker.job)
+                    await job_tracker.update_job(qpu_job_info)
                 except (JobCancelationError, QPUClientRequestError) as e:
                     logger.error(f"Failed cancelling job: {e}")
-                    job_tracker.to_error()
-                    await job_tracker.push_update()
+                    await job_tracker.to_error()
                     continue
                 logger.info("Job cancellation done")
-                await job_tracker.push_update()
                 continue
             await asyncio.sleep(self.conf_sched.job_polling_interval_s)
-            self._get_job_poll(job_tracker)
-            await job_tracker.push_update()
+            await self._get_job_poll(job_tracker)
 
-    def _get_job_poll(self, job_tracker: JobExecutionTracker) -> None:
+    async def _get_job_poll(self, job_tracker: JobExecutionTracker) -> None:
         try:
             # When polling the job status, we set no_retry=True as we are
             # in the job polling loop that will handle the retry of the requests
             # until an eventual timout of the job
-            job_tracker.update_job(
-                self.qpu_client.get_job(job_tracker.job, no_retry=True),
+            qpu_job_info = self.qpu_client.get_job(job_tracker.job, no_retry=True)
+            await job_tracker.update_job(
+                qpu_job_info,
             )
             logger.info(f"Job status: {job_tracker.status}", extra={"to_db": False})
         except QPUClientRequestError as e:

@@ -6,13 +6,15 @@ from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.models import Job
-from warden.scheduler.types import UpdateQueue
+from warden.scheduler.types import JobUpdateQueue
 
 logger = logging.getLogger(__name__)
 
 
 async def job_update_commiter(
-    job_id: int, queue: UpdateQueue, session_factory: async_sessionmaker[AsyncSession]
+    job_id: int,
+    queue: JobUpdateQueue,
+    session_factory: async_sessionmaker[AsyncSession],
 ):
     """Consumes Job Updates to db"""
     while True:

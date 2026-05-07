@@ -16,7 +16,7 @@ from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
 from warden.scheduler.db import job_update_commiter
 from warden.scheduler.strategy import schedulers
-from warden.scheduler.types import UpdateQueue
+from warden.scheduler.types import JobUpdateQueue
 from warden.scheduler.worker import LocalQPUWorker
 
 QUEUE_MAXSIZE = 0
@@ -58,7 +58,7 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
             continue
         logger.info(f"Scheduling next job: {job.id}")
 
-        queue = UpdateQueue(maxsize=QUEUE_MAXSIZE)
+        queue = JobUpdateQueue(maxsize=QUEUE_MAXSIZE)
         # DB commit loop
         db_commit_task = asyncio.create_task(
             job_update_commiter(

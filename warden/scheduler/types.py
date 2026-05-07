@@ -19,4 +19,4 @@ class JobUpdate:
     ended_at: datetime | None = None
 
 
-UpdateQueue: TypeAlias = asyncio.Queue[JobUpdate]
+JobUpdateQueue: TypeAlias = asyncio.Queue[JobUpdate]
