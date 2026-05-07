@@ -1,0 +1,252 @@
+name: Installation Matrix
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  install-run-ping:
+    name: Install/Run/Ping (${{ matrix.image_name }}, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: rockylinux:8
+            image_name: Rocky 8
+            python-version: "3.11"
+          - image: rockylinux:8
+            image_name: Rocky 8
+            python-version: "3.12"
+          - image: rockylinux:9
+            image_name: Rocky 9
+            python-version: "3.11"
+          - image: rockylinux:9
+            image_name: Rocky 9
+            python-version: "3.12"
+          - image: registry.access.redhat.com/ubi8/ubi:8.8
+            image_name: UBI 8.8 (RHEL 8.8-compatible)
+            python-version: "3.11"
+          - image: registry.access.redhat.com/ubi8/ubi:8.8
+            image_name: UBI 8.8 (RHEL 8.8-compatible)
+            python-version: "3.12"
+
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+
+      - name: Install system dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          if command -v dnf >/dev/null 2>&1; then
+            PM="dnf"
+          elif command -v microdnf >/dev/null 2>&1; then
+            PM="microdnf"
+          else
+            echo "No supported package manager found (dnf/microdnf)."
+            exit 1
+          fi
+
+          if [ "$PM" = "dnf" ]; then
+            dnf -y update
+          else
+            microdnf -y update
+          fi
+
+          PY_MM="${{ matrix.python-version }}"
+          PY_NODOT="${PY_MM//./}"
+
+          COMMON_PKGS=(
+            git
+            make
+            gcc
+            gcc-c++
+          )
+
+          # Try common libmunge runtime package names across EL variants.
+          MUNGE_LIB_CANDIDATES=(
+            munge-libs
+            libmunge
+          )
+
+          PYTHON_CANDIDATES=(
+            "python${PY_MM}"
+            "python${PY_NODOT}"
+            "python3"
+          )
+
+          PIP_CANDIDATES=(
+            "python${PY_MM}-pip"
+            "python${PY_NODOT}-pip"
+            python3-pip
+          )
+
+          VENV_CANDIDATES=(
+            "python${PY_MM}-venv"
+            "python${PY_NODOT}-venv"
+            python3-venv
+          )
+
+          install_pkg() {
+            local pkg="$1"
+            if [ "$PM" = "dnf" ]; then
+              dnf -y install "$pkg"
+            else
+              microdnf -y install "$pkg"
+            fi
+          }
+
+          for pkg in "${COMMON_PKGS[@]}"; do
+            install_pkg "$pkg"
+          done
+
+          if ! command -v curl >/dev/null 2>&1; then
+            if [ "$PM" = "dnf" ]; then
+              # Rocky/RHEL9 images can include curl-minimal, which conflicts with curl.
+              dnf -y install --allowerasing curl
+            else
+              install_pkg curl
+            fi
+          fi
+
+          install_first_available() {
+            local found=0
+            for candidate in "$@"; do
+              if install_pkg "$candidate"; then
+                echo "Installed: $candidate"
+                found=1
+                break
+              fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "No candidate package could be installed: $*"
+              return 1
+            fi
+          }
+
+          install_optional_first_available() {
+            local found=0
+            for candidate in "$@"; do
+              if install_pkg "$candidate"; then
+                echo "Installed optional: $candidate"
+                found=1
+                break
+              fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "No optional candidate package available: $*"
+            fi
+          }
+
+          ensure_munge() {
+            if install_pkg munge; then
+              echo "Installed munge from package repository."
+              install_optional_first_available "${MUNGE_LIB_CANDIDATES[@]}"
+              return 0
+            fi
+
+            echo "munge package not available; building from source."
+            install_pkg tar
+            install_pkg gzip
+            install_optional_first_available libgcrypt-devel
+            install_optional_first_available openssl-devel
+            install_optional_first_available zlib-devel
+            install_optional_first_available bzip2-devel
+
+            MUNGE_VERSION="0.5.16"
+            MUNGE_TARBALL="/tmp/munge-${MUNGE_VERSION}.tar.xz"
+            MUNGE_SRC_DIR="/tmp/munge-${MUNGE_VERSION}"
+
+            curl --fail --silent --show-error --location \
+              "https://github.com/dun/munge/releases/download/munge-${MUNGE_VERSION}/munge-${MUNGE_VERSION}.tar.xz" \
+              --output "${MUNGE_TARBALL}"
+            tar -xf "${MUNGE_TARBALL}" -C /tmp
+
+            pushd "${MUNGE_SRC_DIR}"
+            ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
+            make -j"$(nproc)"
+            make install
+            popd
+
+            command -v munged
+          }
+
+          ensure_munge
+          install_first_available "${PYTHON_CANDIDATES[@]}"
+          install_first_available "${PIP_CANDIDATES[@]}"
+          install_first_available "${VENV_CANDIDATES[@]}"
+
+          python3 --version || true
+          python${PY_MM} --version || true
+          pip3 --version || true
+
+      - name: Resolve Python executable
+        id: py
+        shell: bash
+        run: |
+          set -euo pipefail
+          PY_MM="${{ matrix.python-version }}"
+          PY_NODOT="${PY_MM//./}"
+
+          CANDIDATES=(
+            "/usr/bin/python${PY_MM}"
+            "/usr/bin/python${PY_NODOT}"
+            "$(command -v python${PY_MM} || true)"
+            "$(command -v python${PY_NODOT} || true)"
+            "$(command -v python3 || true)"
+          )
+
+          for py in "${CANDIDATES[@]}"; do
+            if [ -n "${py}" ] && [ -x "${py}" ]; then
+              echo "python_path=${py}" >> "$GITHUB_OUTPUT"
+              "${py}" --version
+              exit 0
+            fi
+          done
+
+          echo "Unable to resolve Python executable for $PY_MM"
+          exit 1
+
+      - name: Run make install
+        shell: bash
+        run: make install PYTHON="${{ steps.py.outputs.python_path }}"
+
+      - name: Run make run in background
+        shell: bash
+        run: |
+          set -euo pipefail
+          make run > /tmp/warden-run.log 2>&1 &
+          echo $! > /tmp/warden-run.pid
+
+      - name: Sleep then ping local API
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 2
+          curl --fail --silent --show-error http://localhost:4207
+
+      - name: Print run logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo "==== /tmp/warden-run.log ===="
+          test -f /tmp/warden-run.log && cat /tmp/warden-run.log || echo "No run log found"
+
+      - name: Stop background run
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if test -f /tmp/warden-run.pid; then
+            pid="$(cat /tmp/warden-run.pid)"
+            kill -TERM "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          fi
