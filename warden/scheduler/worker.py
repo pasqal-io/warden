@@ -24,8 +24,8 @@ class JobExecutionTracker:
 
     def __init__(self, queue: JobUpdateQueue):
         self.queue = queue
-        self.qpu_job_info: QPUJobInfo | None = None
 
+        self._qpu_job_info: QPUJobInfo | None = None
         self._status: JobStatus = "PENDING"
         self._log_buffer: list[str] = []
 
@@ -35,21 +35,22 @@ class JobExecutionTracker:
 
     @property
     def job(self) -> QPUJobInfo:
-        if self.qpu_job_info is None:
+        if self._qpu_job_info is None:
             raise RuntimeError("JobExecutionTracker has no previous QPUJobInfo")
-        return self.qpu_job_info
+        return self._qpu_job_info
+
+    @property
+    def is_error(self) -> bool:
+        return self.status == "ERROR"
 
     async def update_job(self, qpu_job_info: QPUJobInfo):
-        self.qpu_job_info = qpu_job_info
+        self._qpu_job_info = qpu_job_info
         self._status = qpu_job_info.status
         await self.push_update()
 
     async def to_error(self):
         self._status = "ERROR"
         await self.push_update()
-
-    def is_error(self) -> bool:
-        return self.status == "ERROR"
 
     def log(self, msg: str) -> None:
         self._log_buffer.append(msg + "\n")
@@ -59,16 +60,16 @@ class JobExecutionTracker:
         new_logs = "".join(self._log_buffer)
         self._log_buffer = []
 
-        update = JobUpdate(
+        job_update = JobUpdate(
             status=self.status,
             new_logs=new_logs,
         )
-        if self.qpu_job_info is not None:
-            update.backend_id = str(self.qpu_job_info.uid)
-            update.started_at = self.qpu_job_info.start_datetime
-            update.ended_at = self.qpu_job_info.end_datetime
-            update.result = self.qpu_job_info.result
-        await self.queue.put(update)
+        if self._qpu_job_info is not None:
+            job_update.backend_id = str(self._qpu_job_info.uid)
+            job_update.started_at = self._qpu_job_info.start_datetime
+            job_update.ended_at = self._qpu_job_info.end_datetime
+            job_update.result = self._qpu_job_info.result
+        await self.queue.put(job_update)
 
 
 class JobLoggingHandler(logging.Handler):
@@ -144,7 +145,7 @@ class LocalQPUWorker:
         job_tracker = JobExecutionTracker(queue)
         with record_logs(job_tracker):
             await self.poll_qpu(job_tracker)
-            if job_tracker.is_error():
+            if job_tracker.is_error:
                 return
             logger.info("QPU is operational")
 
@@ -154,7 +155,7 @@ class LocalQPUWorker:
                 sequence=sequence,
                 batch_id=batch_id,
             )
-            if job_tracker.is_error():
+            if job_tracker.is_error:
                 return
             logger.info("Job created on QPU")
 
@@ -162,7 +163,7 @@ class LocalQPUWorker:
             if job_tracker.status not in ("CANCELED", "ERROR"):
                 logger.info("Job execution done")
 
-            # Flush last updates before return
+            # Flush potential last updates before return
             await job_tracker.push_update()
 
     async def poll_qpu(self, job_tracker: JobExecutionTracker) -> None:
@@ -239,9 +240,7 @@ class LocalQPUWorker:
             # in the job polling loop that will handle the retry of the requests
             # until an eventual timout of the job
             qpu_job_info = self.qpu_client.get_job(job_tracker.job, no_retry=True)
-            await job_tracker.update_job(
-                qpu_job_info,
-            )
+            await job_tracker.update_job(qpu_job_info)
             logger.info(f"Job status: {job_tracker.status}", extra={"to_db": False})
         except QPUClientRequestError as e:
             logger.warning(
