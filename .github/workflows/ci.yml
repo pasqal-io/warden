@@ -25,7 +25,7 @@ jobs:
           python-version: "3.11"
 
       - name: Bootstrap Poetry environment
-        run: make poetry-bootstrap POETRY_PYTHON=python3 POETRY_EXTRA_PACKAGES="poetry-plugin-export>=1.8"
+        run: make install-dev
 
       - name: Export requirements into a temporary directory
         run: make update-requirements REQUIREMENTS_EXPORT_DIR="$RUNNER_TEMP/requirements-export"
@@ -158,22 +158,14 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libmunge-dev
 
-      - name: Cache Poetry virtualenv
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-py${{ matrix.python-version }}-
-
       - name: Install dependencies
-        run: make poetry-setup-dev POETRY_PYTHON=python3
+        run: make install-dev
 
       - name: Lint — ruff lint/format check
         run: make lint-check
 
       - name: Run tests
-        run: poetry run pytest
+        run: make test
 
   sbom:
     name: SBOM (Trivy)
@@ -192,7 +184,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: make poetry-setup-dev POETRY_PYTHON=python3
+        run: make install-dev
 
       - name: Generate SBOM artifacts
         uses: ./.github/actions/generate-sbom
@@ -309,3 +301,44 @@ jobs:
           name: sbom-${{ github.run_id }}
           path: ${{ runner.temp }}/sbom/*.json
           if-no-files-found: error
+
+  test-migrations:
+    name: Test migrations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database-backend: ["sqlite", "mariadb", "postgres"]
+
+    services:
+      warden-db-postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: warden
+          POSTGRES_USER: wardenuser
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+      warden-db-mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: warden
+          MARIADB_ROOT_PASSWORD: secret
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
+      
+      - name: Install dependencies
+        run: make install-dev
+
+      - name: Run migrations
+        run: make test-migrations-${{ matrix.database-backend }}
