@@ -9,7 +9,7 @@ from warden.api.routes.dependencies.auth import (
     verify_session,
 )
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.api.schemas.jobs import Job, JobCreate, JobResponse
+from warden.api.schemas.jobs import Job, JobCreate, JobLogResponse, JobResponse
 from warden.lib.models.sessions import Session
 
 logger = getLogger(__name__)
@@ -58,3 +58,18 @@ async def get_job(
     if job is None:
         raise HTTPException(404, detail="Job not found")
     return JobResponse.from_model(job)
+
+
+@router.get("/{id}/logs")
+async def get_job_logs(
+    id: int,
+    session: DBSessionDep,
+    identity: MungeIdentity = Depends(munge_identity),
+) -> JobLogResponse:
+    result = await session.execute(
+        select(Job).where(Job.user_id == identity.uid, Job.id == id)
+    )
+    job = result.scalars().one_or_none()
+    if job is None:
+        raise HTTPException(404, detail="Job not found")
+    return JobLogResponse.from_model(job)

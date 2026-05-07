@@ -1,6 +1,7 @@
 """Integration test"""
 
 import asyncio
+import logging
 
 import pytest
 import utils
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from tests.mock_qpu_api.samples import FAKE_RESULTS
 from warden.lib.config import Config, QPUConfig, SchedulerConfig
 from warden.lib.models import Job
 from warden.scheduler.main import run_scheduler
@@ -23,6 +25,7 @@ async def test_run_scheduler_integration(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     mock_qpu_api_app: FastAPI,
+    caplog,
 ):
     """Test nominal behavior of scheduler with mock qpu api
 
@@ -39,6 +42,9 @@ async def test_run_scheduler_integration(
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 10
     N_JOBS = 10
@@ -86,5 +92,11 @@ async def test_run_scheduler_integration(
                 await wait_until_success(session=session)
         finally:
             utils.raise_main_scheduler_task_exception(main_task)
-            n_done = (await session.execute(stmt)).scalar()
-            assert n_done == N_JOBS
+
+            stmt_all = select(Job).where(Job.status == "DONE")
+            jobs_done = (await session.execute(stmt_all)).scalars().all()
+            assert len(jobs_done) == N_JOBS
+            for job in jobs_done:
+                assert job.results == FAKE_RESULTS
+                assert job.logs != ""
+                assert "done" in job.logs

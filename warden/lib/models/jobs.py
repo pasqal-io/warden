@@ -51,7 +51,12 @@ class Job(Base):
         default="PENDING",
         doc="Status of the job.",
     )
-
+    logs: Mapped[str | None] = mapped_column(
+        Text().with_variant(Text(16777215), "mysql"),
+        nullable=False,
+        server_default="",
+        doc="Logs associated with the job execution.",
+    )
     shots: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from warden.lib.models.jobs import Job
 
@@ -25,4 +25,16 @@ class JobResponse(BaseModel):
             created_at=job.created_at,
             status=job.status,
             results=job.results,
+        )
+
+
+class JobLogResponse(BaseModel):
+    logs: str = Field(default="There are no logs for this job")
+
+    @classmethod
+    def from_model(cls, job: Job) -> "JobLogResponse":
+        if job.logs in (None, ""):
+            return cls()
+        return cls(
+            logs=job.logs,
         )

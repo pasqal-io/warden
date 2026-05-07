@@ -11,14 +11,14 @@ QPUStatus: TypeAlias = Literal["UP", "DOWN"]
 
 @dataclass(frozen=True)
 class QPUJobInfo:
-    uid: int | None = None
-    batch_id: str | None = None
-    status: JobStatus | None = None
-    result: str | None = None
-    program_id: int | None = None
-    created_datetime: datetime | None = None
-    start_datetime: datetime | None = None
-    end_datetime: datetime | None = None
+    uid: int
+    batch_id: str | None
+    status: JobStatus | None
+    result: str | None
+    program_id: int | None
+    created_datetime: datetime
+    start_datetime: datetime | None
+    end_datetime: datetime | None
 
 
 @dataclass
