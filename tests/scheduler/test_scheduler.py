@@ -1,6 +1,7 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
+import logging
 import random
 from datetime import datetime, timedelta
 
@@ -41,6 +42,7 @@ async def test_run_nominal(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test that the scheduler is able to process
     a list of jobs when the QPU is up and running
@@ -55,11 +57,15 @@ async def test_run_nominal(
         - All jobs have a "DONE" status is DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS
+    - Check "DONE" jobs have the right results and non-empty logs
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 10
@@ -69,6 +75,7 @@ async def test_run_nominal(
     ##################
     ### TEST SETUP ###
     ##################
+    DUMMY_RESULTS = '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]'
 
     # QPU status
     httpx_mock.add_response(
@@ -111,7 +118,7 @@ async def test_run_nominal(
                 "uid": id,
                 "batch_id": SLURM_USER_ID,
                 "status": "DONE",
-                "result": '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]',
+                "result": DUMMY_RESULTS,
                 "program_id": QPU_PROGRAM_UID,
                 "created_datetime": NOW.isoformat(),
                 "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
@@ -134,10 +141,10 @@ async def test_run_nominal(
     # Populate DB with jobs to run
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == "DONE")
+    stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
 
     async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
+        while (await session.execute(stmt_count)).scalar() != N_JOBS:
             await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
 
     ##################
@@ -151,8 +158,12 @@ async def test_run_nominal(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_success(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        stmt_all = select(Job).where(Job.status == "DONE")
+        jobs_done = (await session.execute(stmt_all)).scalars().all()
+        assert len(jobs_done) == N_JOBS
+        for job in jobs_done:
+            assert job.results == DUMMY_RESULTS
+            assert len(job.logs) > 0
 
 
 @pytest.mark.asyncio
@@ -162,6 +173,7 @@ async def test_run_qpu_down(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test that the scheduler sets jobs to ERROR
     when the QPU is not responsive for a while
@@ -176,11 +188,15 @@ async def test_run_qpu_down(
         - All jobs have an "ERROR" status
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "ERROR") = N_JOBS
+    - Check those jobs have non-empty logs
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 3
@@ -223,8 +239,12 @@ async def test_run_qpu_down(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_error(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        stmt_all = select(Job).where(Job.status == EXPECTED_STATUS)
+        all_jobs = (await session.execute(stmt_all)).scalars().all()
+        assert len(all_jobs) == N_JOBS
+        for job in all_jobs:
+            assert "ERROR" in job.logs
+            assert "Aborting" in job.logs
 
 
 @pytest.mark.asyncio
@@ -234,6 +254,7 @@ async def test_run_job_timeout(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test scheduler behavior when jobs timeout
 
@@ -270,12 +291,17 @@ async def test_run_job_timeout(
     - Check :
         - n(jobs !"PENDING") = N_JOBS
         - canceled_jobs_ids in JOB_TIMEOUT_CANCELED_ID
+        - canceled_jobs have non-empty logs containing "Terminating"
         - done_jobs_ids not in JOB_TIMEOUT_CANCELED_ID
+        - done_jobs_ids have non-empty logs
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 8
@@ -362,6 +388,7 @@ async def test_run_job_timeout(
                     "batch_id": SLURM_USER_ID,
                     "status": "CANCELED",
                     "result": None,
+                    "program_id": QPU_PROGRAM_UID,
                     # TODO: CHECK RETURN FIELDS HERE
                     "created_datetime": NOW.isoformat(),
                     "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
@@ -438,9 +465,12 @@ async def test_run_job_timeout(
         job_canceled_id = (await session.execute(stmt_cancelled)).scalars()
         for job in job_canceled_id:
             assert job.id in JOB_TIMEOUT_CANCELED_ID
+            assert len(job.logs) > 0
+            assert "Terminating" in job.logs
         job_done = (await session.execute(stmt_done)).scalars()
         for job in job_done:
             assert job.id not in JOB_TIMEOUT_CANCELED_ID
+            assert len(job.logs) > 0
 
 
 @pytest.mark.asyncio
@@ -450,6 +480,7 @@ async def test_run_retry_transient_errors(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test that the scheduler is able to process
     a list of jobs when the QPU is up and running
@@ -467,12 +498,17 @@ async def test_run_retry_transient_errors(
     - Run scheduler until:
         - All jobs have a "DONE" status in DB
         - Test timeout after TEST_TIMEOUT_S
-    - Check n (jobs with status "DONE") = N_JOBS
+    - Checks:
+        - n (jobs with status "DONE") = N_JOBS
+        - jobs have non-empty logs
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 1
@@ -567,10 +603,11 @@ async def test_run_retry_transient_errors(
     # Populate DB with jobs to run
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == "DONE")
+    stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
+    stmt = select(Job).where(Job.status == "DONE")
 
     async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
+        while (await session.execute(stmt_count)).scalar() != N_JOBS:
             await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
 
     ##################
@@ -584,8 +621,10 @@ async def test_run_retry_transient_errors(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_success(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        jobs_done = (await session.execute(stmt)).scalars().all()
+        assert len(jobs_done) == N_JOBS
+        for job in jobs_done:
+            assert len(job.logs) > 0
 
 
 @pytest.mark.asyncio
@@ -595,6 +634,7 @@ async def test_run_qpu_api_unreachable(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test scheduler behavior when QPU API is unreachable.
 
@@ -608,12 +648,17 @@ async def test_run_qpu_api_unreachable(
     - Run scheduler until:
         - All jobs have a "ERROR" status is DB
         - Test timeout after TEST_TIMEOUT_S
-    - Check n (jobs with status "ERROR") = N_JOBS
+    - Checks
+        - n(jobs with status "ERROR") = N_JOBS
+        - All jobs have non-empty logs and an "ERROR" message
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 1
@@ -631,10 +676,11 @@ async def test_run_qpu_api_unreachable(
     # Populate DB with jobs to run
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
+    stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
+    stmt = select(Job).where(Job.status == EXPECTED_STATUS)
 
     async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
+        while (await session.execute(stmt_count)).scalar() != N_JOBS:
             await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
 
     ##################
@@ -648,9 +694,11 @@ async def test_run_qpu_api_unreachable(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_success(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        main_task.cancel()
-        assert n_done == N_JOBS
+        error_jobs = (await session.execute(stmt)).scalars().all()
+        assert len(error_jobs) == N_JOBS
+        for job in error_jobs:
+            assert len(job.logs) > 0
+            assert "ERROR" in job.logs
 
 
 @pytest.mark.asyncio
@@ -660,6 +708,7 @@ async def test_run_job_creation_client_error(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test scheduler behavior when QPU API fails to create a job
 
@@ -674,12 +723,17 @@ async def test_run_job_creation_client_error(
     - Run scheduler until:
         - All jobs have a "ERROR" status is DB
         - Test timeout after TEST_TIMEOUT_S
-    - Check n (jobs with status "ERROR") = N_JOBS
+    - Checks
+        - n(jobs with status "ERROR") = N_JOBS
+        - All jobs have non-empty logs and an "ERROR" message
     """
 
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 3
@@ -710,10 +764,11 @@ async def test_run_job_creation_client_error(
     # Populate DB with jobs to run
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
+    stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
+    stmt = select(Job).where(Job.status == EXPECTED_STATUS)
 
     async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
+        while (await session.execute(stmt_count)).scalar() != N_JOBS:
             await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
 
     ##################
@@ -727,8 +782,11 @@ async def test_run_job_creation_client_error(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_success(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        jobs = (await session.execute(stmt)).scalars().all()
+        assert len(jobs) == N_JOBS
+        for job in jobs:
+            assert len(job.logs) > 0
+            assert "ERROR" in job.logs
 
 
 @pytest.mark.asyncio
@@ -738,6 +796,7 @@ async def test_run_job_client_error_timeout(
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test scheduler behavior when job timesout due to the requests
     to get the job status failing
@@ -763,6 +822,9 @@ async def test_run_job_client_error_timeout(
     ##################
     ### TEST CONF  ###
     ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 3
     N_JOBS = 1
@@ -817,10 +879,11 @@ async def test_run_job_client_error_timeout(
     # Populate DB with jobs to run
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
+    stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
+    stmt = select(Job).where(Job.status == EXPECTED_STATUS)
 
     async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
+        while (await session.execute(stmt_count)).scalar() != N_JOBS:
             await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
 
     ##################
@@ -834,5 +897,8 @@ async def test_run_job_client_error_timeout(
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
             await wait_until_success(session=session)
 
-        n_done = (await session.execute(stmt)).scalar()
-        assert n_done == N_JOBS
+        jobs = (await session.execute(stmt)).scalars().all()
+        assert len(jobs) == N_JOBS
+        for job in jobs:
+            assert len(job.logs) > 0
+            assert "ERROR" in job.logs

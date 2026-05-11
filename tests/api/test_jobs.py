@@ -1,6 +1,7 @@
 import pytest
 from conftest import mock_munge_auth
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
@@ -185,7 +186,88 @@ async def test_get_job_not_found(client, app, serialized_sequence: str):
 
 @pytest.mark.asyncio
 async def test_jobs_auth(client: AsyncClient):
-    test_cases = [("POST", "/jobs"), ("GET", "/jobs"), ("GET", "/jobs/1")]
+    test_cases = [
+        ("POST", "/jobs"),
+        ("GET", "/jobs"),
+        ("GET", "/jobs/1"),
+        ("GET", "/jobs/1/logs"),
+    ]
     for method, route in test_cases:
         response = await client.request(method, route)
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_job_logs_success(client: AsyncClient, app, serialized_sequence: str):
+    """Test getting job logs nominal behavior
+
+    1. Create a job in DB with logs and another without logs
+    2. Call GET /jobs/1/logs with the right ID and check logs
+    3. Call GET /jobs/2/logs with the right ID and check default logs
+    """
+
+    user_id = 1000
+    job_1 = Job(
+        id=1,
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        shots=100,
+        logs="Those are logs",
+    )
+    job_2 = Job(
+        id=2,
+        session=Session(user_id=str(user_id), slurm_job_id="2"),
+        sequence=serialized_sequence,
+        shots=100,
+    )
+    jobs = [job_1, job_2]
+    async_session: async_sessionmaker = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add_all(jobs)
+        await session.commit()
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.get("/jobs/1/logs")
+    assert response.status_code == 200
+    assert response.json()["logs"] == "Those are logs"
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.get("/jobs/2/logs")
+    assert response.status_code == 200
+    assert "no logs" in response.json()["logs"].lower()
+
+
+@pytest.mark.asyncio
+async def test_job_logs_not_found(client: AsyncClient, app, serialized_sequence: str):
+    """Test getting job logs when job_id or user_id is wrong
+
+    1. Create a job in DB with a user_id
+    2. Call GET /jobs/ID/logs with the wrong user_id
+    4. Call GET /jobs/ID/logs with the wrong job_id
+    """
+
+    user_id = 1000
+    wrong_user_id = 1001
+
+    JOB_ID = 1
+    job = Job(
+        id=JOB_ID,
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        shots=100,
+        logs="Those are logs",
+    )
+    async_session: async_sessionmaker = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+
+    with mock_munge_auth(app, uid=wrong_user_id):
+        response = await client.get(f"/jobs/{JOB_ID}/logs")
+    assert response.status_code == 404
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.get("/jobs/1235/logs")
+    assert response.status_code == 404

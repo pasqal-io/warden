@@ -4,7 +4,7 @@ include config.mk
 .PHONY: alembic dev install install-dev lint-check lint-fix migrate ping \
  run run-db run-with-python set-accessible \
  start-mock-qpu start-mock-qpu-dev test test-migrations test-migrations-mariadb \
- test-migrations-postgres test-migrations-sqlite update-requirements
+ test-migrations-postgres test-migrations-sqlite update-requirements revision get-logs
 
 VENV=.venv
 INSTALL_FLAGS=
@@ -143,6 +143,11 @@ set-accessible:
 		-H "Content-Type: application/json" \
 		-d '$(ACCESSIBLE_POST_JSON_PAYLOAD)'
 
+get-logs:
+
+	curl -X GET $(URL)/jobs/$(ID)/logs \
+		-H "X-Munge-Cred: $$(munge -n)"
+
 ping:
 	curl $(URL)
 
@@ -244,3 +249,7 @@ update-requirements:
 
 run-db:
 	docker compose up -d
+
+# Usage: make revision MESSAGE="Update database schema"
+revision:
+	$(MAKE) alembic ARGS="revision --autogenerate -m \"$(MESSAGE)\""

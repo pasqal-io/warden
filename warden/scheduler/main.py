@@ -3,15 +3,20 @@
 import asyncio
 import logging.config
 import signal
-from asyncio import Queue
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from warden.lib.config import Config
 from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
-from warden.lib.qpu_client import QPUJobInfo
+from warden.scheduler.db import job_update_commiter
 from warden.scheduler.strategy import schedulers
+from warden.scheduler.types import JobUpdateQueue
 from warden.scheduler.worker import LocalQPUWorker
 
 QUEUE_MAXSIZE = 0
@@ -37,68 +42,51 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
     logger.info("Scheduler running.")
 
     qpu_worker = LocalQPUWorker(conf=conf)
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
 
     strategy = conf.scheduler.strategy
     logger.debug(f"Scheduler using '{strategy}' strategy")
 
     while True:
-        async with AsyncSession(bind=engine, expire_on_commit=False) as session:
+        async with session_factory() as session:
             job = await schedulers[strategy].get_next_job(session)
-            if job is None:
-                sleep_time = conf.scheduler.db_polling_interval_s
-                logger.debug(f"No job to schedule, sleeping {sleep_time}")
-                await asyncio.sleep(sleep_time)
-                continue
-            logger.info(f"Scheduling next job: {job.id}")
 
-            queue: Queue[QPUJobInfo] = Queue(maxsize=QUEUE_MAXSIZE)
-            # DB commit loop
-            db_commit_task = asyncio.create_task(
-                async_commit(queue=queue, session=session, job=job)
+        if job is None:
+            sleep_time = conf.scheduler.db_polling_interval_s
+            logger.debug(f"No job to schedule, sleeping {sleep_time}")
+            await asyncio.sleep(sleep_time)
+            continue
+        logger.info(f"Scheduling next job: {job.id}")
+
+        queue = JobUpdateQueue(maxsize=QUEUE_MAXSIZE)
+        # DB commit loop
+        db_commit_task = asyncio.create_task(
+            job_update_commiter(
+                job_id=job.id, queue=queue, session_factory=session_factory
             )
+        )
 
-            # QPU job execution
-            worker_task = asyncio.create_task(
-                qpu_worker.execute_job(
-                    queue=queue,
-                    nb_run=job.shots,
-                    sequence=job.sequence,
-                    batch_id=job.session.slurm_job_id,
-                )
+        # QPU job execution
+        worker_task = asyncio.create_task(
+            qpu_worker.execute_job(
+                queue=queue,
+                nb_run=job.shots,
+                sequence=job.sequence,
+                batch_id=job.session.slurm_job_id,
             )
+        )
 
-            # Await end of job execution
-            await worker_task
-            # Await that all updates are commited to DB
-            await queue.join()
-            # Kill DB commit loop
-            db_commit_task.cancel()
+        # Await end of job execution
+        await worker_task
+        # Await that all updates are commited to DB
+        await queue.join()
+        # Kill DB commit loop
+        db_commit_task.cancel()
 
-            logger.info(f"Job {job.id} ended with status: {job.status}")
-
-
-async def async_commit(queue: Queue, session: AsyncSession, job: Job):
-    """Async coroutine loop to continuously Job info during execution"""
-    while True:
-        qpu_job = await queue.get()
-
-        logger.debug(f"Updating job {job.id} on db")
-        _write_info_to_job(job, qpu_job)
-        await session.commit()
-
-        # Signals that data received in `queue.get()` was processed
-        queue.task_done()
-        logger.debug(f"Job {job.id} updated")
-
-
-def _write_info_to_job(job: Job, qpu_job: QPUJobInfo) -> None:
-    """Write job update to ORM db object"""
-
-    job.backend_id = qpu_job.uid
-    job.status = qpu_job.status
-    job.started_at = qpu_job.start_datetime
-    job.ended_at = qpu_job.end_datetime
-    job.results = qpu_job.result
+        async with session_factory() as session:
+            stmt = select(Job.status).where(Job.id == job.id)
+            status = (await session.execute(stmt)).scalar_one_or_none()
+        logger.info(f"Job {job.id} ended with status: {status}")
 
 
 async def shutdown(engine: AsyncEngine):
