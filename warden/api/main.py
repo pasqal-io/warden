@@ -27,6 +27,7 @@ def main():
             host=config.api.host,
             port=config.api.port,
             reload=True,
+            reload_includes=["config.yaml", "config.*.yaml"],
             factory=True,
             log_config=config.logging,
         )
