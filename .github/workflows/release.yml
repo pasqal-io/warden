@@ -50,7 +50,7 @@ jobs:
           python-version: "3.11"
 
       - name: Bootstrap Poetry environment
-        run: make poetry-bootstrap POETRY_PYTHON=python3 POETRY_EXTRA_PACKAGES="poetry-plugin-export>=1.8"
+        run: make install-dev
 
       - name: Verify pyproject version matches release version
         env:

@@ -17,7 +17,7 @@ make install-dev
 ```
 
 This will:
-- Create the local `venv` if missing
+- Create the local `.venv` if missing
 - Install Poetry in the selected Python environment
 - Configure Poetry to use in-project virtualenvs (`.venv`)
 - Install dependencies
@@ -26,13 +26,7 @@ This will:
 
 ## Shared Poetry setup targets
 
-To keep local setup and CI setup aligned, Poetry bootstrap is centralized in `Makefile` targets:
-
-- `make poetry-bootstrap`: install pinned Poetry and configure in-project virtualenvs
-- `make poetry-install-dev`: install dev dependencies with all extras
-- `make poetry-setup-dev`: convenience target combining the two commands above
-
-`make install-dev` reuses these targets and then runs migrations.
+To keep local setup and CI setup aligned, Poetry bootstrap in CI is using the same `Makefile` target and uses `make install-dev`.
 
 When updating CI or onboarding docs, prefer reusing these targets rather than duplicating inline Poetry setup commands.
 

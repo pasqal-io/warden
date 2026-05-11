@@ -4,28 +4,22 @@ services:
 
   warden-db-mariadb:
     image: mariadb:10.11
-    container_name: warden-mariadb
+    hostname: warden-db-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: warden
-      MYSQL_USER: wardenuser
-      MYSQL_PASSWORD: secret
-      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
-    ports:
-      - "3306:3306"
+      MARIADB_DATABASE: warden
+      MARIADB_ROOT_PASSWORD: secret
     volumes:
       - warden-db-mariadb-data:/var/lib/mysql
 
   warden-db-postgres:
     image: postgres:16
-    container_name: warden-postgres
+    hostname: warden-db-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: warden
       POSTGRES_USER: wardenuser
       POSTGRES_PASSWORD: secret
-    ports:
-      - "5432:5432"
     volumes:
       - warden-db-postgres-data:/var/lib/postgresql/data
 
