@@ -29,7 +29,7 @@ Notes:
 - Make sure you change your configuration at `/opt/warden/config.yaml`
 - If you need to change the database type used (e.g. from SQLite to PSQL), you need to run the install process again to install the required dependencies
 
-## Next steps
+## Operating
 
 ### Run Warden
 
