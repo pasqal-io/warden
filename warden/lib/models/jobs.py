@@ -40,11 +40,6 @@ class Job(Base):
         nullable=True,
         doc="Datetime when the job's processing was over.",
     )
-    user_id: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        doc="ID of the user who submitted the job.",
-    )
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -76,7 +71,7 @@ class Job(Base):
     )
     session: Mapped[Session] = relationship("Session", lazy="joined")
 
-    user_id: AssociationProxy[UUID] = association_proxy(
+    user_id: AssociationProxy[str] = association_proxy(
         "session",
         "user_id",
     )

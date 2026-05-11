@@ -39,7 +39,7 @@ async def list_jobs(
     session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
 ) -> list[JobResponse]:
-    result = await session.execute(select(Job).where(Job.user_id == identity.uid))
+    result = await session.execute(select(Job).where(Job.user_id == str(identity.uid)))
     jobs = result.scalars().all()
 
     return [JobResponse.from_model(job) for job in jobs]
@@ -52,7 +52,7 @@ async def get_job(
     identity: MungeIdentity = Depends(munge_identity),
 ) -> JobResponse:
     result = await session.execute(
-        select(Job).where(Job.user_id == identity.uid, Job.id == id)
+        select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
     )
     job = result.scalars().one_or_none()
     if job is None:
