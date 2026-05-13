@@ -9,20 +9,16 @@ from httpx import ASGITransport, AsyncClient
 
 from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
-from warden.lib.config.config import APIConfig, Config, SqliteConfig
+from warden.lib.config.config import APIConfig, Config, DatabaseConfig
 from warden.lib.db.database import Base
-
-
-@pytest.fixture
-def config():
-    db_config = SqliteConfig(name="warden_tests.db", backend="sqlite", echo=False)
-    api = APIConfig(host="0.0.0.0", port=9999, authorized_users=[])
-    yield Config(database=db_config, api=api)
-
+from tests.conftest import db_backend_config
 
 @pytest_asyncio.fixture
-async def app(config):
+async def app(db_backend_config: DatabaseConfig) -> FastAPI:
+    api = APIConfig(host="0.0.0.0", port=9999, authorized_users=[])
+    config = Config(database=db_backend_config, api=api)
     app: FastAPI = create_app(config)
+    # create tables in the test database
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield app
@@ -32,7 +28,6 @@ async def app(config):
 
 @pytest_asyncio.fixture
 async def client(app) -> AsyncClient:
-    # create tables in the test database
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client

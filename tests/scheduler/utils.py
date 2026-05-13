@@ -15,11 +15,10 @@ async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> No
 
     jobs_to_run = [
         Job(
-            id=i,
             sequence="{}",
             status="PENDING",
             shots=100,
-            session=Session(slurm_job_id=1, user_id=SLURM_USER_ID),
+            session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
         )
         for i in range(n_jobs)
     ]

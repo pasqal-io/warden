@@ -1,5 +1,6 @@
 import pytest
-from conftest import mock_munge_auth
+
+from tests.api.conftest import mock_munge_auth
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -86,7 +87,7 @@ async def test_list_jobs(client, app, serialized_sequence: str):
         Job(
             sequence=serialized_sequence,
             shots=100,
-            session=Session(slurm_job_id=1, user_id=str(user_id)),
+            session=Session(slurm_job_id="1", user_id=str(user_id)),
         )
         for _ in range(10)
     ]
@@ -94,14 +95,14 @@ async def test_list_jobs(client, app, serialized_sequence: str):
         Job(
             sequence=serialized_sequence,
             shots=100,
-            session=Session(slurm_job_id=2, user_id="1001"),
+            session=Session(slurm_job_id="2", user_id="1001"),
         )
     )
     jobs.append(
         Job(
             sequence=serialized_sequence,
             shots=100,
-            session=Session(slurm_job_id=3, user_id="1002"),
+            session=Session(slurm_job_id="3", user_id="1002"),
         )
     )
     async_session = app.state.db_session_factory

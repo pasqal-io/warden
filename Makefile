@@ -4,7 +4,7 @@ include config.mk
 .PHONY: alembic dev install install-dev lint-check lint-fix migrate ping \
  run run-db run-with-python set-accessible \
  start-mock-qpu start-mock-qpu-dev test test-migrations test-migrations-mariadb \
- test-migrations-postgres test-migrations-sqlite update-requirements revision get-logs
+ test-migrations-postgres test-migrations-sqlite update-requirements revision get-logs \
 
 VENV=.venv
 INSTALL_FLAGS=
@@ -34,6 +34,7 @@ PG_TEST_PASSWORD ?= secret
 PG_TEST_ADMIN_USER ?= $(PG_TEST_USER)
 PG_TEST_ADMIN_PASSWORD ?= $(PG_TEST_PASSWORD)
 PG_TEST_ADMIN_DB ?= postgres
+PG_TEST_DB ?= warden_test
 PG_MIGRATIONS_TEST_DB ?= warden_migrations_test
 
 MARIADB_TEST_PORT ?= 3306
@@ -42,6 +43,7 @@ MARIADB_TEST_PASSWORD ?= secret
 MARIADB_TEST_ADMIN_USER ?= $(MARIADB_TEST_USER)
 MARIADB_TEST_ADMIN_PASSWORD ?= $(MARIADB_TEST_PASSWORD)
 MARIADB_TEST_ADMIN_DB ?= warden
+MARIADB_TEST_DB ?= warden_test
 MARIADB_MIGRATIONS_TEST_DB ?= warden_migrations_test
 
 SQLITE_MIGRATIONS_TEST_DB ?= /tmp/warden_migrations_test.db
@@ -197,8 +199,18 @@ start-mock-qpu: $(VENV)/bin/python
 start-mock-qpu-dev: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
 
-test:
-	$(POETRY_PYTHON) -m poetry run pytest
+test: test-sqlite test-postgres test-mariadb
+
+test-sqlite: test-migrations-sqlite
+	WARDEN_TEST_DATABASE_BACKEND=sqlite $(POETRY_PYTHON) -m poetry run pytest
+
+test-postgres: test-migrations-postgres
+	WARDEN_TEST_DATABASE_BACKEND=postgres \
+	$(POETRY_PYTHON) -m poetry run pytest tests/api/test_jobs.py
+
+test-mariadb: test-migrations-mariadb
+	WARDEN_TEST_DATABASE_BACKEND=mariadb \
+	$(POETRY_PYTHON) -m poetry run pytest tests/scheduler/test_scheduler.py::test_run_nominal[mariadb-FIFO]
 
 test-migrations: test-migrations-sqlite test-migrations-mariadb test-migrations-postgres
 
@@ -216,13 +228,13 @@ test-migrations-postgres:
 
 test-migrations-mariadb:
 	# Run against an isolated MariaDB database.
-	mysql --protocol=TCP -h $(MARIADB_TEST_HOST) -P $(MARIADB_TEST_PORT) -u $(MARIADB_TEST_ADMIN_USER) -p$(MARIADB_TEST_ADMIN_PASSWORD) $(MARIADB_TEST_ADMIN_DB) -e "DROP DATABASE IF EXISTS \`$(MARIADB_MIGRATIONS_TEST_DB)\`; CREATE DATABASE \`$(MARIADB_MIGRATIONS_TEST_DB)\`;"
+	mariadb --protocol=TCP -h $(MARIADB_TEST_HOST) -P $(MARIADB_TEST_PORT) -u $(MARIADB_TEST_ADMIN_USER) --password=$(MARIADB_TEST_ADMIN_PASSWORD) $(MARIADB_TEST_ADMIN_DB) -e "DROP DATABASE IF EXISTS \`$(MARIADB_MIGRATIONS_TEST_DB)\`; CREATE DATABASE \`$(MARIADB_MIGRATIONS_TEST_DB)\`;"
 	WARDEN_DATABASE_BACKEND=mariadb \
 	WARDEN_DATABASE_HOST=$(MARIADB_TEST_HOST) \
 	WARDEN_DATABASE_PORT=$(MARIADB_TEST_PORT) \
-	WARDEN_DATABASE_USER=$(MARIADB_TEST_USER) \
+	WARDEN_DATABASE_USER=$(MARIADB_TEST_ADMIN_USER) \
 	WARDEN_DATABASE_NAME=$(MARIADB_MIGRATIONS_TEST_DB) \
-	WARDEN_DATABASE_PASSWORD=$(MARIADB_TEST_PASSWORD) \
+	WARDEN_DATABASE_PASSWORD=$(MARIADB_TEST_ADMIN_PASSWORD) \
 	$(MAKE) migrate
 
 test-migrations-sqlite:

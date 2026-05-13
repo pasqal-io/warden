@@ -133,8 +133,8 @@ jobs:
               core.info(`Marked requirements drift comment as resolved (${existing.id}).`);
             }
 
-  lint-and-test:
-    name: Lint & Test (Python ${{ matrix.python-version }})
+  lint:
+    name: Lint (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -163,9 +163,6 @@ jobs:
 
       - name: Lint — ruff lint/format check
         run: make lint-check
-
-      - name: Run tests
-        run: make test
 
   sbom:
     name: SBOM (Trivy)
@@ -302,8 +299,8 @@ jobs:
           path: ${{ runner.temp }}/sbom/*.json
           if-no-files-found: error
 
-  test-migrations:
-    name: Test migrations
+  test:
+    name: Test (Python ${{ matrix.python-version }}, ${{ matrix.database-backend }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -311,7 +308,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database-backend: ["sqlite", "mariadb", "postgres"]
+        python-version: ["3.11", "3.12"]
+        database-backend: ["sqlite", "postgres", "mariadb"]
 
     services:
       warden-db-postgres:
@@ -334,11 +332,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
-      
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libmunge-dev
+
       - name: Install dependencies
         run: make install-dev
 
-      - name: Run migrations
+      - name: Run migrations (Alembic) for ${{ matrix.database-backend }}
         run: make test-migrations-${{ matrix.database-backend }}
+
+      - name: Run migrations + tests
+        run: make test-${{ matrix.database-backend }}
+
