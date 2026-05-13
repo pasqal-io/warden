@@ -206,11 +206,11 @@ test-sqlite: test-migrations-sqlite
 
 test-postgres: test-migrations-postgres
 	WARDEN_TEST_DATABASE_BACKEND=postgres \
-	$(POETRY_PYTHON) -m poetry run pytest tests/api/test_jobs.py
+	$(POETRY_PYTHON) -m poetry run pytest
 
 test-mariadb: test-migrations-mariadb
 	WARDEN_TEST_DATABASE_BACKEND=mariadb \
-	$(POETRY_PYTHON) -m poetry run pytest tests/scheduler/test_scheduler.py::test_run_nominal[mariadb-FIFO]
+	$(POETRY_PYTHON) -m poetry run pytest
 
 test-migrations: test-migrations-sqlite test-migrations-mariadb test-migrations-postgres
 
@@ -228,7 +228,7 @@ test-migrations-postgres:
 
 test-migrations-mariadb:
 	# Run against an isolated MariaDB database.
-	mariadb --protocol=TCP -h $(MARIADB_TEST_HOST) -P $(MARIADB_TEST_PORT) -u $(MARIADB_TEST_ADMIN_USER) --password=$(MARIADB_TEST_ADMIN_PASSWORD) $(MARIADB_TEST_ADMIN_DB) -e "DROP DATABASE IF EXISTS \`$(MARIADB_MIGRATIONS_TEST_DB)\`; CREATE DATABASE \`$(MARIADB_MIGRATIONS_TEST_DB)\`;"
+	mysql --protocol=TCP -h $(MARIADB_TEST_HOST) -P $(MARIADB_TEST_PORT) -u $(MARIADB_TEST_ADMIN_USER) --password=$(MARIADB_TEST_ADMIN_PASSWORD) $(MARIADB_TEST_ADMIN_DB) -e "DROP DATABASE IF EXISTS \`$(MARIADB_MIGRATIONS_TEST_DB)\`; CREATE DATABASE \`$(MARIADB_MIGRATIONS_TEST_DB)\`;"
 	WARDEN_DATABASE_BACKEND=mariadb \
 	WARDEN_DATABASE_HOST=$(MARIADB_TEST_HOST) \
 	WARDEN_DATABASE_PORT=$(MARIADB_TEST_PORT) \

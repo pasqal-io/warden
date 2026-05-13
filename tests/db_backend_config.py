@@ -53,20 +53,16 @@ def _default_mariadb_host() -> str:
 
 
 def _pg_database_name() -> str:
-    return (
-        os.environ.get("PG_TEST_DB", "").strip()
-        or "warden"
-    )
+    return os.environ.get("PG_TEST_DB", "").strip() or "warden"
 
 
 def _mariadb_database_name() -> str:
-    return (
-        os.environ.get("MARIADB_TEST_DB", "").strip()
-        or "warden"
-    )
+    return os.environ.get("MARIADB_TEST_DB", "").strip() or "warden"
 
 
-def build_database_config(backend: str, *, sqlite_path: str | Path) -> SqliteConfig | PostgresConfig | MariadbConfig:
+def build_database_config(
+    backend: str, *, sqlite_path: str | Path
+) -> SqliteConfig | PostgresConfig | MariadbConfig:
     """Build a database config for ``backend`` (sqlite path required for sqlite)."""
     if backend == "sqlite":
         return SqliteConfig(

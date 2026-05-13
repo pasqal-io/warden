@@ -1,6 +1,7 @@
 import pytest
-from tests.api.conftest import mock_munge_auth
 from httpx import AsyncClient
+
+from tests.api.conftest import mock_munge_auth
 
 
 @pytest.mark.asyncio

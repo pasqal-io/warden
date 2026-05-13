@@ -11,7 +11,7 @@ from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
 from warden.lib.config.config import APIConfig, Config, DatabaseConfig
 from warden.lib.db.database import Base
-from tests.conftest import db_backend_config
+
 
 @pytest_asyncio.fixture
 async def app(db_backend_config: DatabaseConfig) -> FastAPI:

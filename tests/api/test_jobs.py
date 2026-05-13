@@ -1,9 +1,8 @@
 import pytest
-
-from tests.api.conftest import mock_munge_auth
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from tests.api.conftest import mock_munge_auth
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
 
