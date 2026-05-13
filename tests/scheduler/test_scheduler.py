@@ -10,7 +10,7 @@ import utils
 from httpx import ConnectError, NetworkError, TimeoutException
 from pytest_httpx import HTTPXMock
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from utils import build_conf
 
 from warden.lib.config import Config
@@ -143,10 +143,6 @@ async def test_run_nominal(
 
     stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt_count)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -156,7 +152,12 @@ async def test_run_nominal(
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_success(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         stmt_all = select(Job).where(Job.status == "DONE")
         jobs_done = (await session.execute(stmt_all)).scalars().all()
@@ -224,10 +225,6 @@ async def test_run_qpu_down(
 
     stmt = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
 
-    async def wait_until_error(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -237,7 +234,12 @@ async def test_run_qpu_down(
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_error(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         stmt_all = select(Job).where(Job.status == EXPECTED_STATUS)
         all_jobs = (await session.execute(stmt_all)).scalars().all()
@@ -449,27 +451,28 @@ async def test_run_job_timeout(
     ### TEST RUN   ###
     ##################
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt_processed)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     # RUN SCHEDULER
     main_task = asyncio.create_task(run_scheduler(db_engine, conf))
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_success(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_processed,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         n_processed = (await session.execute(stmt_processed)).scalar()
         assert n_processed == N_JOBS
-        job_canceled_id = (await session.execute(stmt_cancelled)).scalars()
+        job_canceled_id = (await session.execute(stmt_cancelled)).scalars().all()
         for job in job_canceled_id:
-            assert job.id in JOB_TIMEOUT_CANCELED_ID
+            assert (job.id - 1) in JOB_TIMEOUT_CANCELED_ID
             assert len(job.logs) > 0
             assert "Terminating" in job.logs
-        job_done = (await session.execute(stmt_done)).scalars()
+        job_done = (await session.execute(stmt_done)).scalars().all()
         for job in job_done:
-            assert job.id not in JOB_TIMEOUT_CANCELED_ID
+            assert (job.id - 1) not in JOB_TIMEOUT_CANCELED_ID
             assert len(job.logs) > 0
 
 
@@ -606,10 +609,6 @@ async def test_run_retry_transient_errors(
     stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
     stmt = select(Job).where(Job.status == "DONE")
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt_count)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -619,7 +618,12 @@ async def test_run_retry_transient_errors(
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_success(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         jobs_done = (await session.execute(stmt)).scalars().all()
         assert len(jobs_done) == N_JOBS
@@ -679,10 +683,6 @@ async def test_run_qpu_api_unreachable(
     stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
     stmt = select(Job).where(Job.status == EXPECTED_STATUS)
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt_count)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -692,7 +692,12 @@ async def test_run_qpu_api_unreachable(
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_success(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         error_jobs = (await session.execute(stmt)).scalars().all()
         assert len(error_jobs) == N_JOBS
@@ -767,10 +772,6 @@ async def test_run_job_creation_client_error(
     stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
     stmt = select(Job).where(Job.status == EXPECTED_STATUS)
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt_count)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -780,7 +781,12 @@ async def test_run_job_creation_client_error(
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_success(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         jobs = (await session.execute(stmt)).scalars().all()
         assert len(jobs) == N_JOBS
@@ -882,10 +888,6 @@ async def test_run_job_client_error_timeout(
     stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_STATUS)
     stmt = select(Job).where(Job.status == EXPECTED_STATUS)
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt_count)).scalar() != N_JOBS:
-            await asyncio.sleep(SUCCESS_CHECK_INTERVAL_S)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -895,7 +897,12 @@ async def test_run_job_client_error_timeout(
 
     async with db_session_maker() as session:
         async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
-            await wait_until_success(session=session)
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
 
         jobs = (await session.execute(stmt)).scalars().all()
         assert len(jobs) == N_JOBS

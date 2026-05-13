@@ -1,12 +1,34 @@
 """Test helper functions"""
 
+import asyncio
 from asyncio import Task, timeout
 from contextlib import asynccontextmanager
+from typing import Any
 
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.config import Config, QPUConfig, SchedulerConfig
 from warden.lib.models import Job, Session
+
+
+async def wait_until_scalar_equals(
+    session: AsyncSession,
+    stmt: Any,
+    expected: int,
+    *,
+    interval: float = 0.1,
+) -> None:
+    """Poll until ``(await session.execute(stmt)).scalar() == expected``.
+
+    Rolls back between attempts so a new transaction (and read snapshot) is
+    started each time. Without this, MariaDB/InnoDB default REPEATABLE-READ
+    keeps the first snapshot for the whole session transaction, so polling
+    never sees status updates committed by the scheduler on other connections.
+    """
+
+    while (await session.execute(stmt)).scalar() != expected:
+        await session.rollback()
+        await asyncio.sleep(interval)
 
 
 async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> None:
