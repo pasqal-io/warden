@@ -67,7 +67,7 @@ async def get_job_logs(
     identity: MungeIdentity = Depends(munge_identity),
 ) -> JobLogResponse:
     result = await session.execute(
-        select(Job).where(Job.user_id == identity.uid, Job.id == id)
+        select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
     )
     job = result.scalars().one_or_none()
     if job is None:
