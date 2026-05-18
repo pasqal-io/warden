@@ -1,0 +1,89 @@
+name: Installation Matrix
+
+on:
+  push:
+    branches:
+      - main
+  # We don't run this for PRs as it is quite lengthy
+  # Instead, we can manually trigger the workflow for any branch
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install-run-ping:
+    name: Install/Run/Ping (${{ matrix.base }}, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+        base: ["rocky8", "rocky9"]
+        include:
+          - base: rocky8
+            image_name: rockylinux:8
+          - base: rocky9
+            image_name: rockylinux:9
+          # RHEL is more complex (we need to build more packages ourselves) so we focus on Rocky for now
+          # - base: rhel8
+          #   image_name: redhat/ubi8:8.8
+
+    container:
+      image: ${{ matrix.image_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+
+      - name: Install system dependencies
+        shell: bash
+        env:
+          PYTHON_VERSION: "${{ matrix.python-version }}"
+        run: .devcontainer/install.${{ matrix.base }}.sh
+
+      - name: Run make install
+        shell: bash
+        env:
+          PYTHON: "python${{ matrix.python-version }}"
+        run: make install
+
+      - name: Run make run in background
+        shell: bash
+        run: |
+          set -euo pipefail
+          make run > /tmp/warden-run.log 2>&1 &
+          echo $! > /tmp/warden-run.pid
+
+      - name: Sleep then ping local API
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 5
+          curl --fail --silent --show-error http://localhost:8006
+
+      - name: Upload Warden logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # 7.0.1
+        if: always()
+        with:
+          name: warden-logs-${{ matrix.base }}-python-${{ matrix.python-version }}
+          path: logs/*.log
+
+      - name: Print run logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo "==== /tmp/warden-run.log ===="
+          test -f /tmp/warden-run.log && cat /tmp/warden-run.log || echo "No run log found"
+
+      - name: Stop background run
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if test -f /tmp/warden-run.pid; then
+            pid="$(cat /tmp/warden-run.pid)"
+            kill -TERM "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          fi
