@@ -343,9 +343,5 @@ jobs:
       - name: Install dependencies
         run: make install-dev
 
-      - name: Run migrations (Alembic) for ${{ matrix.database-backend }}
-        run: make test-migrations-${{ matrix.database-backend }}
-
       - name: Run migrations + tests
         run: make test-${{ matrix.database-backend }}
-

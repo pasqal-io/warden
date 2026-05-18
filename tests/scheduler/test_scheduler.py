@@ -309,7 +309,10 @@ async def test_run_job_timeout(
     N_JOBS = 8
     N_JOBS_TIMEOUT = 4
 
-    JOB_TIMEOUT_IDS = random.sample([i for i in range(N_JOBS - 1)], N_JOBS_TIMEOUT)
+    job_ids = range(1, N_JOBS + 1)
+
+    rng = random.Random(0)
+    JOB_TIMEOUT_IDS = rng.sample(job_ids, N_JOBS_TIMEOUT)
     JOB_TIMEOUT_CANCELED_ID = JOB_TIMEOUT_IDS[0::2]
 
     conf: Config = build_conf(strategy, QPU_URI)
@@ -330,7 +333,7 @@ async def test_run_job_timeout(
     )
 
     # JOB creation and polling
-    for job_uid in range(N_JOBS):
+    for job_uid in job_ids:
         return_create_json = {
             "data": {
                 "uid": job_uid,
@@ -439,7 +442,10 @@ async def test_run_job_timeout(
             )
 
     # Populate DB with jobs to run
-    await utils.create_n_jobs(db_session_maker, N_JOBS)
+    real_jobs = await utils.create_n_jobs(db_session_maker, N_JOBS)
+    assert real_jobs is not None
+    assert len(real_jobs) == N_JOBS
+    assert all(isinstance(job.id, int) for job in real_jobs)
 
     stmt_done = select(Job).where(Job.status == "DONE")
     stmt_cancelled = select(Job).where(Job.status == "CANCELED")
@@ -467,12 +473,12 @@ async def test_run_job_timeout(
         assert n_processed == N_JOBS
         job_canceled_id = (await session.execute(stmt_cancelled)).scalars().all()
         for job in job_canceled_id:
-            assert (job.id - 1) in JOB_TIMEOUT_CANCELED_ID
+            assert job.id in JOB_TIMEOUT_CANCELED_ID
             assert len(job.logs) > 0
             assert "Terminating" in job.logs
         job_done = (await session.execute(stmt_done)).scalars().all()
         for job in job_done:
-            assert (job.id - 1) not in JOB_TIMEOUT_CANCELED_ID
+            assert job.id not in JOB_TIMEOUT_CANCELED_ID
             assert len(job.logs) > 0
 
 

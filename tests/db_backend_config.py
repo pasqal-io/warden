@@ -1,9 +1,6 @@
 """Shared DB backend selection and configs for parametrized API/scheduler tests."""
 
-from __future__ import annotations
-
 import os
-from pathlib import Path
 
 import pytest
 
@@ -61,12 +58,12 @@ def _mariadb_database_name() -> str:
 
 
 def build_database_config(
-    backend: str, *, sqlite_path: str | Path
+    backend: str,
 ) -> SqliteConfig | PostgresConfig | MariadbConfig:
     """Build a database config for ``backend`` (sqlite path required for sqlite)."""
     if backend == "sqlite":
         return SqliteConfig(
-            name=str(sqlite_path),
+            name="/tmp/warden_test.db",
             backend="sqlite",
             echo=False,
         )

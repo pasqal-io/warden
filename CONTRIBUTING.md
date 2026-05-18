@@ -46,17 +46,50 @@ make ping
 
 ## Databases
 
-### Run with another database
-
 By default Warden runs on a local SQLite database.
 
 Alternatively, Warden can be configured to connect to other SQL database like postgres/mariadb by tweaking environment variables. See [README.md](README.md) for more details about configuration.
 
-A docker compose file is provided with the db setup for postgresql, run it:
+The devcontainer setup includes containerized postgres an mariadb databases.
+
+The same containers can be manually started from outside a devcontainer using:
 
 ```bash
 make run-db
 ```
+
+## Tests
+
+### Integration and Unit tests
+
+Run the full test suite using:
+
+```bash
+make test
+```
+
+To run subsets of the test suite:
+
+```bash
+# Unit/integration tests
+make test-sqlite    # All tests, except psql/mariadb
+make test-postgres  # All tests, except sqlite/mariad
+make test-mariadb   # All tests, except postgres
+# The formulation "all tests except xx and yy" is intentional, since it also includes all non-db-dependent tests
+
+# Run subset of pytest test suite (equivent of `-k`) using EXPR, e.g.:
+make test EXPR="sqlite and timeout"
+# Expands (conceptually) to:
+$(MAKE) test-migrations && $(PYTHON) -m pytest -k 'sqlite and timeout'
+
+# Test migrations
+make test-migrations # All
+make test-migrations-sqlite
+make test-migrations-postgres
+make test-migrations-mariadb
+```
+
+Note: If you run `pytest` directly (either through the IDE or CLI), make sure you run the migrations first so the test db exists.
 
 ## Running Alembic migrations - notes on `ARGS` usage
 
@@ -79,6 +112,14 @@ Anything you would normally put after `alembic` in the CLI should be passed via 
 ## Adding dependencies 
 
 In the dev environment you may use poetry to manage your dependencies, but end users ultimately use `make` targets that rely on [`requirements.txt`](requirements.txt) so that they don't need to install `poetry` to run `warden`. That is why it is important to keep [`requirements.txt`](requirements.txt) updated.
+
+To add a dependency, first add it, then export all dependencies:
+
+```bash
+poetry add dependency
+make update-requirements
+```
+
 
 ### Updating requirements.txt
 

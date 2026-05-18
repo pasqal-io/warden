@@ -42,12 +42,14 @@ async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> No
             shots=100,
             session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
         )
-        for i in range(n_jobs)
+        for _ in range(n_jobs)
     ]
 
     async with db_session_maker() as session:
         session.add_all(jobs_to_run)
         await session.commit()
+        assert all(isinstance(job.id, int) for job in jobs_to_run)
+        return jobs_to_run
 
 
 def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
