@@ -40,8 +40,7 @@
 			"extensions": [
 				"ms-python.python",
 				"ms-python.vscode-pylance",
-				"ms-python.debugpy",
-				"mtxr.sqltools"
+				"ms-python.debugpy"
 			]
 		}
 	}

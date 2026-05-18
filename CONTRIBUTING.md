@@ -68,13 +68,13 @@ Run the full test suite using:
 make test
 ```
 
-To run subsets of the test suite:
+To run subsets of the suite with specific DB backends:
 
 ```bash
 # Unit/integration tests
 make test-sqlite    # All tests, except psql/mariadb
 make test-postgres  # All tests, except sqlite/mariad
-make test-mariadb   # All tests, except postgres
+make test-mariadb   # All tests, except psql/sqlite
 # The formulation "all tests except xx and yy" is intentional, since it also includes all non-db-dependent tests
 
 # Run subset of pytest test suite (equivent of `-k`) using EXPR, e.g.:

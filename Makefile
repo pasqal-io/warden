@@ -1,4 +1,4 @@
-include config.mk dev.Makefile
+include config.mk dev.mk
 
 # install + run targets
 .PHONY: install run

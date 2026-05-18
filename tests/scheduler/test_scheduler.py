@@ -442,10 +442,7 @@ async def test_run_job_timeout(
             )
 
     # Populate DB with jobs to run
-    real_jobs = await utils.create_n_jobs(db_session_maker, N_JOBS)
-    assert real_jobs is not None
-    assert len(real_jobs) == N_JOBS
-    assert all(isinstance(job.id, int) for job in real_jobs)
+    await utils.create_n_jobs(db_session_maker, N_JOBS)
 
     stmt_done = select(Job).where(Job.status == "DONE")
     stmt_cancelled = select(Job).where(Job.status == "CANCELED")

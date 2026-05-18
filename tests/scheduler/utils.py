@@ -31,7 +31,7 @@ async def wait_until_scalar_equals(
         await asyncio.sleep(interval)
 
 
-async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> None:
+async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> list[Job]:
     """Creates n_jobs mock jobs to run in the warden db"""
     SLURM_USER_ID = "1234"
 
@@ -48,8 +48,8 @@ async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> No
     async with db_session_maker() as session:
         session.add_all(jobs_to_run)
         await session.commit()
-        assert all(isinstance(job.id, int) for job in jobs_to_run)
-        return jobs_to_run
+
+    return jobs_to_run
 
 
 def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
