@@ -1,5 +1,6 @@
 import pytest
-from conftest import mock_munge_auth
+
+from tests.api.conftest import mock_munge_auth
 
 
 @pytest.mark.asyncio

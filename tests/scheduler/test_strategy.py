@@ -17,7 +17,7 @@ async def test_fifo_nominal(db_session_maker):
     jobs = [
         Job(
             id=1,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -25,7 +25,7 @@ async def test_fifo_nominal(db_session_maker):
         ),
         Job(
             id=2,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -33,7 +33,7 @@ async def test_fifo_nominal(db_session_maker):
         ),
         Job(
             id=3,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -41,7 +41,7 @@ async def test_fifo_nominal(db_session_maker):
         ),
         Job(
             id=4,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -80,7 +80,7 @@ async def test_fifo_id_precedence(db_session_maker):
     jobs = [
         Job(
             id=1,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -88,7 +88,7 @@ async def test_fifo_id_precedence(db_session_maker):
         ),
         Job(
             id=2,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -96,7 +96,7 @@ async def test_fifo_id_precedence(db_session_maker):
         ),
         Job(
             id=3,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -104,7 +104,7 @@ async def test_fifo_id_precedence(db_session_maker):
         ),
         Job(
             id=4,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -143,16 +143,16 @@ async def test_fifo_job_running(db_session_maker):
     jobs = [
         Job(
             id=1,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
-            backend_id=2,
+            backend_id="2",
             created_at=now + timedelta(seconds=1),
         ),
         Job(
             id=2,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -160,7 +160,7 @@ async def test_fifo_job_running(db_session_maker):
         ),
         Job(
             id=3,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -168,11 +168,11 @@ async def test_fifo_job_running(db_session_maker):
         ),
         Job(
             id=4,
-            session=Session(slurm_job_id=1, user_id="1000"),
+            session=Session(slurm_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="RUNNING",
-            backend_id=1,
+            backend_id="1",
             created_at=now + timedelta(seconds=1),
         ),
     ]

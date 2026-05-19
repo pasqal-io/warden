@@ -8,7 +8,7 @@ import utils
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from tests.mock_qpu_api.samples import FAKE_RESULTS
 from warden.lib.config import Config, QPUConfig, SchedulerConfig
@@ -75,10 +75,6 @@ async def test_run_scheduler_integration(
 
     stmt = select(func.count(Job.id)).where(Job.status == "DONE")
 
-    async def wait_until_success(session: AsyncSession):
-        while (await session.execute(stmt)).scalar() != N_JOBS:
-            await asyncio.sleep(0.5)
-
     ##################
     ### TEST RUN   ###
     ##################
@@ -89,7 +85,9 @@ async def test_run_scheduler_integration(
     async with db_session_maker() as session:
         try:
             async with asyncio.timeout(TEST_TIMEOUT_S):
-                await wait_until_success(session=session)
+                await utils.wait_until_scalar_equals(
+                    session, stmt, N_JOBS, interval=0.5
+                )
         finally:
             utils.raise_main_scheduler_task_exception(main_task)
 
