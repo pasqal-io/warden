@@ -157,10 +157,10 @@ start-mock-qpu-dev: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
 
 start-qutip-qpu: $(VENV)/bin/python
-	MOCK_QPU_API_BACKEND=qutip $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --app-dir tests --host 0.0.0.0 --port 8005
+	MOCK_QPU_API_EMUL=true $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --app-dir tests
 
 start-qutip-qpu-dev: $(VENV)/bin/python
-	MOCK_QPU_API_BACKEND=qutip $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests --host 0.0.0.0 --port 8005
+	MOCK_QPU_API_EMUL=true $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
 
 test:
 	poetry run pytest

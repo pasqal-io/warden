@@ -46,7 +46,10 @@ def get_job(uid: int) -> Job | None:
         job.start_datetime = datetime.now()
         update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING:
-        result = run_qutip_job(job) if uses_qutip_backend() else FAKE_RESULTS
+        if _uses_qutip_backend():
+            result = _run_qutip_job(job)
+        else:
+            result = FAKE_RESULTS
         job.status = JobStatus.DONE if result is not None else JobStatus.ERROR
         job.result = result
         job.end_datetime = datetime.now()
@@ -87,11 +90,11 @@ def update_program_status(uid: int, status: ProgramStatus) -> None:
     FAKE_PROGRAM_DB[uid].status = status
 
 
-def uses_qutip_backend() -> bool:
-    return os.environ.get("MOCK_QPU_API_BACKEND") == "qutip"
+def _uses_qutip_backend() -> bool:
+    return "MOCK_QPU_API_EMUL" in os.environ
 
 
-def run_qutip_job(job: Job) -> str | None:
+def _run_qutip_job(job: Job) -> str | None:
     from pulser import Sequence
     from pulser_simulation import QutipBackendV2
 
