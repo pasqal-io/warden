@@ -21,9 +21,7 @@
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
-		"ghcr.io/devcontainers/features/common-utils:2": {
-			"username": "vscode"
-		}
+		"ghcr.io/devcontainers/features/common-utils:2": {}
 	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
@@ -36,7 +34,7 @@
 	// "shutdownAction": "none",
 
 	// Uncomment the next line to run commands after the container is created.
-	// "postCreateCommand": "cat /etc/os-release",
+	"postCreateCommand": "bash .devcontainer/postCreate.sh",
 
 	// Configure tool-specific properties.
 	"customizations": {
@@ -49,5 +47,5 @@
 		}
 	},
 
-	"remoteUser": "vscode"
+	"remoteUser": "devuser"
 }

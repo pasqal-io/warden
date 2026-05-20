@@ -30,7 +30,12 @@ services:
       dockerfile: .devcontainer/rocky8.Dockerfile
     volumes:
       - ../:/workspaces/warden:cached
-    command: sleep infinity
+      - warden-rocky-8-venv:/workspaces/warden/.venv
+      - warden-rocky-8-poetry:/workspaces/warden/.poetry
+    command: >
+      /bin/sh -c "mkdir -p /workspaces/warden/.venv /workspaces/warden/.poetry
+      && chown -R 1000:1000 /workspaces/warden/.venv /workspaces/warden/.poetry
+      && sleep infinity"
  
 
   warden-rocky-9:
@@ -39,5 +44,15 @@ services:
       dockerfile: .devcontainer/rocky9.Dockerfile
     volumes:
       - ../:/workspaces/warden:cached
-    command: sleep infinity
+      - warden-rocky-9-venv:/workspaces/warden/.venv
+      - warden-rocky-9-poetry:/workspaces/warden/.poetry
+    command: >
+      /bin/sh -c "mkdir -p /workspaces/warden/.venv /workspaces/warden/.poetry
+      && chown -R 1000:1000 /workspaces/warden/.venv /workspaces/warden/.poetry
+      && sleep infinity"
  
+volumes:
+  warden-rocky-8-venv:
+  warden-rocky-8-poetry:
+  warden-rocky-9-venv:
+  warden-rocky-9-poetry:

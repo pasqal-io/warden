@@ -51,7 +51,7 @@ $(VENV)/bin/python: config.yaml
 		echo "Usage: make venv PYTHON=/path/to/python"; \
 		exit 1; \
 	fi
-	@if [ -d $(VENV) ]; then \
+	@if [ -d $(VENV) ] && [ -d $(VENV)/bin ] && [ -f $(VENV)/bin/python ]; then \
 		echo "$(VENV) already created"; \
 	else \
 		echo "Creating $(VENV) with $(PYTHON)"; \
