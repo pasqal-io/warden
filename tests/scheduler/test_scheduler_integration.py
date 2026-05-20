@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Literal
 
 import pytest
 import utils
@@ -21,7 +22,7 @@ BASE_URI_MOCK = "http://test:4300"
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_scheduler_integration(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     mock_qpu_api_app: FastAPI,

@@ -1,6 +1,6 @@
 import json
 from contextlib import contextmanager
-from typing import Callable, Generator
+from typing import AsyncGenerator, Callable, Generator
 
 import pytest
 import pytest_asyncio
@@ -17,7 +17,7 @@ from warden.lib.qpu_client.client import AsyncQPUClient
 
 
 @pytest_asyncio.fixture
-async def app(db_backend_config: DatabaseConfig) -> FastAPI:
+async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None]:
     api = APIConfig(host="0.0.0.0", port=9999, authorized_users=[])
     config = Config(database=db_backend_config, api=api)
     app: FastAPI = create_app(config)
@@ -30,7 +30,7 @@ async def app(db_backend_config: DatabaseConfig) -> FastAPI:
 
 
 @pytest_asyncio.fixture
-async def client(app) -> AsyncClient:
+async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
@@ -62,7 +62,7 @@ def mock_qpu_client(
 
 @contextmanager
 def mock_munge_auth(
-    app, uid: int = 0, payload: bytes = b""
+    app: FastAPI, uid: int = 0, payload: bytes = b""
 ) -> Generator[None, None, None]:
     # The mock now uses the arguments passed to the context manager
     async def munge_identity_mock() -> MungeIdentity:

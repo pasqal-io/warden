@@ -5,6 +5,7 @@ import json
 import logging
 import random
 from datetime import datetime, timedelta
+from typing import Literal
 
 import pytest
 import utils
@@ -41,7 +42,7 @@ DUMMY_RESULTS = json.dumps([{"counter": {"0001": 1, "0010": 2, "0100": 3, "1000"
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_nominal(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -173,7 +174,7 @@ async def test_run_nominal(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_qpu_down(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -255,7 +256,7 @@ async def test_run_qpu_down(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_job_timeout(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -485,7 +486,7 @@ async def test_run_job_timeout(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_retry_transient_errors(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -640,7 +641,7 @@ async def test_run_retry_transient_errors(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_qpu_api_unreachable(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -715,7 +716,7 @@ async def test_run_qpu_api_unreachable(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_job_creation_client_error(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -804,7 +805,7 @@ async def test_run_job_creation_client_error(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", ["FIFO"])
 async def test_run_job_client_error_timeout(
-    strategy: str,
+    strategy: Literal["FIFO"],
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,

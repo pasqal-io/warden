@@ -3,7 +3,7 @@
 import asyncio
 from asyncio import Task, timeout
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -64,10 +64,15 @@ def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
     IF the scheduler task encounters an exception, we raise it again to
     make it visible to the developer.
     """
-    if scheduler_task.done() and scheduler_task.exception():
-        raise scheduler_task.exception()
-    else:
-        scheduler_task.cancel()
+    if scheduler_task.done():
+        if scheduler_task.cancelled():
+            return
+
+        exc = scheduler_task.exception()
+        if exc is not None:
+            raise exc
+
+    scheduler_task.cancel()
 
 
 @asynccontextmanager
@@ -82,7 +87,7 @@ async def scheduler_task_timeout(delay: float, scheduler_task: Task):
         raise_main_scheduler_task_exception(scheduler_task)
 
 
-def build_conf(strategy: str, qpu_uri: str):
+def build_conf(strategy: Literal["FIFO"], qpu_uri: str) -> Config:
     return Config(
         scheduler=SchedulerConfig(
             strategy=strategy,
