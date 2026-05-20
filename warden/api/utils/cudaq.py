@@ -135,10 +135,8 @@ def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSeq
     return seq
 
 
-def normalize_job_sequence(sequence: str | AHSSequence, qpu_specs: str | None) -> str:
+def normalize_job_sequence(sequence: AHSSequence, qpu_specs: str | None) -> str:
     """Normalize Pulser/CUDA-Q input into a serialized Pulser abstract sequence."""
-    if isinstance(sequence, str):
-        return sequence
 
     if qpu_specs is None:
         raise ValueError("QPU specs are required for CUDA-Q sequence conversion")
