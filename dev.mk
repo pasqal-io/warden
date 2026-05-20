@@ -83,7 +83,7 @@ start-mock-qpu-dev: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
 
 start-qutip-qpu-dev: $(VENV)/bin/python
-	MOCK_QPU_API_EMUL=true $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
+	MOCK_QPU_API_EMUL=true $(MAKE) start-mock-qpu-dev
 
 alembic:
 	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)
