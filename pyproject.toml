@@ -73,7 +73,7 @@ exclude = [
     ".*",
     "**/node_modules",
 ]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
 [build-system]
