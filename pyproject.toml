@@ -6,6 +6,9 @@ description = "FastAPI middleware for receiving and validating quantum jobs"
 readme = "README.md"
 packages = [{ include = "warden" }]
 
+[tool.poetry.config]
+solver.min-release-age = 7
+
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.128.0"
@@ -36,6 +39,7 @@ pytest-asyncio = "^1.3.0"
 httpx = "^0.28.1"
 ruff = "^0.15.6"
 pytest-httpx = "^0.36.0"
+pyright = "^1.1.409"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
@@ -56,6 +60,18 @@ ignore = [
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.pyright]
+include = [
+    "warden",
+    "tests",
+    ".github/scripts",
+]
+exclude = [
+    "warden/api/alembic",
+]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]

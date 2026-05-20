@@ -4,7 +4,7 @@ include config.mk
 .PHONY: start-mock-qpu-dev 
 .PHONY: start-qutip-qpu-dev
 .PHONY: migrate alembic revision
-.PHONY: lint-check lint-fix
+.PHONY: lint-check lint-fix type-check
 .PHONY: run-with-python
 .PHONY: test test-sqlite test-postgres test-mariadb
 .PHONY: test-migrations test-migrations-sqlite test-migrations-postgres test-migrations-mariadb
@@ -12,7 +12,7 @@ include config.mk
 
 VENV=.venv
 REQUIREMENTS_EXPORT_DIR ?= .
-POETRY_VERSION ?= 2.3.3
+POETRY_VERSION ?= 2.4.1
 POETRY_PYTHON ?= $(VENV)/bin/python
 POETRY_EXTRA_PACKAGES ?=
 
@@ -140,6 +140,9 @@ lint-check:
 lint-fix:
 	$(POETRY_PYTHON) -m poetry run ruff check --fix .
 	$(POETRY_PYTHON) -m poetry run ruff format .
+
+type-check:
+	$(POETRY_PYTHON) -m poetry run pyright
 
 update-requirements:
 	$(POETRY_PYTHON) -m poetry lock
