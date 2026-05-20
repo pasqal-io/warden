@@ -8,7 +8,7 @@ include config.mk dev.mk
  ping get-logs
 
 # Mock QPU when the actual QPU is not available
-.PHONY: start-mock-qpu
+.PHONY: start-mock-qpu start-qutip-qpu
 
 VENV=.venv
 ifeq ($(WITH_PG),1)
@@ -127,3 +127,6 @@ ping:
 
 start-mock-qpu: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --app-dir tests
+
+start-qutip-qpu: $(VENV)/bin/python
+	MOCK_QPU_API_EMUL=true $(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --app-dir tests
