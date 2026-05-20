@@ -1,8 +1,8 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
-import logging
 import json
+import logging
 import random
 from datetime import datetime, timedelta
 

@@ -10,8 +10,8 @@ from pulser.devices import DigitalAnalogDevice
 
 from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
-from warden.lib.config.config import APIConfig, Config, DatabaseConfig, QPUConfig
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.lib.config.config import APIConfig, Config, DatabaseConfig, QPUConfig
 from warden.lib.db.database import Base
 from warden.lib.qpu_client.client import AsyncQPUClient
 

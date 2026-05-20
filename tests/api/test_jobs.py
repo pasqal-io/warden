@@ -1,9 +1,8 @@
 import json
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Request, Response
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from httpx import Request, Response
 
 from tests.api.conftest import mock_munge_auth, mock_qpu_client
 from warden.lib.models.jobs import Job

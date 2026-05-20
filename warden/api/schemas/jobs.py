@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, BeforeValidator, TypeAdapter, ValidationError, Field
+from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, ValidationError
 
 from warden.lib.models.jobs import Job
 
