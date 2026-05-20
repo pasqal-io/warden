@@ -11,8 +11,14 @@ from warden.api.routes.dependencies.auth import (
 )
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
-from warden.api.schemas.jobs import Job, JobCreate, JobLogResponse, JobResponse
-from warden.api.utils.cudaq import normalize_job_sequence
+from warden.api.schemas.jobs import (
+    AHSSequence,
+    Job,
+    JobCreate,
+    JobLogResponse,
+    JobResponse,
+)
+from warden.api.utils.cudaq import normalize_cudaq_sequence
 from warden.lib.models.sessions import Session
 from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
 
@@ -27,9 +33,8 @@ async def create_job(
     session: Session = Depends(verify_session),
     qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
-    if isinstance(job.sequence, str):
-        normalized_sequence = job.sequence
-    else:
+    sequence = job.sequence
+    if isinstance(sequence, AHSSequence):
         try:
             qpu_specs = await qpu_client.get_specs()
         except QPUClientRequestError as exc:
@@ -38,15 +43,15 @@ async def create_job(
                 detail="Failed to fetch QPU specs.",
             ) from exc
         try:
-            normalized_sequence = await asyncio.to_thread(
-                normalize_job_sequence, job.sequence, qpu_specs
+            sequence = await asyncio.to_thread(
+                normalize_cudaq_sequence, sequence, qpu_specs
             )
         except (ValueError, TypeError, NotImplementedError, KeyError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     new_job = Job(
         shots=job.shots,
-        sequence=normalized_sequence,
+        sequence=sequence,
         session_id=session.id,
     )
     db.add(new_job)
