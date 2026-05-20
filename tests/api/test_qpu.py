@@ -1,13 +1,8 @@
 import json
-from contextlib import contextmanager
-from typing import Callable, Generator
 
 import pytest
-from httpx import AsyncClient, MockTransport, Request, Response
-
-from warden.api.routes.dependencies.qpu_client import get_qpu_client
-from warden.lib.config import QPUConfig
-from warden.lib.qpu_client.client import AsyncQPUClient
+from conftest import MAX_RETRY, mock_qpu_client
+from httpx import AsyncClient, Request, Response
 
 
 @pytest.fixture
@@ -79,30 +74,6 @@ def qpu_specs() -> dict:
         ],
         "is_virtual": False,
     }
-
-
-MAX_RETRY = 10
-
-
-def make_qpu_client(handler: Callable[[Request], Response]) -> AsyncQPUClient:
-    """Create a QPUClient with a mocked HTTP transport."""
-    config = QPUConfig(uri="http://mock-qpu", retry_max=MAX_RETRY, retry_sleep_s=0)
-    client = AsyncQPUClient(config)
-    client.client = AsyncClient(
-        base_url=config.uri + "/api/v1", transport=MockTransport(handler)
-    )
-    return client
-
-
-@contextmanager
-def mock_qpu_client(
-    app, handler: Callable[[Request], Response]
-) -> Generator[None, None, None]:
-    app.dependency_overrides[get_qpu_client] = lambda: make_qpu_client(handler)
-    try:
-        yield
-    finally:
-        app.dependency_overrides.pop(get_qpu_client, None)
 
 
 @pytest.mark.asyncio
