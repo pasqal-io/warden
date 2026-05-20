@@ -1,7 +1,7 @@
 """Useful data types for QPU API parsing"""
 
 from datetime import datetime
-from typing import Any, Literal, TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic.dataclasses import dataclass
 
@@ -28,4 +28,4 @@ class QPUOperationalStatus:
 
 @dataclass
 class QPUInfo:
-    specs: Any | None = None
+    specs: str | None = None
