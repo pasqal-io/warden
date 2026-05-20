@@ -6,7 +6,11 @@ from typing import Annotated, Any, Literal
 import httpx
 import yaml
 from pydantic import BeforeValidator, Field, PrivateAttr, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 API_PREFIX = "/api/v1"
 
@@ -60,7 +64,7 @@ class QPUConfig(BaseSettings):
     retry_max: int
     retry_sleep_s: float
 
-    _client = PrivateAttr(default_factory=httpx.Client)
+    _client: httpx.Client = PrivateAttr(default_factory=httpx.Client)
 
     @property
     def client(self):
@@ -83,11 +87,34 @@ class APIConfig(BaseSettings):
 
 
 class Config(BaseSettings):
-    api: APIConfig
-    database: DatabaseConfig
-    scheduler: SchedulerConfig
-    logging: dict[str, Any]
-    qpu: QPUConfig
+    api: APIConfig = Field(
+        default_factory=lambda: APIConfig(
+            host="0.0.0.0",
+            port=8006,
+            authorized_users=[],
+        )
+    )
+    database: DatabaseConfig = Field(
+        default_factory=lambda: SqliteConfig(backend="sqlite", name="warden.db")
+    )
+    scheduler: SchedulerConfig = Field(
+        default_factory=lambda: SchedulerConfig(
+            strategy="FIFO",
+            db_polling_interval_s=1,
+            qpu_polling_interval_s=5,
+            qpu_polling_timeout_s=-1,
+            job_polling_interval_s=5,
+            job_polling_timeout_s=-1,
+        )
+    )
+    logging: dict[str, Any] = Field(default_factory=dict)
+    qpu: QPUConfig = Field(
+        default_factory=lambda: QPUConfig(
+            uri="http://localhost:8000",
+            retry_max=10,
+            retry_sleep_s=1,
+        )
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -119,12 +146,12 @@ class Config(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls,
-        init_settings,
-        env_settings,
-        dotenv_settings,
-        file_secret_settings,
-    ):
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
         def _load_config_file(path: Path):
             if not path.exists():
                 return {}
@@ -134,16 +161,23 @@ class Config(BaseSettings):
 
             return data
 
-        def yaml_default_config():
-            return _load_config_file(Path(__file__).parent / "config.sample.yaml")
+        class YamlSettingsSource(PydanticBaseSettingsSource):
+            def __init__(self, settings_cls: type[BaseSettings], path: Path):
+                super().__init__(settings_cls)
+                self.path = path
 
-        def yaml_config_source():
-            return _load_config_file(Path.cwd() / "config.yaml")
+            def get_field_value(self, field, field_name: str):
+                return None, field_name, False
+
+            def __call__(self) -> dict[str, Any]:
+                return _load_config_file(self.path)
 
         return (
             env_settings,  # Highest precedence: from env variables
             init_settings,  # from Config(...)
             dotenv_settings,  # from .env
-            yaml_config_source,  # Lower precedence: from yaml
-            yaml_default_config,  # Lowest precedence: default config file
+            YamlSettingsSource(settings_cls, Path.cwd() / "config.yaml"),
+            YamlSettingsSource(
+                settings_cls, Path(__file__).parent / "config.sample.yaml"
+            ),
         )

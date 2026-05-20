@@ -75,6 +75,11 @@ def decode_munge(token: bytes) -> tuple[bytes, int]:
                 msg = lib.munge_strerror(rc)
                 raise MungeError(msg.decode() if msg else f"munge error {rc}")
 
+        if buf.value is None:
+            if length.value == 0:
+                return b"", uid.value
+            raise MungeError("munge_decode returned an empty payload pointer")
+
         payload = ctypes.string_at(buf.value, length.value)
         return payload, uid.value
 

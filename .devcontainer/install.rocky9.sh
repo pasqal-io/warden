@@ -26,6 +26,7 @@ dnf -y install \
   postgresql \
   psmisc \
   bash-completion \
+  sudo \
   vim-enhanced \
   http-parser-devel \
   json-c-devel \

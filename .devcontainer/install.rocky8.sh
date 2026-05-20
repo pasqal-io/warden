@@ -24,6 +24,7 @@ dnf -y install \
   mariadb-devel \
   psmisc \
   bash-completion \
+  sudo \
   vim-enhanced \
   http-parser-devel \
   json-c-devel

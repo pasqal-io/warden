@@ -1,6 +1,7 @@
 from datetime import datetime
+from uuid import UUID
 
-from pydantic import UUID4, BaseModel
+from pydantic import BaseModel
 
 from warden.lib.models.sessions import Session
 
@@ -11,7 +12,7 @@ class CreateSession(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    id: UUID4
+    id: UUID
     user_id: str
     created_at: datetime
     revoked_at: datetime | None

@@ -65,7 +65,7 @@ quote-style = "double"
 include = [
     "warden",
     "tests",
-    ".github/scripts",
+#     ".github/scripts",
 ]
 exclude = [
     "warden/api/alembic",
