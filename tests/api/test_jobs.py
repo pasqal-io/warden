@@ -275,6 +275,7 @@ async def test_job_logs_not_found(client: AsyncClient, app, serialized_sequence:
     assert response.status_code == 404
 
 
+@pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload(
     client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
 ):
