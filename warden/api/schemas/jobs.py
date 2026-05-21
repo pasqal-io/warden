@@ -1,30 +1,23 @@
-from __future__ import annotations
-
 import json
 from datetime import datetime
-from typing import Annotated, Any, Literal, Union
+from typing import Any, Literal, Union
 
-from pydantic import BaseModel, BeforeValidator, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from warden.lib.models.jobs import Job
 
 
-def _try_parse_AHSSequence(sequence: Any):
+def try_parse_AHSSequence(sequence: str) -> Union[str,"AHSSequence"]:
     """Try parsing input sequence as a CudaQ payload"""
-    if not isinstance(sequence, str):
-        return sequence
     try:
         data = json.loads(sequence)
-        AHSSequence.model_validate(data)
-        return data
+        return AHSSequence.model_validate(data)
     except (ValidationError, ValueError, json.JSONDecodeError):
         return sequence
 
 
 class JobCreate(BaseModel):
-    sequence: Annotated[
-        Union[AHSSequence, str], BeforeValidator(_try_parse_AHSSequence)
-    ]
+    sequence: str
     shots: int
 
 

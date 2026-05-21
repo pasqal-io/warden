@@ -17,6 +17,7 @@ from warden.api.schemas.jobs import (
     JobCreate,
     JobLogResponse,
     JobResponse,
+    try_parse_AHSSequence,
 )
 from warden.api.utils.cudaq import normalize_cudaq_sequence
 from warden.lib.models.sessions import Session
@@ -33,16 +34,15 @@ async def create_job(
     session: Session = Depends(verify_session),
     qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
-    """Create a new job.
+    """
+    Create a new job
 
-    JobCreate.sequence can accept strings of Pulser or AHS sequences.
-
+    JobCreate.sequence can accept strings of Pulser or AHS sequences
     \f
-
     We accept both Pulser and AHS sequences as sequence inputs for CUDA-Q support.
     AHS sequences are converted into Pulser sequences before storing in db.
     """
-    sequence = job.sequence
+    sequence = try_parse_AHSSequence(job.sequence)
     if isinstance(sequence, AHSSequence):
         try:
             qpu_specs = await qpu_client.get_specs()
