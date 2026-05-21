@@ -1,12 +1,13 @@
 import json
 
 import pytest
-from conftest import MAX_RETRY, mock_qpu_client
 from httpx import AsyncClient, Request, Response
+
+from tests.api.conftest import MAX_RETRY, mock_qpu_client
 
 
 @pytest.mark.asyncio
-async def test_get_specs_success(client: AsyncClient, app, qpu_specs: str):
+async def test_get_specs_success(client: AsyncClient, app, qpu_specs: dict):
     """Nominal test case: assert that QPU specs are returned successfully.
 
     1. Mock the QPU HTTP response to return a known specs payload
@@ -26,7 +27,7 @@ async def test_get_specs_success(client: AsyncClient, app, qpu_specs: str):
 
 
 @pytest.mark.asyncio
-async def test_get_specs_success_retry(client: AsyncClient, app, qpu_specs: str):
+async def test_get_specs_success_retry(client: AsyncClient, app, qpu_specs: dict):
     """Nominal test case: assert that QPU specs are returned successfully
     even after transient QPU error retry.
 
