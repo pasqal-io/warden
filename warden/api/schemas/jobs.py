@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, BeforeValidator, Field, ValidationError
 
 from warden.lib.models.jobs import Job
 
@@ -15,7 +15,7 @@ def _try_parse_AHSSequence(sequence: Any):
         return sequence
     try:
         data = json.loads(sequence)
-        TypeAdapter(AHSSequence).validate_python(data)
+        AHSSequence.model_validate(data)
         return data
     except (ValidationError, ValueError, json.JSONDecodeError):
         return sequence
