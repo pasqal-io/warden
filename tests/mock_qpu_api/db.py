@@ -1,3 +1,6 @@
+import json
+import logging
+import os
 from datetime import datetime
 
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
@@ -6,6 +9,9 @@ from mock_qpu_api.samples import FAKE_RESULTS
 
 FAKE_JOB_DB: dict[str, Job] = {}
 FAKE_PROGRAM_DB: dict[str, Program] = {}
+
+# Using the Uvicorn logger for easy logging setup
+logger = logging.getLogger(f"uvicorn.{__name__}")
 
 ########
 # JOBS #
@@ -44,10 +50,17 @@ def get_job(uid: int) -> Job | None:
         job.start_datetime = datetime.now()
         update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING:
-        job.status = JobStatus.DONE
-        job.result = FAKE_RESULTS
+        if _uses_qutip_backend():
+            result = _run_qutip_job(job)
+        else:
+            result = FAKE_RESULTS
+        job.status = JobStatus.DONE if result is not None else JobStatus.ERROR
+        job.result = result
         job.end_datetime = datetime.now()
-        update_program_status(uid=uid, status=ProgramStatus.DONE)
+        program_status = (
+            ProgramStatus.DONE if result is not None else ProgramStatus.ERROR
+        )
+        update_program_status(uid=uid, status=program_status)
     return job
 
 
@@ -79,3 +92,27 @@ def update_program_status(uid: int, status: ProgramStatus) -> None:
         # TODO: handle error
         return
     FAKE_PROGRAM_DB[uid].status = status
+
+
+def _uses_qutip_backend() -> bool:
+    return "MOCK_QPU_API_EMUL" in os.environ
+
+
+def _run_qutip_job(job: Job) -> str | None:
+    from pulser import Sequence
+    from pulser_simulation import QutipBackendV2
+
+    try:
+        sequence = Sequence.from_abstract_repr(job.pulser_sequence)
+    except (TypeError, json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("Failed to deserialize pulser sequence")
+        return None
+
+    try:
+        result = QutipBackendV2(sequence, mimic_qpu=True).run()
+        return json.dumps(
+            {"counter": dict(result.final_state.sample(num_shots=job.nb_run))}
+        )
+    except Exception:
+        logger.exception("Failed to run Qutip simulation on pulser sequence")
+        return None

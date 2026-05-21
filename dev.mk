@@ -1,7 +1,8 @@
 include config.mk
 
 .PHONY: install-dev dev
-.PHONY: start-mock-qpu-dev
+.PHONY: start-mock-qpu-dev 
+.PHONY: start-qutip-qpu-dev
 .PHONY: migrate alembic revision
 .PHONY: lint-check lint-fix
 .PHONY: run-with-python
@@ -80,6 +81,9 @@ dev: migrate
 
 start-mock-qpu-dev: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
+
+start-qutip-qpu-dev: $(VENV)/bin/python
+	MOCK_QPU_API_EMUL=true $(MAKE) start-mock-qpu-dev
 
 alembic:
 	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)

@@ -1,6 +1,7 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
+import json
 import logging
 import random
 from datetime import datetime, timedelta
@@ -33,6 +34,8 @@ SYSTEM_API = API_URI + "/system"
 PROGRAM_API = API_URI + "/programs"
 
 SUCCESS_CHECK_INTERVAL_S = 0.1
+
+DUMMY_RESULTS = json.dumps([{"counter": {"0001": 1, "0010": 2, "0100": 3, "1000": 4}}])
 
 
 @pytest.mark.asyncio
@@ -75,7 +78,6 @@ async def test_run_nominal(
     ##################
     ### TEST SETUP ###
     ##################
-    DUMMY_RESULTS = '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]'
 
     # QPU status
     httpx_mock.add_response(
@@ -113,6 +115,7 @@ async def test_run_nominal(
                 "end_datetime": None,
             }
         }
+
         return_done_json = {
             "data": {
                 "uid": id,
@@ -363,7 +366,7 @@ async def test_run_job_timeout(
                 "uid": job_uid,
                 "batch_id": SLURM_USER_ID,
                 "status": "DONE",
-                "result": '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]',
+                "result": DUMMY_RESULTS,
                 "program_id": QPU_PROGRAM_UID,
                 "created_datetime": NOW.isoformat(),
                 "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
@@ -584,7 +587,7 @@ async def test_run_retry_transient_errors(
                 "uid": id,
                 "batch_id": SLURM_USER_ID,
                 "status": "DONE",
-                "result": '[{"counters": ["0001": 1, "0010": 2, "0100": 3, "1000": 4]}]',
+                "result": DUMMY_RESULTS,
                 "program_id": QPU_PROGRAM_UID,
                 "created_datetime": NOW.isoformat(),
                 "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),

@@ -3,7 +3,6 @@
 import json
 import logging
 import uuid
-from typing import Any
 
 from httpx import AsyncClient, Response
 
@@ -142,12 +141,6 @@ class QPUClient:
         data = response.json()["data"]
         return QPUOperationalStatus(**data).operational_status
 
-    def get_specs(self) -> Any | None:
-        """Gets the Device implemented by the QPU."""
-        response = self.client.get("/system")
-        data = response.json()["data"]
-        return QPUInfo(**data).specs
-
     def get_job(self, job: QPUJobInfo, no_retry: bool = False) -> QPUJobInfo:
         """Gets information on a submitted job."""
         response = self.client.get(f"/jobs/{job.uid}", no_retry)
@@ -214,7 +207,8 @@ class AsyncQPUClient:
     async def get_specs(self) -> str:
         """Get QPU serialized device specs."""
         response = await self.get("/system")
-        return json.dumps(response.json()["data"]["specs"])
+        data = response.json()["data"]
+        return json.dumps(QPUInfo(**data).specs)
 
     async def get(self, suffix: str):
         """Sends a GET request to base_url + suffix.

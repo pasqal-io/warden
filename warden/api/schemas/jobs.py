@@ -1,8 +1,19 @@
+import json
 from datetime import datetime
+from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from warden.lib.models.jobs import Job
+
+
+def try_parse_AHSSequence(sequence: str) -> Union[str, "AHSSequence"]:
+    """Try parsing input sequence as a CudaQ payload"""
+    try:
+        data = json.loads(sequence)
+        return AHSSequence.model_validate(data)
+    except (ValidationError, ValueError, json.JSONDecodeError):
+        return sequence
 
 
 class JobCreate(BaseModel):
@@ -38,3 +49,38 @@ class JobLogResponse(BaseModel):
         return cls(
             logs=job.logs,
         )
+
+
+class AHSTimeSeries(BaseModel):
+    values: list[float]
+    times: list[float]
+
+
+class AHSDrivingField(BaseModel):
+    pattern: str
+    time_series: AHSTimeSeries
+
+
+class AHSDrivingFields(BaseModel):
+    amplitude: AHSDrivingField
+    phase: AHSDrivingField
+    detuning: AHSDrivingField
+
+
+class AHSHamiltonian(BaseModel):
+    drivingFields: list[AHSDrivingFields]
+    localDetuning: list[Any]
+
+
+class AHSRegister(BaseModel):
+    sites: list[list[float]]
+    filling: list[Literal[0, 1]]
+
+
+class AHSSetup(BaseModel):
+    ahs_register: AHSRegister
+
+
+class AHSSequence(BaseModel):
+    setup: AHSSetup
+    hamiltonian: AHSHamiltonian

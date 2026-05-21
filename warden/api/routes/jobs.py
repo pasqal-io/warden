@@ -1,3 +1,4 @@
+import asyncio
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,8 +10,18 @@ from warden.api.routes.dependencies.auth import (
     verify_session,
 )
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.api.schemas.jobs import Job, JobCreate, JobLogResponse, JobResponse
+from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.api.schemas.jobs import (
+    AHSSequence,
+    Job,
+    JobCreate,
+    JobLogResponse,
+    JobResponse,
+    try_parse_AHSSequence,
+)
+from warden.api.utils.cudaq import normalize_cudaq_sequence
 from warden.lib.models.sessions import Session
+from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
@@ -21,10 +32,35 @@ async def create_job(
     job: JobCreate,
     db: DBSessionDep,
     session: Session = Depends(verify_session),
+    qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
+    """
+    Create a new job
+
+    JobCreate.sequence can accept strings of Pulser or AHS sequences
+    \f
+    We accept both Pulser and AHS sequences as sequence inputs for CUDA-Q support.
+    AHS sequences are converted into Pulser sequences before storing in db.
+    """
+    sequence = try_parse_AHSSequence(job.sequence)
+    if isinstance(sequence, AHSSequence):
+        try:
+            qpu_specs = await qpu_client.get_specs()
+        except QPUClientRequestError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Failed to fetch QPU specs.",
+            ) from exc
+        try:
+            sequence = await asyncio.to_thread(
+                normalize_cudaq_sequence, sequence, qpu_specs
+            )
+        except (ValueError, TypeError, NotImplementedError, KeyError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     new_job = Job(
         shots=job.shots,
-        sequence=job.sequence,
+        sequence=sequence,
         session_id=session.id,
     )
     db.add(new_job)
