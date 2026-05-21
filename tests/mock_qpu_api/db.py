@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 
@@ -8,6 +9,9 @@ from mock_qpu_api.samples import FAKE_RESULTS
 
 FAKE_JOB_DB: dict[str, Job] = {}
 FAKE_PROGRAM_DB: dict[str, Program] = {}
+
+# Using the Uvicorn logger for easy logging setup
+logger = logging.getLogger(f"uvicorn.{__name__}")
 
 ########
 # JOBS #
@@ -100,9 +104,15 @@ def _run_qutip_job(job: Job) -> str | None:
 
     try:
         sequence = Sequence.from_abstract_repr(job.pulser_sequence)
+    except (TypeError, json.JSONDecodeError, UnicodeDecodeError) as err:
+        logger.error(f"Failed to deserialize pulser sequence: {err}")
+        return None
+
+    try:
         result = QutipBackendV2(sequence, mimic_qpu=True).run()
         return json.dumps(
             {"counter": dict(result.final_state.sample(num_shots=job.nb_run))}
         )
-    except Exception:
+    except Exception as err:
+        logger.error(f"Failed to run Qutip simulation on pulser sequence: {err}")
         return None
