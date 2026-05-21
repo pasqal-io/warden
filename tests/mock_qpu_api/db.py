@@ -104,8 +104,8 @@ def _run_qutip_job(job: Job) -> str | None:
 
     try:
         sequence = Sequence.from_abstract_repr(job.pulser_sequence)
-    except (TypeError, json.JSONDecodeError, UnicodeDecodeError) as err:
-        logger.error(f"Failed to deserialize pulser sequence: {err}")
+    except (TypeError, json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("Failed to deserialize pulser sequence")
         return None
 
     try:
@@ -113,6 +113,6 @@ def _run_qutip_job(job: Job) -> str | None:
         return json.dumps(
             {"counter": dict(result.final_state.sample(num_shots=job.nb_run))}
         )
-    except Exception as err:
-        logger.error(f"Failed to run Qutip simulation on pulser sequence: {err}")
+    except Exception:
+        logger.exception("Failed to run Qutip simulation on pulser sequence")
         return None
