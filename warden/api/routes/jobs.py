@@ -33,6 +33,15 @@ async def create_job(
     session: Session = Depends(verify_session),
     qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
+    """Create a new job.
+
+    JobCreate.sequence can accept strings of Pulser or AHS sequences.
+
+    \f
+
+    We accept both Pulser and AHS sequences as sequence inputs for CUDA-Q support.
+    AHS sequences are converted into Pulser sequences before storing in db.
+    """
     sequence = job.sequence
     if isinstance(sequence, AHSSequence):
         try:
