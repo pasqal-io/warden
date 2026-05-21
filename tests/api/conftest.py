@@ -245,7 +245,7 @@ def cudaq_payload(cudaq_sequence: str) -> dict:
 
 
 @pytest.fixture
-def qpu_specs() -> str:
+def qpu_specs() -> dict:
     specs = json.loads(DigitalAnalogDevice.to_abstract_repr())
     specs["name"] = "FRESNEL_CAN1"
-    return json.dumps(specs)
+    return specs

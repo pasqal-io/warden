@@ -277,7 +277,7 @@ async def test_job_logs_not_found(client: AsyncClient, app, serialized_sequence:
 
 @pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload(
-    client: AsyncClient, app, cudaq_payload: dict, qpu_specs: str
+    client: AsyncClient, app, cudaq_payload: dict, qpu_specs: dict
 ):
     """Assert that /jobs accepts CUDA-Q payload and stores normalized Pulser sequence."""
     user_id = 1000
@@ -293,7 +293,7 @@ async def test_create_job_with_cudaq_payload(
     def handler(request: Request) -> Response:
         assert request.method == "GET"
         assert request.url.path.endswith("/api/v1/system")
-        return Response(200, json={"data": {"specs": json.loads(qpu_specs)}})
+        return Response(200, json={"data": {"specs": qpu_specs}})
 
     with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
         response = await client.post(
@@ -344,7 +344,7 @@ async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
 
 @pytest.mark.asyncio
 async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
-    client: AsyncClient, app, cudaq_sequence: str, qpu_specs: str
+    client: AsyncClient, app, cudaq_sequence: str, qpu_specs: dict
 ):
     """Assert that invalid CUDA-Q payload returns 422 from normalization errors."""
     user_id = 1000
@@ -364,7 +364,7 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
     def handler(request: Request) -> Response:
         assert request.method == "GET"
         assert request.url.path.endswith("/api/v1/system")
-        return Response(200, json={"data": {"specs": json.loads(qpu_specs)}})
+        return Response(200, json={"data": {"specs": qpu_specs}})
 
     with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
         response = await client.post(

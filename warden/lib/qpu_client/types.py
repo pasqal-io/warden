@@ -28,4 +28,4 @@ class QPUOperationalStatus:
 
 @dataclass
 class QPUInfo:
-    specs: str | None = None
+    specs: dict | None = None

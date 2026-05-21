@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, ValidationError
 from warden.lib.models.jobs import Job
 
 
-def try_parse_AHSSequence(sequence: str) -> Union[str,"AHSSequence"]:
+def try_parse_AHSSequence(sequence: str) -> Union[str, "AHSSequence"]:
     """Try parsing input sequence as a CudaQ payload"""
     try:
         data = json.loads(sequence)
