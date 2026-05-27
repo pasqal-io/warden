@@ -5,10 +5,17 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from warden.lib.config.config import APIConfig, Config, SchedulerConfig
+from warden.lib.config.config import (
+    APIConfig,
+    Config,
+    SchedulerConfig,
+    SchedulerStrategy,
+)
 
 
 def test_scheduler():
+    assert Config().scheduler.strategy is SchedulerStrategy.FIFO
+
     with pytest.raises(ValidationError):
         SchedulerConfig(
             strategy=cast(Any, "NOT_FIFO"),

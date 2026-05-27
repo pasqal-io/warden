@@ -3,11 +3,11 @@
 import asyncio
 from asyncio import Task, timeout
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from warden.lib.config import Config, QPUConfig, SchedulerConfig
+from warden.lib.config import Config, QPUConfig, SchedulerConfig, SchedulerStrategy
 from warden.lib.models import Job, Session
 
 
@@ -87,7 +87,7 @@ async def scheduler_task_timeout(delay: float, scheduler_task: Task):
         raise_main_scheduler_task_exception(scheduler_task)
 
 
-def build_conf(strategy: Literal["FIFO"], qpu_uri: str) -> Config:
+def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:
     return Config(
         scheduler=SchedulerConfig(
             strategy=strategy,

@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from typing import Literal
 
 import pytest
 import utils
@@ -12,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from tests.mock_qpu_api.samples import FAKE_RESULTS
-from warden.lib.config import Config, QPUConfig, SchedulerConfig
+from warden.lib.config import Config, QPUConfig, SchedulerConfig, SchedulerStrategy
 from warden.lib.models import Job
 from warden.scheduler.main import run_scheduler
 
@@ -20,9 +19,9 @@ BASE_URI_MOCK = "http://test:4300"
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_scheduler_integration(
-    strategy: Literal["FIFO"],
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     mock_qpu_api_app: FastAPI,

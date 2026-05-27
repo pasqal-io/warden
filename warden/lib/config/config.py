@@ -1,5 +1,6 @@
 """Yaml config definition"""
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -46,8 +47,12 @@ DatabaseConfig = Annotated[
 ]
 
 
+class SchedulerStrategy(StrEnum):
+    FIFO = "FIFO"
+
+
 class SchedulerConfig(BaseSettings):
-    strategy: Literal["FIFO"]
+    strategy: SchedulerStrategy
 
     db_polling_interval_s: float
 
@@ -99,7 +104,7 @@ class Config(BaseSettings):
     )
     scheduler: SchedulerConfig = Field(
         default_factory=lambda: SchedulerConfig(
-            strategy="FIFO",
+            strategy=SchedulerStrategy.FIFO,
             db_polling_interval_s=1,
             qpu_polling_interval_s=5,
             qpu_polling_timeout_s=-1,

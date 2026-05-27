@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from warden.lib.config import SchedulerStrategy
 from warden.lib.models import Job
 
 
@@ -36,4 +37,4 @@ class FifoScheduler(Scheduler):
         return res.scalar_one_or_none()
 
 
-schedulers = {"FIFO": FifoScheduler()}
+schedulers = {SchedulerStrategy.FIFO: FifoScheduler()}
