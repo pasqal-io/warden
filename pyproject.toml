@@ -6,9 +6,6 @@ description = "FastAPI middleware for receiving and validating quantum jobs"
 readme = "README.md"
 packages = [{ include = "warden" }]
 
-[tool.poetry.config]
-solver.min-release-age = 7
-
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.128.0"
