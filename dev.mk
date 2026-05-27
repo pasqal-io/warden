@@ -46,7 +46,7 @@ MARIADB_MIGRATIONS_TEST_DB ?= warden_migrations_test
 SQLITE_MIGRATIONS_TEST_DB ?= /tmp/warden_test.db
 
 
-install-dev: $(VENV)/bin/python install
+install-dev: $(VENV)/bin/python
 	$(POETRY_PYTHON) -m pip install poetry==$(POETRY_VERSION) $(POETRY_EXTRA_PACKAGES)
 	$(POETRY_PYTHON) -m poetry env use $(VENV)/bin/python
 	$(POETRY_PYTHON) -m poetry install --with dev --all-extras
