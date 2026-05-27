@@ -54,11 +54,9 @@ async def test_run_scheduler_integration(
             strategy=strategy,
             db_polling_interval_s=0.01,
             qpu_polling_interval_s=0.01,
-            qpu_polling_timeout_s=-1,
             job_polling_interval_s=0.01,
-            job_polling_timeout_s=-1,
         ),
-        qpu=QPUConfig(uri=BASE_URI_MOCK, retry_max=10, retry_sleep_s=0),
+        qpu=QPUConfig(uri=BASE_URI_MOCK, retry_sleep_s=0),
     )
 
     #################################

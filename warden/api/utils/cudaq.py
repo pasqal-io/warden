@@ -12,7 +12,6 @@ from pulser.waveforms import ConstantWaveform, Waveform
 
 from warden.api.schemas.jobs import AHSDrivingFields, AHSSequence, AHSTimeSeries
 
-
 T = TypeVar("T")
 
 
@@ -90,9 +89,7 @@ def _setup_phase(
     td: int,
 ) -> tuple[CustomWaveform, AbstractArray]:
     phase_wf = _require_instance(
-        CustomWaveform(
-            _timeseries_to_waveform(phases, td, 1e6, sign=-1.0).samples
-        ),
+        CustomWaveform(_timeseries_to_waveform(phases, td, 1e6, sign=-1.0).samples),
         CustomWaveform,
     )
     phase_mod = pulser.Pulse.ArbitraryPhase(amp_wf, phase_wf)

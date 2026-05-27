@@ -17,26 +17,26 @@ API_PREFIX = "/api/v1"
 
 
 class SqliteConfig(BaseSettings):
-    backend: Literal["sqlite"]
-    name: str
+    backend: Literal["sqlite"] = "sqlite"
+    name: str = "warden.db"
     echo: bool = False
 
 
 class PostgresConfig(BaseSettings):
-    backend: Literal["postgres"]
-    host: str = Field(default="localhost")
-    port: int = Field(default=5432)
-    name: str = Field(default="warden")
+    backend: Literal["postgres"] = "postgres"
+    host: str = "localhost"
+    port: int = 5432
+    name: str = "warden"
     user: str
     password: str
     echo: bool = False
 
 
 class MariadbConfig(BaseSettings):
-    backend: Literal["mariadb"]
-    host: str = Field(default="localhost")
-    port: int = Field(default=3306)
-    name: str = Field(default="warden")
+    backend: Literal["mariadb"] = "mariadb"
+    host: str = "localhost"
+    port: int = 3306
+    name: str = "warden"
     user: str
     password: str
     echo: bool = False
@@ -52,22 +52,22 @@ class SchedulerStrategy(StrEnum):
 
 
 class SchedulerConfig(BaseSettings):
-    strategy: SchedulerStrategy
+    strategy: SchedulerStrategy = SchedulerStrategy.FIFO
 
-    db_polling_interval_s: float
+    db_polling_interval_s: float = 1
 
-    qpu_polling_interval_s: float
-    qpu_polling_timeout_s: float
+    qpu_polling_interval_s: float = 5
+    qpu_polling_timeout_s: float = -1
 
-    job_polling_interval_s: float
-    job_polling_timeout_s: float
+    job_polling_interval_s: float = 5
+    job_polling_timeout_s: float = -1
 
 
 class QPUConfig(BaseSettings):
-    uri: str
+    uri: str = "http://localhost:8000"
 
-    retry_max: int
-    retry_sleep_s: float
+    retry_max: int = 10
+    retry_sleep_s: float = 1
 
     _client: httpx.Client = PrivateAttr(default_factory=httpx.Client)
 
@@ -85,41 +85,18 @@ def coerce_to_str(v):
 
 
 class APIConfig(BaseSettings):
-    host: str
-    port: int
+    host: str = "0.0.0.0"
+    port: int = Field(default=8006, ge=1, le=65535)
     # processing authorized_users as strings but allowing users to input numbers
-    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)]
+    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
 
 
 class Config(BaseSettings):
-    api: APIConfig = Field(
-        default_factory=lambda: APIConfig(
-            host="0.0.0.0",
-            port=8006,
-            authorized_users=[],
-        )
-    )
-    database: DatabaseConfig = Field(
-        default_factory=lambda: SqliteConfig(backend="sqlite", name="warden.db")
-    )
-    scheduler: SchedulerConfig = Field(
-        default_factory=lambda: SchedulerConfig(
-            strategy=SchedulerStrategy.FIFO,
-            db_polling_interval_s=1,
-            qpu_polling_interval_s=5,
-            qpu_polling_timeout_s=-1,
-            job_polling_interval_s=5,
-            job_polling_timeout_s=-1,
-        )
-    )
-    logging: dict[str, Any] = Field(default_factory=dict)
-    qpu: QPUConfig = Field(
-        default_factory=lambda: QPUConfig(
-            uri="http://localhost:8000",
-            retry_max=10,
-            retry_sleep_s=1,
-        )
-    )
+    api: APIConfig = APIConfig()
+    database: DatabaseConfig = SqliteConfig()
+    scheduler: SchedulerConfig = SchedulerConfig()
+    logging: dict[str, Any] = {}
+    qpu: QPUConfig = QPUConfig()
 
     model_config = SettingsConfigDict(
         env_file=".env",

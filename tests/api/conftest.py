@@ -18,7 +18,7 @@ from warden.lib.qpu_client.client import AsyncQPUClient
 
 @pytest_asyncio.fixture
 async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None]:
-    api = APIConfig(host="0.0.0.0", port=9999, authorized_users=[])
+    api = APIConfig(port=9999)
     config = Config(database=db_backend_config, api=api)
     app: FastAPI = create_app(config)
     # create tables in the test database
@@ -41,7 +41,7 @@ MAX_RETRY = 10
 
 def make_qpu_client(handler: Callable[[Request], Response]) -> AsyncQPUClient:
     """Create a QPUClient with a mocked HTTP transport."""
-    config = QPUConfig(uri="http://mock-qpu", retry_max=MAX_RETRY, retry_sleep_s=0)
+    config = QPUConfig(uri="http://mock-qpu", retry_sleep_s=0)
     client = AsyncQPUClient(config)
     client.client = AsyncClient(
         base_url=config.uri + "/api/v1", transport=MockTransport(handler)

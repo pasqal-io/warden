@@ -93,13 +93,10 @@ def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:
             strategy=strategy,
             db_polling_interval_s=0.01,
             qpu_polling_interval_s=0.01,
-            qpu_polling_timeout_s=-1,
             job_polling_interval_s=0.01,
-            job_polling_timeout_s=-1,
         ),
         qpu=QPUConfig(
             uri=qpu_uri,
-            retry_max=10,
             retry_sleep_s=0,
         ),
     )
