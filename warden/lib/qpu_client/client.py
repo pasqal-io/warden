@@ -6,7 +6,7 @@ import uuid
 
 from httpx import AsyncClient, Response
 
-from warden.lib.config.config import API_PREFIX, QPUConfig
+from warden.lib.config.config import QPUConfig
 from warden.lib.qpu_client.retry import NotRetriedHTTPStatus, retry
 from warden.lib.qpu_client.types import (
     QPUInfo,
@@ -128,13 +128,7 @@ class QPUClient:
     """
 
     def __init__(self, qpu_conf: QPUConfig) -> None:
-        self._base_uri = qpu_conf.uri + API_PREFIX
         self.client = HTTPClientWrapper(qpu_conf)
-
-    @property
-    def base_uri(self) -> str:
-        """Base URI of the QPU (IP/version)."""
-        return self._base_uri
 
     def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""

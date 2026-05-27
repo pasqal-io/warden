@@ -47,8 +47,8 @@ services:
       - warden-rocky-9-venv:/workspaces/warden/.venv
       - warden-rocky-9-poetry:/workspaces/warden/.poetry
     command: >
-      /bin/sh -c "mkdir -p /workspaces/warden/.venv /workspaces/warden/.poetry
-      && chown -R 1000:1000 /workspaces/warden/.venv /workspaces/warden/.poetry
+      /bin/sh -c "sudo mkdir -p /workspaces/warden/.venv /workspaces/warden/.poetry
+      && sudo chown -R 1000:1000 /workspaces/warden/.venv /workspaces/warden/.poetry
       && sleep infinity"
  
 volumes:
