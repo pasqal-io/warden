@@ -35,40 +35,8 @@ success() {
     printf "%b\n" "${COLOR_GREEN}$*${COLOR_RESET}"
 }
 
-resolve_python_command() {
-    make -s -f - print-python <<'EOF'
-include config.mk
-print-python:
-	@printf '%s' "$(PYTHON)"
-EOF
-}
-
 validate_python_config() {
-    local python_value python_version
-    local -a python_cmd
-
-    python_value="$(resolve_python_command)"
-    if [[ -z "$python_value" ]]; then
-        error "Error: config.mk does not define a usable PYTHON value."
-        return 1
-    fi
-
-    read -r -a python_cmd <<< "$python_value"
-    if ! python_version="$("${python_cmd[@]}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"; then
-        error "Error: PYTHON in config.mk is set to '$python_value', but that interpreter could not be executed."
-        return 1
-    fi
-
-    case "$python_version" in
-        3.11|3.12)
-            success "Detected supported Python $python_version from PYTHON=$python_value."
-            return 0
-            ;;
-        *)
-            error "Error: PYTHON in config.mk resolves to Python $python_version. Please use Python 3.11 or 3.12."
-            return 1
-            ;;
-    esac
+    make check-python
 }
 
 printf "%b\n" "${COLOR_BOLD}This script will install Warden on your system.${COLOR_RESET}"

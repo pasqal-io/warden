@@ -1796,10 +1796,7 @@ files = [
 [package.dependencies]
 jsonschema = ">=4.17.3,<5"
 matplotlib = ">=3.10.5,<4"
-numpy = [
-    {version = ">=1.20,<1.24.0 || >1.24.0", markers = "python_version < \"3.13\""},
-    {version = ">=2", markers = "python_version >= \"3.13\""},
-]
+numpy = ">=1.20,<1.24.0 || >1.24.0"
 packaging = "*"
 referencing = "*"
 scipy = "<2"
@@ -3093,5 +3090,5 @@ postgres = ["asyncpg", "psycopg"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = "^3.11"
-content-hash = "99e666681c975d276703707e93241a47e49d7b548fb30f53dc5e7e108fc4873d"
+python-versions = ">=3.11,<3.13"
+content-hash = "321c09aab5ed269d5c409560f33f933ef4f24c388ee1a6b7ae908786250d6e3c"
