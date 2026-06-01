@@ -13,6 +13,7 @@ include config.mk
 VENV=.venv
 REQUIREMENTS_EXPORT_DIR ?= .
 POETRY_VERSION ?= 2.4.1
+POETRY_PLUGIN_EXPORT_VERSION ?= 1.10.0
 POETRY_PYTHON ?= $(VENV)/bin/python
 POETRY_EXTRA_PACKAGES ?=
 
@@ -47,7 +48,10 @@ SQLITE_MIGRATIONS_TEST_DB ?= /tmp/warden_test.db
 
 
 install-dev: $(VENV)/bin/python
-	$(POETRY_PYTHON) -m pip install poetry==$(POETRY_VERSION) $(POETRY_EXTRA_PACKAGES)
+	$(POETRY_PYTHON) -m pip install \
+		poetry==$(POETRY_VERSION) \
+		poetry-plugin-export==$(POETRY_PLUGIN_EXPORT_VERSION) \
+		$(POETRY_EXTRA_PACKAGES)
 	$(POETRY_PYTHON) -m poetry env use $(VENV)/bin/python
 	$(POETRY_PYTHON) -m poetry install --with dev --all-extras
 
