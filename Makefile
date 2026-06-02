@@ -11,6 +11,7 @@ include config.mk dev.mk
 .PHONY: start-mock-qpu start-qutip-qpu
 
 VENV=.venv
+PIP_VERSION ?= 26
 ifeq ($(WITH_PG),1)
 INSTALL_FLAGS  += -r requirements-pg.txt
 endif
@@ -59,6 +60,7 @@ $(VENV)/bin/python: config.yaml
 	fi
 
 install: $(VENV)/bin/python
+	$(VENV)/bin/python -m pip install -U pip==$(PIP_VERSION)
 	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
 
 run: migrate
