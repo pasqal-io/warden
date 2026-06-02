@@ -56,10 +56,9 @@ $(VENV)/bin/python: config.yaml
 	else \
 		echo "Creating $(VENV) with $(PYTHON)"; \
 		$(PYTHON) -m venv --copies $(VENV); \
-		echo "Installing pip $(PIP_VERSION) in $(VENV)"; \
-		$(VENV)/bin/python -m pip install -U pip~=$(PIP_VERSION); \ 
 		echo "Virtualenv created in $(VENV) using $(PYTHON)"; \
 	fi
+	$(VENV)/bin/python -m pip install -U pip~=$(PIP_VERSION)
 
 install: $(VENV)/bin/python
 	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
