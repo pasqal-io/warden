@@ -11,7 +11,7 @@ include config.mk dev.mk
 .PHONY: start-mock-qpu start-qutip-qpu
 
 VENV=.venv
-PIP_VERSION ?= 26
+PIP_VERSION ?= 26.1
 ifeq ($(WITH_PG),1)
 INSTALL_FLAGS  += -r requirements-pg.txt
 endif
@@ -56,11 +56,12 @@ $(VENV)/bin/python: config.yaml
 	else \
 		echo "Creating $(VENV) with $(PYTHON)"; \
 		$(PYTHON) -m venv --copies $(VENV); \
+		echo "Installing pip $(PIP_VERSION) in $(VENV)"; \
+		$(VENV)/bin/python -m pip install -U 'pip~=$(PIP_VERSION)'
 		echo "Virtualenv created in $(VENV) using $(PYTHON)"; \
 	fi
 
 install: $(VENV)/bin/python
-	$(VENV)/bin/python -m pip install -U pip==$(PIP_VERSION)
 	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
 
 run: migrate
