@@ -57,7 +57,7 @@ $(VENV)/bin/python: config.yaml
 		echo "Creating $(VENV) with $(PYTHON)"; \
 		$(PYTHON) -m venv --copies $(VENV); \
 		echo "Installing pip $(PIP_VERSION) in $(VENV)"; \
-		$(VENV)/bin/python -m pip install -U 'pip~=$(PIP_VERSION)'
+		$(VENV)/bin/python -m pip install -U pip~=$(PIP_VERSION); \ 
 		echo "Virtualenv created in $(VENV) using $(PYTHON)"; \
 	fi
 
