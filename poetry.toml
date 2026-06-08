@@ -1,4 +1,4 @@
 [solver]
-min-release-age = 3
+min-release-age = 7
 # pulser may publish wheels more often than the age gate allows
 min-release-age-exclude = ["pulser"]
