@@ -16,6 +16,8 @@ POETRY_VERSION ?= 2.4.1
 POETRY_PLUGIN_EXPORT_VERSION ?= 1.10.0
 POETRY_PYTHON ?= $(VENV)/bin/python
 POETRY_EXTRA_PACKAGES ?=
+DEBUG_WARDEN_API_PORT ?= 8888
+DEBUG_WARDEN_SCHEDULER_PORT ?= 8889
 
 IN_DEVCONTAINER := $(shell if [ -f /.dockerenv ]; then echo 1; else echo 0; fi)
 ifeq ($(IN_DEVCONTAINER),1)
@@ -74,8 +76,8 @@ dev: migrate
 	}; \
 	trap on_signal SIGINT SIGTERM; \
 	trap cleanup EXIT; \
-	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8888 -m warden.api.main --reload & PIDS+=($$!); \
-	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:8889 -m warden.scheduler & PIDS+=($$!); \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:$(DEBUG_WARDEN_API_PORT) -m warden.api.main --reload & PIDS+=($$!); \
+	$(VENV)/bin/python -m debugpy --listen 0.0.0.0:$(DEBUG_WARDEN_SCHEDULER_PORT) -m warden.scheduler & PIDS+=($$!); \
 	set +e; \
 	wait -n "$${PIDS[@]}"; \
 	STATUS=$$?; \
