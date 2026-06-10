@@ -127,7 +127,7 @@ async def delete_job(
         if backend_id is None:
             # TODO: find appropriate exception
             raise HTTPException(500)
-        client.cancel_job(id=backend_id)
+        await client.cancel_job(id=backend_id)
     # TODO: return right data
     return JobResponse.from_model(job)
 
