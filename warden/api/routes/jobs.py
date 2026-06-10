@@ -75,7 +75,9 @@ async def list_jobs(
     db_session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
 ) -> list[JobResponse]:
-    result = await db_session.execute(select(Job).where(Job.user_id == str(identity.uid)))
+    result = await db_session.execute(
+        select(Job).where(Job.user_id == str(identity.uid))
+    )
     jobs = result.scalars().all()
 
     return [JobResponse.from_model(job) for job in jobs]
@@ -126,7 +128,7 @@ async def delete_job(
             # TODO: find appropriate exception
             raise HTTPException(500)
         client.cancel_job(id=backend_id)
-    #TODO: return right data
+    # TODO: return right data
     return JobResponse.from_model(job)
 
 
