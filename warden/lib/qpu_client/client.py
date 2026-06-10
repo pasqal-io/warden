@@ -210,6 +210,27 @@ class AsyncQPUClient:
         data = response.json()["data"]
         return json.dumps(QPUInfo(**data).specs)
 
+    async def cancel_job(self, id: str) -> None:
+        """Send job cancelation request to the QPU"""
+        try:
+            response = self.client.put(f"/jobs/{id}/cancel")
+            data = response.json()["data"]
+        except NotRetriedHTTPStatus as e:
+            resp = e.response
+            if resp.status_code != 400:
+                raise JobCancelationError(e) from e
+            ret_code = resp.json()["code"]
+            data = resp.json()["data"]
+            cant_cancel_job_code = "3003"
+            if cant_cancel_job_code not in ret_code:
+                raise JobCancelationError(e) from e
+            # Can't cancel job because associated program can't be aborted | canceled
+            # That probably means that our job information is outdated so we fetch it again
+            # and return
+            logger.warning(
+                f"Job can't be cancelled, program is in '{data['status']}' state."
+            )
+
     async def get(self, suffix: str):
         """Sends a GET request to base_url + suffix.
 
@@ -226,5 +247,24 @@ class AsyncQPUClient:
 
     async def _get(self, suffix: str):
         response = await self.client.get(suffix)
+        response.raise_for_status()
+        return response
+
+    async def put(self, suffix: str):
+        """Sends a PUT request to base_url + suffix.
+
+        Arg:
+            suffix: The suffix to add after base_url for the request.
+
+        Returns:
+            The Response returned by the GET request.
+        """
+        response = await retry(
+            max=self.conf.retry_max, sleep_s=self.conf.retry_sleep_s
+        )(self._put)(suffix)
+        return response
+
+    async def _put(self, suffix: str):
+        response = await self.client.put(suffix)
         response.raise_for_status()
         return response

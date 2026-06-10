@@ -2,7 +2,7 @@ import asyncio
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from warden.api.routes.dependencies.auth import (
     MungeIdentity,
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/jobs")
 @router.post("")
 async def create_job(
     job: JobCreate,
-    db: DBSessionDep,
+    db_session: DBSessionDep,
     session: Session = Depends(verify_session),
     qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
@@ -63,19 +63,19 @@ async def create_job(
         sequence=sequence,
         session_id=session.id,
     )
-    db.add(new_job)
-    await db.flush()
-    await db.commit()
+    db_session.add(new_job)
+    await db_session.flush()
+    await db_session.commit()
     logger.info(f"Created warden job {new_job.id} for slurm job {session.slurm_job_id}")
     return JobResponse.from_model(new_job)
 
 
 @router.get("")
 async def list_jobs(
-    session: DBSessionDep,
+    db_session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
 ) -> list[JobResponse]:
-    result = await session.execute(select(Job).where(Job.user_id == str(identity.uid)))
+    result = await db_session.execute(select(Job).where(Job.user_id == str(identity.uid)))
     jobs = result.scalars().all()
 
     return [JobResponse.from_model(job) for job in jobs]
@@ -84,10 +84,10 @@ async def list_jobs(
 @router.get("/{id}")
 async def get_job(
     id: int,
-    session: DBSessionDep,
+    db_session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
 ) -> JobResponse:
-    result = await session.execute(
+    result = await db_session.execute(
         select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
     )
     job = result.scalars().one_or_none()
@@ -96,13 +96,47 @@ async def get_job(
     return JobResponse.from_model(job)
 
 
+@router.delete("/{id}")
+async def delete_job(
+    id: int,
+    db_session: DBSessionDep,
+    identity: MungeIdentity = Depends(munge_identity),
+    client: AsyncQPUClient = Depends(get_qpu_client),
+) -> JobResponse:
+    result = await db_session.execute(
+        select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
+    )
+    job = result.scalars().one_or_none()
+    if job is None:
+        raise HTTPException(404, detail="Job not found")
+    if job.status in ("CANCELED", "DONE", "ERROR"):
+        # TODO: find appropriate exception
+        raise HTTPException(
+            404, detail=f"Job with status '{job.status}' can't be canceled"
+        )
+    if job.status == "PENDING":
+        # Set job to cancel
+        await db_session.execute(
+            update(Job).where(Job.id == job.id).values({"status": "CANCELED"})
+        )
+    else:
+        # If running, tell scheduler to cancel
+        backend_id = job.backend_id
+        if backend_id is None:
+            # TODO: find appropriate exception
+            raise HTTPException(500)
+        client.cancel_job(id=backend_id)
+    #TODO: return right data
+    return JobResponse.from_model(job)
+
+
 @router.get("/{id}/logs")
 async def get_job_logs(
     id: int,
-    session: DBSessionDep,
+    db_session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
 ) -> JobLogResponse:
-    result = await session.execute(
+    result = await db_session.execute(
         select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
     )
     job = result.scalars().one_or_none()
