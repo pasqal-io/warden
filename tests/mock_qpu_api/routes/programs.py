@@ -14,7 +14,7 @@ async def get_program(uid: int):
     if not program_exists(uid):
         # TODO: improve QPU error mimicking
         raise HTTPException(400, "Bad request")
-    program = FAKE_PROGRAM_DB[uid]
+    program = FAKE_PROGRAM_DB[str(uid)]
     # TODO: Handle other cases
     program.status = ProgramStatus.RUNNING
     return JSendResponse(

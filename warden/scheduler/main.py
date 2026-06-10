@@ -102,8 +102,11 @@ async def shutdown(engine: AsyncEngine):
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def main_async(conf=Config()):
+async def main_async(conf: Config | None = None):
     """Main asyncio logic"""
+    if conf is None:
+        conf = Config()
+
     logging.config.dictConfig(config=conf.logging)
     engine = create_async_engine(build_db_url(conf.database), echo=conf.database.echo)
     loop = asyncio.get_running_loop()

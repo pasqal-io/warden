@@ -6,7 +6,7 @@ import time
 from functools import wraps
 from typing import Callable
 
-from httpx import HTTPError, HTTPStatusError, NetworkError, TimeoutException
+from httpx import HTTPStatusError, NetworkError, TimeoutException
 
 RETRY_HTTP_EXIT_CODES = [500, 502, 503, 504, 429]
 
@@ -31,10 +31,10 @@ class NotRetriedHTTPStatus(QPUClientRequestError):
 
 
 class MaxRetryError(QPUClientRequestError):
-    def __init__(self, last_error: HTTPError):
+    def __init__(self, last_error: Exception):
+        request = getattr(last_error, "request", "<unknown>")
         message = (
-            f"Max retry error for request '{last_error.request}', "
-            f"last error: '{last_error}'."
+            f"Max retry error for request '{request}', last error: '{last_error}'."
         )
         super().__init__(message)
 

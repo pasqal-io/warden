@@ -4,6 +4,14 @@ from warden.lib.config.config import (
     DatabaseConfig,
     QPUConfig,
     SchedulerConfig,
+    SchedulerStrategy,
 )
 
-__all__ = ["Config", "DatabaseConfig", "QPUConfig", "SchedulerConfig", "APIConfig"]
+__all__ = [
+    "Config",
+    "DatabaseConfig",
+    "QPUConfig",
+    "SchedulerConfig",
+    "SchedulerStrategy",
+    "APIConfig",
+]

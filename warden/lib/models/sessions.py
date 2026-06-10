@@ -1,8 +1,11 @@
 import uuid
 from datetime import datetime, timezone
+from uuid import UUID
 
 from sqlalchemy import (
-    UUID,
+    UUID as UUIDType,
+)
+from sqlalchemy import (
     DateTime,
     String,
 )
@@ -15,7 +18,7 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id: Mapped[UUID] = mapped_column(
-        UUID,
+        UUIDType,
         primary_key=True,
         default=uuid.uuid4,
         index=True,

@@ -1,14 +1,14 @@
 [tool.poetry]
 name = "warden"
-version = "0.1.0"
+version = "0.2.0"
 authors = []
 description = "FastAPI middleware for receiving and validating quantum jobs"
 readme = "README.md"
 packages = [{ include = "warden" }]
 
 [tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.128.0"
+python = ">=3.11,<3.13"
+fastapi = "^0.136.3"
 uvicorn = { extras = ["standard"], version = "^0.40.0" }
 pydantic = "^2.6"
 pydantic-settings = "^2.12.0"
@@ -23,6 +23,7 @@ pulser = "^1.7"
 psycopg = { extras = ["binary"], version = "^3.3.2", optional = true }
 asyncpg = { version = "^0.29", optional = true }
 asyncmy = { version = "^0.2", optional = true }
+starlette = ">=1.0.1"
 
 [tool.poetry.extras]
 postgres = ["asyncpg", "psycopg"]
@@ -36,9 +37,10 @@ pytest-asyncio = "^1.3.0"
 httpx = "^0.28.1"
 ruff = "^0.15.6"
 pytest-httpx = "^0.36.0"
+pyright = "^1.1.409"
 
 [tool.poetry.requires-plugins]
-poetry-plugin-export = ">=1.8"
+poetry-plugin-export = "1.10.0,<1.11"
 
 [tool.ruff]
 target-version = "py311"
@@ -56,6 +58,21 @@ ignore = [
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.pyright]
+include = [
+    "warden",
+    "tests",
+#     ".github/scripts",
+]
+exclude = [
+    "warden/api/alembic",
+    "**/__pycache__",
+    ".*",
+    "**/node_modules",
+]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]

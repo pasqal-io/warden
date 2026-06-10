@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from warden.lib.config import SchedulerStrategy
 from warden.lib.models import Job, Session
 from warden.scheduler.strategy import schedulers
 
@@ -11,7 +12,7 @@ from warden.scheduler.strategy import schedulers
 @pytest.mark.asyncio
 async def test_fifo_nominal(db_session_maker):
     """Testing FIFO scheduler strategy nominal behavior"""
-    scheduler = schedulers["FIFO"]
+    scheduler = schedulers[SchedulerStrategy.FIFO]
     now = datetime.now()
 
     jobs = [
@@ -74,7 +75,7 @@ async def test_fifo_nominal(db_session_maker):
 @pytest.mark.asyncio
 async def test_fifo_id_precedence(db_session_maker):
     """Testing FIFO scheduler with ID sorting if same datetime"""
-    schdeduler = schedulers["FIFO"]
+    schdeduler = schedulers[SchedulerStrategy.FIFO]
     now = datetime.now()
 
     jobs = [
@@ -137,7 +138,7 @@ async def test_fifo_id_precedence(db_session_maker):
 @pytest.mark.asyncio
 async def test_fifo_job_running(db_session_maker):
     """Testing FIFO scheduler strategy with job already in running state"""
-    schdeduler = schedulers["FIFO"]
+    schdeduler = schedulers[SchedulerStrategy.FIFO]
     now = datetime.now()
 
     jobs = [

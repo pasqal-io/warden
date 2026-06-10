@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
 import pulser
 from pulser import CustomWaveform, InterpolatedWaveform, Register
 from pulser import Sequence as PulserSequence
@@ -9,6 +11,14 @@ from pulser.register import RegisterLayout
 from pulser.waveforms import ConstantWaveform, Waveform
 
 from warden.api.schemas.jobs import AHSDrivingFields, AHSSequence, AHSTimeSeries
+
+T = TypeVar("T")
+
+
+def _require_instance(value: object, typ: type[T]) -> T:
+    if not isinstance(value, typ):
+        raise TypeError(f"Expected {typ.__name__}, got {type(value).__name__}")
+    return value
 
 
 def _setup_register_and_layout(
@@ -48,20 +58,26 @@ def _timeseries_to_waveform(
 ) -> Waveform:
     values = [sign * v / scale for v in series.values]
     if all(abs(v - values[0]) <= 1e-12 for v in values):
-        return ConstantWaveform(duration, values[0])
+        return _require_instance(ConstantWaveform(duration, values[0]), Waveform)
 
-    return InterpolatedWaveform(
-        duration,
-        values=values,
-        times=[t * 1e9 / duration for t in series.times],
-        interpolator="interp1d",
+    return _require_instance(
+        InterpolatedWaveform(
+            duration,
+            values=values,
+            times=[t * 1e9 / duration for t in series.times],
+            interpolator="interp1d",
+        ),
+        Waveform,
     )
 
 
 def _setup_amplitude_and_detuning(
     amp: AHSTimeSeries, det: AHSTimeSeries, td: int
 ) -> tuple[CustomWaveform, Waveform]:
-    amp_wf = CustomWaveform(_timeseries_to_waveform(amp, td, 1e6).samples)
+    amp_wf = _require_instance(
+        CustomWaveform(_timeseries_to_waveform(amp, td, 1e6).samples),
+        CustomWaveform,
+    )
     det_wf = _timeseries_to_waveform(det, td, 1e6)
     return amp_wf, det_wf
 
@@ -72,11 +88,15 @@ def _setup_phase(
     det_wf: Waveform,
     td: int,
 ) -> tuple[CustomWaveform, AbstractArray]:
-    phase_wf = CustomWaveform(
-        _timeseries_to_waveform(phases, td, 1e6, sign=-1.0).samples
+    phase_wf = _require_instance(
+        CustomWaveform(_timeseries_to_waveform(phases, td, 1e6, sign=-1.0).samples),
+        CustomWaveform,
     )
     phase_mod = pulser.Pulse.ArbitraryPhase(amp_wf, phase_wf)
-    full_det_wf = CustomWaveform(det_wf.samples + phase_mod.detuning.samples)
+    full_det_wf = _require_instance(
+        CustomWaveform(det_wf.samples + phase_mod.detuning.samples),
+        CustomWaveform,
+    )
     return full_det_wf, phase_mod.phase
 
 

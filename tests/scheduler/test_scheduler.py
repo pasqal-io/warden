@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from utils import build_conf
 
-from warden.lib.config import Config
+from warden.lib.config import Config, SchedulerStrategy
 from warden.lib.models import Job
 from warden.scheduler.main import run_scheduler
 
@@ -39,9 +39,9 @@ DUMMY_RESULTS = json.dumps([{"counter": {"0001": 1, "0010": 2, "0100": 3, "1000"
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_nominal(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -171,9 +171,9 @@ async def test_run_nominal(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_qpu_down(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -253,9 +253,9 @@ async def test_run_qpu_down(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_job_timeout(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -483,9 +483,9 @@ async def test_run_job_timeout(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_retry_transient_errors(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -638,9 +638,9 @@ async def test_run_retry_transient_errors(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_qpu_api_unreachable(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -713,9 +713,9 @@ async def test_run_qpu_api_unreachable(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_job_creation_client_error(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,
@@ -802,9 +802,9 @@ async def test_run_job_creation_client_error(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("strategy", ["FIFO"])
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_job_client_error_timeout(
-    strategy: str,
+    strategy: SchedulerStrategy,
     db_engine: AsyncEngine,
     db_session_maker: async_sessionmaker,
     httpx_mock: HTTPXMock,

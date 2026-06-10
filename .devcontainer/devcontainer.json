@@ -20,7 +20,9 @@
 	"workspaceFolder": "/workspaces/warden",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {}
+	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
@@ -32,7 +34,7 @@
 	// "shutdownAction": "none",
 
 	// Uncomment the next line to run commands after the container is created.
-	// "postCreateCommand": "cat /etc/os-release",
+	"postCreateCommand": "bash .devcontainer/postCreate.sh",
 
 	// Configure tool-specific properties.
 	"customizations": {
@@ -43,8 +45,7 @@
 				"ms-python.debugpy"
 			]
 		}
-	}
+	},
 
-	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "devcontainer"
+	"remoteUser": "devuser"
 }

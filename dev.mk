@@ -4,7 +4,7 @@ include config.mk
 .PHONY: start-mock-qpu-dev 
 .PHONY: start-qutip-qpu-dev
 .PHONY: migrate alembic revision
-.PHONY: lint-check lint-fix
+.PHONY: lint-check lint-fix type-check
 .PHONY: run-with-python
 .PHONY: test test-sqlite test-postgres test-mariadb
 .PHONY: test-migrations test-migrations-sqlite test-migrations-postgres test-migrations-mariadb
@@ -12,7 +12,8 @@ include config.mk
 
 VENV=.venv
 REQUIREMENTS_EXPORT_DIR ?= .
-POETRY_VERSION ?= 2.3.3
+POETRY_VERSION ?= 2.4.1
+POETRY_PLUGIN_EXPORT_VERSION ?= 1.10.0
 POETRY_PYTHON ?= $(VENV)/bin/python
 POETRY_EXTRA_PACKAGES ?=
 
@@ -46,8 +47,11 @@ MARIADB_MIGRATIONS_TEST_DB ?= warden_migrations_test
 SQLITE_MIGRATIONS_TEST_DB ?= /tmp/warden_test.db
 
 
-install-dev: $(VENV)/bin/python install
-	$(POETRY_PYTHON) -m pip install poetry==$(POETRY_VERSION) $(POETRY_EXTRA_PACKAGES)
+install-dev: $(VENV)/bin/python
+	$(POETRY_PYTHON) -m pip install \
+		poetry==$(POETRY_VERSION) \
+		poetry-plugin-export==$(POETRY_PLUGIN_EXPORT_VERSION) \
+		$(POETRY_EXTRA_PACKAGES)
 	$(POETRY_PYTHON) -m poetry env use $(VENV)/bin/python
 	$(POETRY_PYTHON) -m poetry install --with dev --all-extras
 
@@ -79,10 +83,10 @@ dev: migrate
 	cleanup; \
 	exit $$STATUS'
 
-start-mock-qpu-dev: $(VENV)/bin/python
+start-mock-qpu-dev:
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --reload --app-dir tests
 
-start-qutip-qpu-dev: $(VENV)/bin/python
+start-qutip-qpu-dev:
 	MOCK_QPU_API_EMUL=true $(MAKE) start-mock-qpu-dev
 
 alembic:
@@ -140,6 +144,9 @@ lint-check:
 lint-fix:
 	$(POETRY_PYTHON) -m poetry run ruff check --fix .
 	$(POETRY_PYTHON) -m poetry run ruff format .
+
+type-check:
+	$(POETRY_PYTHON) -m poetry run pyright
 
 update-requirements:
 	$(POETRY_PYTHON) -m poetry lock

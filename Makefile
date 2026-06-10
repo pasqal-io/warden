@@ -1,7 +1,7 @@
 include config.mk dev.mk
 
 # install + run targets
-.PHONY: install run
+.PHONY: check-python install run
 
 # cluster admin commands to operate Warden
 .PHONY: set-accessible \
@@ -20,6 +20,26 @@ INSTALL_FLAGS  += -r requirements-mariadb.txt
 endif
 
 # cluster admin commands
+
+check-python:
+	@if [ -z "$(PYTHON)" ]; then \
+		echo "Usage: make install PYTHON=/path/to/python"; \
+		exit 1; \
+	fi
+	@python_version="$$( $(PYTHON) -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null )"; \
+	if [ -z "$$python_version" ]; then \
+		echo "Error: PYTHON is set to '$(PYTHON)', but that interpreter could not be executed."; \
+		exit 1; \
+	fi; \
+	case "$$python_version" in \
+		3.11|3.12) \
+			echo "Detected supported Python $$python_version from PYTHON=$(PYTHON)."; \
+			;; \
+		*) \
+			echo "Error: PYTHON=$(PYTHON) resolves to Python $$python_version. Please use Python 3.11 or 3.12."; \
+			exit 1; \
+			;; \
+	esac
 
 config.yaml:
 	@new_config="warden/lib/config/config.sample.yaml"; \
@@ -42,16 +62,12 @@ config.yaml:
 	cp "$$new_config" config.yaml
 
 # Note: the --copies flag is used to create a copy of the binaries, since a symlink may not always work
-$(VENV)/bin/python: config.yaml
+$(VENV)/bin/python: config.yaml check-python
 	@if [ -d ./venv ]; then \
 		echo "Removing legacy ./venv"; \
 		rm -rf ./venv; \
 	fi
-	@if [ -z "$(PYTHON)" ]; then \
-		echo "Usage: make venv PYTHON=/path/to/python"; \
-		exit 1; \
-	fi
-	@if [ -d $(VENV) ]; then \
+	@if [ -d $(VENV) ] && [ -d $(VENV)/bin ] && [ -f $(VENV)/bin/python ]; then \
 		echo "$(VENV) already created"; \
 	else \
 		echo "Creating $(VENV) with $(PYTHON)"; \

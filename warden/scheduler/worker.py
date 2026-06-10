@@ -45,7 +45,7 @@ class JobExecutionTracker:
 
     async def update_job(self, qpu_job_info: QPUJobInfo):
         self._qpu_job_info = qpu_job_info
-        self._status = qpu_job_info.status
+        self._status = qpu_job_info.status or "ERROR"
         await self.push_update()
 
     async def to_error(self):
@@ -196,7 +196,7 @@ class LocalQPUWorker:
         job_tracker: JobExecutionTracker,
         nb_run: int,
         sequence: str,
-        batch_id: str,
+        batch_id: str | None,
     ) -> None:
         """Create the job on the QPU"""
         try:

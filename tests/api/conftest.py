@@ -1,6 +1,6 @@
 import json
 from contextlib import contextmanager
-from typing import Callable, Generator
+from typing import AsyncGenerator, Callable, Generator
 
 import pytest
 import pytest_asyncio
@@ -17,8 +17,8 @@ from warden.lib.qpu_client.client import AsyncQPUClient
 
 
 @pytest_asyncio.fixture
-async def app(db_backend_config: DatabaseConfig) -> FastAPI:
-    api = APIConfig(host="0.0.0.0", port=9999, authorized_users=[])
+async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None]:
+    api = APIConfig(port=9999)
     config = Config(database=db_backend_config, api=api)
     app: FastAPI = create_app(config)
     # create tables in the test database
@@ -30,7 +30,7 @@ async def app(db_backend_config: DatabaseConfig) -> FastAPI:
 
 
 @pytest_asyncio.fixture
-async def client(app) -> AsyncClient:
+async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
@@ -41,7 +41,7 @@ MAX_RETRY = 10
 
 def make_qpu_client(handler: Callable[[Request], Response]) -> AsyncQPUClient:
     """Create a QPUClient with a mocked HTTP transport."""
-    config = QPUConfig(uri="http://mock-qpu", retry_max=MAX_RETRY, retry_sleep_s=0)
+    config = QPUConfig(uri="http://mock-qpu", retry_sleep_s=0)
     client = AsyncQPUClient(config)
     client.client = AsyncClient(
         base_url=config.uri + "/api/v1", transport=MockTransport(handler)
@@ -62,7 +62,7 @@ def mock_qpu_client(
 
 @contextmanager
 def mock_munge_auth(
-    app, uid: int = 0, payload: bytes = b""
+    app: FastAPI, uid: int = 0, payload: bytes = b""
 ) -> Generator[None, None, None]:
     # The mock now uses the arguments passed to the context manager
     async def munge_identity_mock() -> MungeIdentity:

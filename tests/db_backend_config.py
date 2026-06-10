@@ -62,31 +62,23 @@ def build_database_config(
 ) -> SqliteConfig | PostgresConfig | MariadbConfig:
     """Build a database config for ``backend`` (sqlite path required for sqlite)."""
     if backend == "sqlite":
-        return SqliteConfig(
-            name="/tmp/warden_test.db",
-            backend="sqlite",
-            echo=False,
-        )
+        return SqliteConfig(name="/tmp/warden_test.db")
     if backend == "postgres":
         pytest.importorskip("asyncpg")
         return PostgresConfig(
-            backend="postgres",
             host=_default_pg_host(),
             port=int(os.environ.get("PG_TEST_PORT", "5432")),
             name=_pg_database_name(),
             user=os.environ.get("PG_TEST_USER", "wardenuser"),
             password=os.environ.get("PG_TEST_PASSWORD", "secret"),
-            echo=False,
         )
     if backend == "mariadb":
         pytest.importorskip("asyncmy")
         return MariadbConfig(
-            backend="mariadb",
             host=_default_mariadb_host(),
             port=int(os.environ.get("MARIADB_TEST_PORT", "3306")),
             name=_mariadb_database_name(),
             user=os.environ.get("MARIADB_TEST_USER", "root"),
             password=os.environ.get("MARIADB_TEST_PASSWORD", "secret"),
-            echo=False,
         )
     raise ValueError(f"Unsupported backend: {backend!r}")

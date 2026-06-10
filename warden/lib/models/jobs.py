@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
+from uuid import UUID
 
 from sqlalchemy import (
-    UUID,
-    Column,
     DateTime,
     ForeignKey,
     Integer,
@@ -66,7 +65,7 @@ class Job(Base):
         default=None,
         doc="ID of the job assigned by the QPU.",
     )
-    results: Mapped[str | None] = Column(
+    results: Mapped[str | None] = mapped_column(
         Text().with_variant(Text(16777215), "mysql"),
         nullable=True,
         doc="Serialized results from the QPU.",

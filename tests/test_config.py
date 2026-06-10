@@ -1,14 +1,23 @@
 """Testing lib/config"""
 
+from typing import Any, cast
+
 import pytest
 from pydantic import ValidationError
 
-from warden.lib.config.config import APIConfig, Config, SchedulerConfig
+from warden.lib.config.config import (
+    APIConfig,
+    Config,
+    SchedulerConfig,
+    SchedulerStrategy,
+)
 
 
 def test_scheduler():
+    assert Config().scheduler.strategy is SchedulerStrategy.FIFO
+
     with pytest.raises(ValidationError):
-        SchedulerConfig(strategy="NOT_FIFO", db_polling_interval_s=1)
+        SchedulerConfig(strategy=cast(Any, "NOT_FIFO"))
 
 
 def test_config_env_vars_use_warden_prefix(monkeypatch, tmp_path):
@@ -35,7 +44,7 @@ def test_authorized_users():
     Test that authorized_users is a list of strings
     coerced from user inputs
     """
-    config = APIConfig(host="0.0.0.0", port=9999, authorized_users=[1000, "2000"])
+    config = APIConfig(authorized_users=cast(Any, [1000, "2000"]))
     assert "1000" in config.authorized_users
     assert "2000" in config.authorized_users
     assert 1000 not in config.authorized_users
@@ -50,7 +59,7 @@ def test_authorized_users_wrong_input():
     2. Test float input error
     """
     with pytest.raises(ValidationError):
-        APIConfig(host="0.0.0.0", port=9999, authorized_users=[[]])
+        APIConfig(authorized_users=cast(Any, [[]]))
 
     with pytest.raises(ValidationError):
-        APIConfig(host="0.0.0.0", port=9999, authorized_users=[1.0])
+        APIConfig(authorized_users=cast(Any, [1.0]))

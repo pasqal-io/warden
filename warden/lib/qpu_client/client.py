@@ -6,7 +6,7 @@ import uuid
 
 from httpx import AsyncClient, Response
 
-from warden.lib.config import QPUConfig
+from warden.lib.config.config import QPUConfig
 from warden.lib.qpu_client.retry import NotRetriedHTTPStatus, retry
 from warden.lib.qpu_client.types import (
     QPUInfo,
@@ -130,16 +130,16 @@ class QPUClient:
     def __init__(self, qpu_conf: QPUConfig) -> None:
         self.client = HTTPClientWrapper(qpu_conf)
 
-    @property
-    def base_uri(self) -> str:
-        """Base URI of the QPU (IP/version)."""
-        return self._base_uri
-
     def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
         response = self.client.get("/system/operational")
         data = response.json()["data"]
-        return QPUOperationalStatus(**data).operational_status
+        status = QPUOperationalStatus(**data).operational_status
+        if status is None:
+            raise ValueError(
+                "QPU operational status response is missing 'operational_status'"
+            )
+        return status
 
     def get_job(self, job: QPUJobInfo, no_retry: bool = False) -> QPUJobInfo:
         """Gets information on a submitted job."""

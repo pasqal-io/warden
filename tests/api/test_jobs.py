@@ -112,7 +112,6 @@ async def test_list_jobs(client, app, serialized_sequence: str):
         for job in jobs:
             session.add(job)
         await session.commit()
-        await session.refresh(job)
 
     # 3. Get jobs
     with mock_munge_auth(app, uid=user_id):
@@ -196,7 +195,7 @@ async def test_jobs_auth(client: AsyncClient):
     ]
     for method, route in test_cases:
         response = await client.request(method, route)
-    assert response.status_code == 401
+        assert response.status_code == 401
 
 
 @pytest.mark.asyncio

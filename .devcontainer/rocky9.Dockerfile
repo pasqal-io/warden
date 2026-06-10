@@ -1,12 +1,17 @@
 FROM rockylinux:9
 
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12
 ENV PYTHON_VERSION=${PYTHON_VERSION}
 
 COPY .devcontainer/install.rocky9.sh /tmp/install.rocky9.sh
 RUN sh /tmp/install.rocky9.sh
 
-RUN groupadd --gid 1000 devuser && \
-  useradd --uid 1000 --gid 1000 -m -s /bin/bash devuser
+ARG USERNAME=devuser
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+  && useradd --uid ${USER_UID} --gid ${USER_GID} -m -s /bin/bash ${USERNAME} \
+  && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+  && chmod 0440 /etc/sudoers.d/${USERNAME}
 
-USER devuser
+USER ${USERNAME}

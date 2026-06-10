@@ -61,7 +61,9 @@ async def munge_identity(
     return MungeIdentity(uid=uid, payload=payload)
 
 
-async def verify_root(identity: MungeIdentity = Depends(munge_identity)) -> None:
+async def verify_root(
+    identity: MungeIdentity = Depends(munge_identity),
+) -> MungeIdentity:
     # TODO: is the slurm UID necessarily 0?
     # Otherwise make it configurable
     if identity.uid != 0:

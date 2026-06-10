@@ -4,6 +4,7 @@ Start Warden API and Scheduler as separate processes
 """
 
 import logging
+import logging.config
 import multiprocessing
 import signal
 import sys

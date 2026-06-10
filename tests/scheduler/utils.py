@@ -7,7 +7,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from warden.lib.config import Config, QPUConfig, SchedulerConfig
+from warden.lib.config import Config, QPUConfig, SchedulerConfig, SchedulerStrategy
 from warden.lib.models import Job, Session
 
 
@@ -64,10 +64,15 @@ def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
     IF the scheduler task encounters an exception, we raise it again to
     make it visible to the developer.
     """
-    if scheduler_task.done() and scheduler_task.exception():
-        raise scheduler_task.exception()
-    else:
-        scheduler_task.cancel()
+    if scheduler_task.done():
+        if scheduler_task.cancelled():
+            return
+
+        exc = scheduler_task.exception()
+        if exc is not None:
+            raise exc
+
+    scheduler_task.cancel()
 
 
 @asynccontextmanager
@@ -82,19 +87,16 @@ async def scheduler_task_timeout(delay: float, scheduler_task: Task):
         raise_main_scheduler_task_exception(scheduler_task)
 
 
-def build_conf(strategy: str, qpu_uri: str):
+def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:
     return Config(
         scheduler=SchedulerConfig(
             strategy=strategy,
             db_polling_interval_s=0.01,
             qpu_polling_interval_s=0.01,
-            qpu_polling_timeout_s=-1,
             job_polling_interval_s=0.01,
-            job_polling_timeout_s=-1,
         ),
         qpu=QPUConfig(
             uri=qpu_uri,
-            retry_max=10,
             retry_sleep_s=0,
         ),
     )

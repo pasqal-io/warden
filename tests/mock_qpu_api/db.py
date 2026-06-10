@@ -36,14 +36,14 @@ def create_job(job_model: JobCreation) -> Job:
         context=job_model.context,
         batch_id=job_model.context.batch_id,
     )
-    FAKE_JOB_DB[new_uid] = new_job
+    FAKE_JOB_DB[str(new_uid)] = new_job
     return new_job
 
 
 def get_job(uid: int) -> Job | None:
-    if uid not in FAKE_JOB_DB:
+    if str(uid) not in FAKE_JOB_DB:
         return None
-    job = FAKE_JOB_DB[uid]
+    job = FAKE_JOB_DB[str(uid)]
     # Artificial job logic
     if job.status == JobStatus.PENDING:
         job.status = JobStatus.RUNNING
@@ -65,9 +65,9 @@ def get_job(uid: int) -> Job | None:
 
 
 def cancel_job(uid: int) -> Job:
-    job = FAKE_JOB_DB[uid]
+    job = FAKE_JOB_DB[str(uid)]
     job.status = JobStatus.CANCELED
-    program = FAKE_PROGRAM_DB[job.program_id]
+    program = FAKE_PROGRAM_DB[str(job.program_id)]
     program.status = ProgramStatus.CANCELED
     return job
 
@@ -77,21 +77,21 @@ def cancel_job(uid: int) -> Job:
 ############
 
 
-def program_exists(uid):
-    return uid in FAKE_PROGRAM_DB.keys()
+def program_exists(uid: int):
+    return str(uid) in FAKE_PROGRAM_DB.keys()
 
 
 def create_program(new_uid: int) -> None:
     # TODO: Check program satus at creation
     new_program = Program(uid=new_uid, status=ProgramStatus.CREATED)
-    FAKE_PROGRAM_DB[new_uid] = new_program
+    FAKE_PROGRAM_DB[str(new_uid)] = new_program
 
 
 def update_program_status(uid: int, status: ProgramStatus) -> None:
     if not program_exists(uid):
         # TODO: handle error
         return
-    FAKE_PROGRAM_DB[uid].status = status
+    FAKE_PROGRAM_DB[str(uid)].status = status
 
 
 def _uses_qutip_backend() -> bool:
