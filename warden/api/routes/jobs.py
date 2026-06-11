@@ -1,8 +1,10 @@
 import asyncio
+from datetime import datetime
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from warden.api.routes.dependencies.auth import (
     MungeIdentity,
@@ -98,38 +100,59 @@ async def get_job(
     return JobResponse.from_model(job)
 
 
-@router.delete("/{id}")
+@router.post("/{id}/cancel")
 async def delete_job(
     id: int,
     db_session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
     client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
-    result = await db_session.execute(
-        select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
-    )
-    job = result.scalars().one_or_none()
-    if job is None:
-        raise HTTPException(404, detail="Job not found")
-    if job.status in ("CANCELED", "DONE", "ERROR"):
-        # TODO: find appropriate exception
-        raise HTTPException(
-            404, detail=f"Job with status '{job.status}' can't be canceled"
+    # Start transaction context
+    async with db_session.begin():
+        # Lock row/db during transaction
+        result = await db_session.execute(
+            select(Job)
+            .where(Job.user_id == str(identity.uid), Job.id == id)
+            .with_for_update()
         )
-    if job.status == "PENDING":
-        # Set job to cancel
-        await db_session.execute(
-            update(Job).where(Job.id == job.id).values({"status": "CANCELED"})
-        )
-    else:
-        # If running, tell scheduler to cancel
-        backend_id = job.backend_id
-        if backend_id is None:
-            # TODO: find appropriate exception
-            raise HTTPException(500)
-        await client.cancel_job(id=backend_id)
-    # TODO: return right data
+        job = result.scalar_one_or_none()
+        if job is None:
+            raise HTTPException(404, detail="Job not found")
+        elif job.status in ("CANCELED", "DONE", "ERROR"):
+            raise HTTPException(
+                409, detail=f"Job with status '{job.status}' can't be canceled"
+            )
+        elif job.canceled_at is not None:
+            raise HTTPException(
+                409, detail="Job with status was already requested to be stopped"
+            )
+        job.canceled_at = datetime.now()
+        # Not yet started by the worker
+        if job.status == "PENDING" and (job.scheduled_at is None):
+            logger.debug("Canceling job %s in DB", job.id)
+            # Set job to cancel
+            # await db_session.execute(
+            #     update(Job).where(Job.id == job.id).values({"status": "CANCELED"})
+            # )
+            job.status = "CANCELED"
+            # Releases nowait
+            return JobResponse.from_model(job)
+
+    logger.debug("Canceling job %s in QPU", job.id)
+    # When running, tell scheduler to cancel
+    backend_id = await _wait_for_created(db_session, job)
+    await client.cancel_job(id=backend_id)
+    # Return Job status at the moment of the cancelation request
     return JobResponse.from_model(job)
+
+
+async def _wait_for_created(session: AsyncSession, job: Job) -> str:
+    """Waiting for the job to be created on QPU"""
+    # TODO: Timeout
+    while job.backend_id is None:
+        await session.refresh(job)
+        await asyncio.sleep(0.5)
+    return job.backend_id
 
 
 @router.get("/{id}/logs")

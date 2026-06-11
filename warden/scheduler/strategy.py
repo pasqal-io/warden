@@ -32,6 +32,7 @@ class FifoScheduler(Scheduler):
                 Job.id,
             )
             .limit(1)
+            .with_for_update()
         )
         res = await session.execute(stmt)
         return res.scalar_one_or_none()

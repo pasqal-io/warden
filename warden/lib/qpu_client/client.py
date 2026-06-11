@@ -213,7 +213,7 @@ class AsyncQPUClient:
     async def cancel_job(self, id: str) -> None:
         """Send job cancelation request to the QPU"""
         try:
-            response = self.client.put(f"/jobs/{id}/cancel")
+            response = await self.put(f"/jobs/{id}/cancel")
             data = response.json()["data"]
         except NotRetriedHTTPStatus as e:
             resp = e.response

@@ -1,6 +1,7 @@
 """Main logic of the scheduler"""
 
 import asyncio
+import datetime
 import logging.config
 import signal
 
@@ -50,12 +51,17 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
     while True:
         async with session_factory() as session:
             job = await schedulers[strategy].get_next_job(session)
+            if job:
+                logger.warning(job.status)
+                job.scheduled_at = datetime.datetime.now()
+                await session.commit()
 
         if job is None:
             sleep_time = conf.scheduler.db_polling_interval_s
             logger.debug(f"No job to schedule, sleeping {sleep_time}")
             await asyncio.sleep(sleep_time)
             continue
+
         logger.info(f"Scheduling next job: {job.id}")
 
         queue = JobUpdateQueue(maxsize=QUEUE_MAXSIZE)

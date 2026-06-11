@@ -29,6 +29,16 @@ class Job(Base):
         default=lambda: datetime.now(timezone.utc),
         doc="Datetime when the job was received by warden.",
     )
+    scheduled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Datetime when the job was scheduled by the warden scheduler.",
+    )
+    canceled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Datetime when the job was canceled through the warden api.",
+    )
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
