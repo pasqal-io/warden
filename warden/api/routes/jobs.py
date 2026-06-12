@@ -113,7 +113,7 @@ async def delete_job(
         result = await db_session.execute(
             select(Job)
             .where(Job.user_id == str(identity.uid), Job.id == id)
-            .with_for_update()
+            .with_for_update(of=Job)
         )
         job = result.scalar_one_or_none()
         if job is None:
