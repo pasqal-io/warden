@@ -6,6 +6,7 @@ from fastapi import Depends, Header, HTTPException, status
 from pydantic import UUID4
 from sqlalchemy import select
 
+from warden.api.routes.dependencies.admin_users import AdminUsersDep
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.utils.munge import (
     MungeExpiredError,
@@ -61,13 +62,15 @@ async def munge_identity(
     return MungeIdentity(uid=uid, payload=payload)
 
 
-async def verify_root(
+async def verify_admin(
+    admin_users: AdminUsersDep,
     identity: MungeIdentity = Depends(munge_identity),
 ) -> MungeIdentity:
-    # TODO: is the slurm UID necessarily 0?
-    # Otherwise make it configurable
-    if identity.uid != 0:
-        raise HTTPException(status_code=403, detail="Endpoint restricted to root user.")
+    allowed_admin_users = admin_users or ["0"]
+    if str(identity.uid) not in allowed_admin_users:
+        raise HTTPException(
+            status_code=403, detail="Endpoint restricted to admin user."
+        )
     return identity
 
 

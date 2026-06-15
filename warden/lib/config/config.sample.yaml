@@ -7,6 +7,9 @@ api:
   # Must be list of strings or integers.
   # If userlist is empty, all users are authorized.
   authorized_users: []
+  # List of admin uids
+  # If empty, 0 (root) is the only user allowed
+  admin_users: []
 
 database:
   # echo: false # Optional, SQLAlchemy echo

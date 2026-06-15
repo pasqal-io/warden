@@ -63,3 +63,32 @@ def test_authorized_users_wrong_input():
 
     with pytest.raises(ValidationError):
         APIConfig(authorized_users=cast(Any, [1.0]))
+
+    with pytest.raises(ValidationError):
+        APIConfig(authorized_users=cast(Any, "1000"))
+
+
+def test_admin_users():
+    """
+    Test that admin_users is a list of strings
+    coerced from user inputs
+    """
+    config = APIConfig(admin_users=cast(Any, [0, "1001"]))
+    assert "0" in config.admin_users
+    assert "1001" in config.admin_users
+    assert 0 not in config.admin_users
+
+
+def test_admin_users_wrong_input():
+    """
+    Test that admin_users is a list of strings
+    coerced from user inputs that must be either strings or integers
+    """
+    with pytest.raises(ValidationError):
+        APIConfig(admin_users=cast(Any, [[]]))
+
+    with pytest.raises(ValidationError):
+        APIConfig(admin_users=cast(Any, [1.0]))
+
+    with pytest.raises(ValidationError):
+        APIConfig(admin_users=cast(Any, "1000"))

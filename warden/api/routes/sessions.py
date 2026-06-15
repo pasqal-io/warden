@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import UUID4
 from sqlalchemy import Select
 
-from warden.api.routes.dependencies.auth import verify_root
+from warden.api.routes.dependencies.auth import verify_admin
 from warden.api.routes.dependencies.authorized_users import AuthorizedUsersDep
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.schemas.sessions import CreateSession, SessionResponse
@@ -20,7 +20,7 @@ async def create_session(
     payload: CreateSession,
     db_session: DBSessionDep,
     authorized_users: AuthorizedUsersDep,
-    _=Depends(verify_root),
+    _=Depends(verify_admin),
 ) -> SessionResponse:
     if authorized_users != [] and payload.user_id not in authorized_users:
         logger.info(
@@ -41,7 +41,7 @@ async def create_session(
 async def revoke_session(
     id: UUID4,
     db_session: DBSessionDep,
-    _=Depends(verify_root),
+    _=Depends(verify_admin),
 ) -> SessionResponse:
     result = await db_session.execute(Select(Session).where(Session.id == id))
     session_record = result.scalar_one_or_none()

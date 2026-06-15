@@ -2,7 +2,7 @@ from logging import getLogger
 
 from fastapi import APIRouter, Depends
 
-from warden.api.routes.dependencies.auth import verify_root
+from warden.api.routes.dependencies.auth import verify_admin
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.schemas.accessible import AccessibleResponse, UpdateAccessibleRequest
 from warden.lib.models.accessible import (
@@ -27,7 +27,7 @@ async def is_accessible(db_session: DBSessionDep) -> AccessibleResponse:
 async def update_accessible(
     payload: UpdateAccessibleRequest,
     db_session: DBSessionDep,
-    _=Depends(verify_root),
+    _=Depends(verify_admin),
 ) -> AccessibleResponse:
     """Update warden's /accessible endpoint"""
     # Create a new record for this change
