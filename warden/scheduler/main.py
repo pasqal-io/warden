@@ -1,7 +1,6 @@
 """Main logic of the scheduler"""
 
 import asyncio
-import datetime
 import logging.config
 import signal
 
@@ -15,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from warden.lib.config import Config
 from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
+from warden.scheduler.cancellation_worker import cancellation_worker
 from warden.scheduler.db import job_update_commiter
 from warden.scheduler.strategy import schedulers
 from warden.scheduler.types import JobUpdateQueue
@@ -48,13 +48,14 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
     strategy = conf.scheduler.strategy
     logger.debug(f"Scheduler using '{strategy}' strategy")
 
+    asyncio.create_task(
+        cancellation_worker(conf=conf, session_factory=session_factory),
+        name="Cancellation worker",
+    )
+
     while True:
         async with session_factory() as session:
             job = await schedulers[strategy].get_next_job(session)
-            if job:
-                logger.warning(job.status)
-                job.scheduled_at = datetime.datetime.now()
-                await session.commit()
 
         if job is None:
             sleep_time = conf.scheduler.db_polling_interval_s
@@ -69,7 +70,8 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
         db_commit_task = asyncio.create_task(
             job_update_commiter(
                 job_id=job.id, queue=queue, session_factory=session_factory
-            )
+            ),
+            name=f"Job {job.id} DB commit worker",
         )
 
         # QPU job execution
@@ -79,7 +81,8 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
                 nb_run=job.shots,
                 sequence=job.sequence,
                 batch_id=job.session.slurm_job_id,
-            )
+            ),
+            name=f"Job {job.id} execution worker",
         )
 
         # Await end of job execution
@@ -103,7 +106,9 @@ async def shutdown(engine: AsyncEngine):
 
     logger.info("Stopping all tasks")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    [task.cancel() for task in tasks]
+    for task in tasks:
+        logger.debug("Stopping '%s'", task.get_name())
+        task.cancel()
 
     await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -123,7 +128,7 @@ async def main_async(conf: Config | None = None):
 
     try:
         logger.info("Starting scheduler (Press Ctrl+C to exit)...")
-        loop.create_task(run_scheduler(engine, conf))
+        loop.create_task(run_scheduler(engine, conf), name="Scheduler")
         await stop_event.wait()
     finally:
         await shutdown(engine)

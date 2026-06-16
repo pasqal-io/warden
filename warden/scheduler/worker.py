@@ -223,7 +223,7 @@ class LocalQPUWorker:
                     f"{job_tracker.job.uid}."
                 )
                 try:
-                    qpu_job_info = self.qpu_client.cancel_job(job_tracker.job)
+                    qpu_job_info = self.qpu_client.cancel_job(job_tracker.job.uid)
                     await job_tracker.update_job(qpu_job_info)
                 except (JobCancelationError, QPUClientRequestError) as e:
                     logger.error(f"Failed cancelling job: {e}")
@@ -239,7 +239,7 @@ class LocalQPUWorker:
             # When polling the job status, we set no_retry=True as we are
             # in the job polling loop that will handle the retry of the requests
             # until an eventual timout of the job
-            qpu_job_info = self.qpu_client.get_job(job_tracker.job, no_retry=True)
+            qpu_job_info = self.qpu_client.get_job(job_tracker.job.uid, no_retry=True)
             await job_tracker.update_job(qpu_job_info)
             logger.info(f"Job status: {job_tracker.status}", extra={"to_db": False})
         except QPUClientRequestError as e:

@@ -1,10 +1,9 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from warden.api.routes.dependencies.auth import (
     MungeIdentity,
@@ -105,7 +104,6 @@ async def delete_job(
     id: int,
     db_session: DBSessionDep,
     identity: MungeIdentity = Depends(munge_identity),
-    client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
     # Start transaction context
     async with db_session.begin():
@@ -126,33 +124,13 @@ async def delete_job(
             raise HTTPException(
                 409, detail="Job with status was already requested to be stopped"
             )
-        job.canceled_at = datetime.now()
+        job.canceled_at = datetime.now(timezone.utc)
         # Not yet started by the worker
-        if job.status == "PENDING" and (job.scheduled_at is None):
-            logger.debug("Canceling job %s in DB", job.id)
+        if job.scheduled_at is None:
             # Set job to cancel
-            # await db_session.execute(
-            #     update(Job).where(Job.id == job.id).values({"status": "CANCELED"})
-            # )
             job.status = "CANCELED"
             # Releases nowait
-            return JobResponse.from_model(job)
-
-    logger.debug("Canceling job %s in QPU", job.id)
-    # When running, tell scheduler to cancel
-    backend_id = await _wait_for_created(db_session, job)
-    await client.cancel_job(id=backend_id)
-    # Return Job status at the moment of the cancelation request
     return JobResponse.from_model(job)
-
-
-async def _wait_for_created(session: AsyncSession, job: Job) -> str:
-    """Waiting for the job to be created on QPU"""
-    # TODO: Timeout
-    while job.backend_id is None:
-        await session.refresh(job)
-        await asyncio.sleep(0.5)
-    return job.backend_id
 
 
 @router.get("/{id}/logs")

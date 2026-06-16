@@ -71,3 +71,4 @@ DUMMY_QPU_SPECS = {
 FAKE_RESULTS = json.dumps(
     {"counter": {"0000": 477, "0010": 3, "0110": 1, "0001": 8, "0100": 7, "1000": 4}}
 )
+FAKE_PARTIAL_RESULTS = json.dumps({"counter": {}, "partial_register_counter": {}})

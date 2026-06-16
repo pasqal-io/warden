@@ -141,16 +141,11 @@ class QPUClient:
             )
         return status
 
-    def get_job(self, job: QPUJobInfo, no_retry: bool = False) -> QPUJobInfo:
+    def get_job(self, job_uid: int, no_retry: bool = False) -> QPUJobInfo:
         """Gets information on a submitted job."""
-        response = self.client.get(f"/jobs/{job.uid}", no_retry)
+        response = self.client.get(f"/jobs/{job_uid}", no_retry)
         data = response.json()["data"]
         return QPUJobInfo(**data)
-
-    def get_program_status(self, program_id: int) -> str:
-        """Gets the status of a program."""
-        response = self.client.get(f"/programs/{program_id}")
-        return json.dumps(response.json()["data"]["status"])
 
     def create_job(
         self, nb_run: int, abstract_sequence: str, batch_id: str | None = None
@@ -172,10 +167,10 @@ class QPUClient:
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
-    def cancel_job(self, job_info: QPUJobInfo) -> QPUJobInfo:
+    def cancel_job(self, job_uid: int) -> QPUJobInfo:
         """Terminates the execution of a given job ID."""
         try:
-            response = self.client.put(f"/jobs/{job_info.uid}/cancel")
+            response = self.client.put(f"/jobs/{job_uid}/cancel")
             data = response.json()["data"]
             return QPUJobInfo(**data)
         except NotRetriedHTTPStatus as e:
@@ -193,7 +188,7 @@ class QPUClient:
             logger.warning(
                 f"Job can't be cancelled, program is in '{data['status']}' state."
             )
-            job_info = self.get_job(job_info)
+            job_info = self.get_job(job_uid)
             return job_info
 
 

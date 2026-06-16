@@ -9,6 +9,7 @@ include config.mk dev.mk
 
 # Mock QPU when the actual QPU is not available
 .PHONY: start-mock-qpu start-qutip-qpu
+.PHONY: start-mock-qpu-timed start-qutip-qpu-timed
 
 VENV=.venv
 PIP_VERSION ?= 26.1
@@ -148,3 +149,18 @@ start-mock-qpu: $(VENV)/bin/python
 
 start-qutip-qpu: $(VENV)/bin/python
 	MOCK_QPU_API_EMUL=true $(MAKE) start-mock-qpu
+
+# Usage: make start-mock-qpu-timed SHOT_DURATION=10
+start-mock-qpu-timed:
+	env_vars="MOCK_QPU_API_IS_TIMED=true"; \
+	if [ -n "$(SHOT_DURATION)" ]; then \
+		env_vars="$$env_vars MOCK_QPU_API_SHOT_DURATION_S=$(SHOT_DURATION)"; \
+	fi; \
+	eval "$$env_vars $(MAKE) start-mock-qpu"
+
+start-qutip-qpu-timed:
+	env_vars="MOCK_QPU_API_IS_TIMED=true"; \
+	if [ -n "$(SHOT_DURATION)" ]; then \
+		env_vars="$$env_vars MOCK_QPU_API_SHOT_DURATION_S=$(SHOT_DURATION)"; \
+	fi; \
+	eval "$$env_vars $(MAKE) start-qutip-qpu"
