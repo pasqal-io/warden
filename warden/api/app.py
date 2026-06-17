@@ -3,8 +3,7 @@ import logging
 from fastapi import FastAPI
 
 from warden.api.routes import accessible, jobs, qpu, sessions
-from warden.api.routes.dependencies.admin_users import init_admin_users
-from warden.api.routes.dependencies.authorized_users import init_authorized_users
+from warden.api.routes.dependencies.auth import init_auth
 from warden.api.routes.dependencies.db import init_db
 from warden.api.routes.dependencies.qpu_client import init_qpu_client
 from warden.lib.config import Config
@@ -18,8 +17,7 @@ def create_app(config: Config):
     )
     init_db(app, config.database)
     init_qpu_client(app, config.qpu)
-    init_authorized_users(app, config.api.authorized_users)
-    init_admin_users(app, config.api.admin_users)
+    init_auth(app, config.api)
 
     app.include_router(jobs.router, tags=["jobs"])
     app.include_router(sessions.router, tags=["sessions"])

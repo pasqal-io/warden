@@ -89,6 +89,7 @@ def coerce_to_str(v):
 class APIConfig(BaseSettings):
     host: str = "0.0.0.0"
     port: int = Field(default=8006, ge=1, le=65535)
+
     # processing authorized_users as strings but allowing users to input numbers
     authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
     admin_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []

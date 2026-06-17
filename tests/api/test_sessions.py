@@ -1,6 +1,22 @@
 import pytest
 
 from tests.api.conftest import mock_munge_auth
+from warden.api.routes.dependencies.auth import AuthConfig
+
+
+def set_auth_config(
+    app,
+    *,
+    authorized_users: set[str] | None = None,
+    admin_users: set[str] | None = None,
+) -> None:
+    current = app.state.auth_config
+    app.state.auth_config = AuthConfig(
+        authorized_users=(
+            current.authorized_users if authorized_users is None else authorized_users
+        ),
+        admin_users=current.admin_users if admin_users is None else admin_users,
+    )
 
 
 @pytest.mark.asyncio
@@ -34,7 +50,7 @@ async def test_create_session_no_auth(client):
 @pytest.mark.asyncio
 async def test_create_session_configured_admin_user(client, app):
     """Creating a session using a configured admin uid should succeed"""
-    app.state.admin_users = ["1001"]
+    set_auth_config(app, admin_users={"1001"})
 
     payload = {"user_id": "1000", "slurm_job_id": "1"}
     with mock_munge_auth(app, uid=1001):
@@ -47,7 +63,7 @@ async def test_create_session_configured_admin_user(client, app):
 @pytest.mark.asyncio
 async def test_create_session_default_admin_user_when_admin_users_empty(client, app):
     """Leaving admin_users empty keeps uid 0 as the only admin"""
-    app.state.admin_users = []
+    set_auth_config(app, admin_users=set())
 
     payload = {"user_id": "1000", "slurm_job_id": "1"}
     with mock_munge_auth(app, uid=0):
@@ -58,8 +74,7 @@ async def test_create_session_default_admin_user_when_admin_users_empty(client, 
 @pytest.mark.asyncio
 async def test_create_session_non_authorized_user(client, app):
     """Creating a session using a non-authorized user when authorized_users is not empty"""
-    # Setting authorized user list
-    app.state.authorized_users = ["2000"]
+    set_auth_config(app, authorized_users={"2000"})
 
     payload = {"user_id": "1000", "slurm_job_id": "1"}
     with mock_munge_auth(app, uid=0):
@@ -70,8 +85,7 @@ async def test_create_session_non_authorized_user(client, app):
 @pytest.mark.asyncio
 async def test_create_session_authorized_user(client, app):
     """Creating a session using an authorized user when authorized_users is not empty"""
-    # Setting authorized user list
-    app.state.authorized_users = ["1000"]
+    set_auth_config(app, authorized_users={"1000"})
 
     payload = {"user_id": "1000", "slurm_job_id": "1"}
     with mock_munge_auth(app, uid=0):
