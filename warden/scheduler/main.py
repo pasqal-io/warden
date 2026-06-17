@@ -48,11 +48,6 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
     strategy = conf.scheduler.strategy
     logger.debug(f"Scheduler using '{strategy}' strategy")
 
-    asyncio.create_task(
-        cancellation_worker(conf=conf, session_factory=session_factory),
-        name="Cancellation worker",
-    )
-
     while True:
         async with session_factory() as session:
             job = await schedulers[strategy].get_next_job(session)
@@ -98,6 +93,19 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
         logger.info(f"Job {job.id} ended with status: {status}")
 
 
+async def run_cancellation_worker(engine: AsyncEngine, conf: Config):
+    """Cancellation worker main logic
+
+    Runs the cancellation worker in an infinite loop.
+    Gets canceled by `main_async` when stop signal is received.
+    """
+    logger.info("Cancellation worker running.")
+
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+    await cancellation_worker(conf=conf, session_factory=session_factory)
+
+
 async def shutdown(engine: AsyncEngine):
     """Cleanup tasks and close DB connections."""
 
@@ -127,9 +135,27 @@ async def main_async(conf: Config | None = None):
         loop.add_signal_handler(sig, lambda s=sig: stop_event.set())
 
     try:
-        logger.info("Starting scheduler (Press Ctrl+C to exit)...")
-        loop.create_task(run_scheduler(engine, conf), name="Scheduler")
+        logger.info(
+            "Starting scheduler and cancellation worker (Press Ctrl+C to exit)..."
+        )
+
+        # Start both scheduler and cancellation worker as separate tasks with same lifetime
+        scheduler_task = loop.create_task(run_scheduler(engine, conf), name="Scheduler")
+        cancellation_task = loop.create_task(
+            run_cancellation_worker(engine, conf), name="Cancellation Worker"
+        )
+
+        # Wait for stop signal
         await stop_event.wait()
+
+        # Cancel both tasks
+        logger.info("Stopping scheduler and cancellation worker...")
+        scheduler_task.cancel()
+        cancellation_task.cancel()
+
+        # Wait for graceful shutdown
+        await asyncio.gather(scheduler_task, cancellation_task, return_exceptions=True)
+
     finally:
         await shutdown(engine)
         logger.info("Scheduler shutdown complete.")

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from tests.mock_qpu_api.samples import FAKE_RESULTS
 from warden.lib.config import Config, QPUConfig, SchedulerConfig, SchedulerStrategy
 from warden.lib.models import Job, Session
-from warden.scheduler.main import run_scheduler
+from warden.scheduler.main import run_cancellation_worker, run_scheduler
 
 BASE_URI_MOCK = "http://test:4300"
 
@@ -116,6 +116,7 @@ async def test_run_scheduler_integration_cancellation_worker(
         - The 'mock_qpu_api' is set to simulate job execution timing
     - Create 1 dummy job to run
     - Start the scheduler
+    - Start the cancellation worker
     - Update the job in DB with a `canceled_at` timestamp to
     - Run scheduler until:
         - The job is canceled
@@ -176,6 +177,10 @@ async def test_run_scheduler_integration_cancellation_worker(
 
     # RUN SCHEDULER
     main_task = asyncio.create_task(run_scheduler(db_engine, conf))
+    # RUN CANCELLATION WORKER
+    cancellation_worker_task = asyncio.create_task(
+        run_cancellation_worker(db_engine, conf)
+    )
 
     async with db_session_maker() as session:
         await session.execute(
@@ -183,6 +188,7 @@ async def test_run_scheduler_integration_cancellation_worker(
             .where(Job.id == job_to_cancel.id)
             .values({"canceled_at": datetime.now()})
         )
+        await session.commit()
 
     async with db_session_maker() as session:
         try:
@@ -192,6 +198,7 @@ async def test_run_scheduler_integration_cancellation_worker(
                 )
         finally:
             utils.raise_main_scheduler_task_exception(main_task)
+            utils.raise_main_scheduler_task_exception(cancellation_worker_task)
 
             stmt_all = select(Job).where(Job.status == "CANCELED")
             jobs_done = (await session.execute(stmt_all)).scalars().all()
