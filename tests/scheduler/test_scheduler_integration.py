@@ -88,7 +88,7 @@ async def test_run_scheduler_integration(
                     session, stmt, N_JOBS, interval=0.5
                 )
         finally:
-            utils.raise_main_scheduler_task_exception(main_task)
+            utils.raise_task_exception(main_task)
 
             stmt_all = select(Job).where(Job.status == "DONE")
             jobs_done = (await session.execute(stmt_all)).scalars().all()
@@ -114,13 +114,15 @@ async def test_run_scheduler_integration_cancellation_worker(
     - Inject httpx client through the config with
       a FastAPI TestClient requesting directly to the ASGI 'mock_qpu_api' app
         - The 'mock_qpu_api' is set to simulate job execution timing
-    - Create 1 dummy job to run
+    - Create N_JOBS dummy job to run
+        - 1 of them is going to be canceled
     - Start the scheduler
     - Start the cancellation worker
     - Update the job in DB with a `canceled_at` timestamp to
-    - Run scheduler until:
-        - The job is canceled
-    - Check n (jobs with status "DONE") = N_JOBS
+    - Run scheduler until N_JOBS are either "DONE" or "CANCELED"
+    - Check n (jobs with status "CANCELED") = 1
+        - It has the right id that we requested to be canceled
+    - Check n (jobs with status "DONE") = N_JOBS-1
     """
 
     ##################
@@ -131,7 +133,8 @@ async def test_run_scheduler_integration_cancellation_worker(
     caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 10
-    N_JOBS = 1
+    N_JOBS = 5
+    N_SHOTS = 100
 
     conf = Config(
         scheduler=SchedulerConfig(
@@ -148,8 +151,8 @@ async def test_run_scheduler_integration_cancellation_worker(
     #################################
     app = mock_qpu_api_app
     app.state.is_timed = True
-    app.state.shot_duration_s = 0.005  # simulate job execution timing
-    # Each job is expected to take 0.5 seconds to complete with 100 shots
+    app.state.shot_duration_s = 0.001  # simulate job execution timing
+    # Each job is expected to take 0.1 seconds to complete with 100 shots
     conf.qpu._client = TestClient(app)
     #################################
 
@@ -168,8 +171,13 @@ async def test_run_scheduler_integration_cancellation_worker(
     async with db_session_maker() as session:
         session.add(job_to_cancel)
         await session.commit()
+        await session.refresh(job_to_cancel)
 
-    stmt = select(func.count(Job.id)).where(Job.status == "CANCELED")
+    JOB_TO_CANCEL_ID = job_to_cancel.id
+
+    await utils.create_n_jobs(db_session_maker, N_JOBS - 1, N_SHOTS)
+
+    stmt = select(func.count(Job.id)).where(Job.status.in_(("CANCELED", "DONE")))
 
     ##################
     ### TEST RUN   ###
@@ -197,12 +205,20 @@ async def test_run_scheduler_integration_cancellation_worker(
                     session, stmt, N_JOBS, interval=0.5
                 )
         finally:
-            utils.raise_main_scheduler_task_exception(main_task)
-            utils.raise_main_scheduler_task_exception(cancellation_worker_task)
+            utils.raise_task_exception(main_task)
+            utils.raise_task_exception(cancellation_worker_task)
 
-            stmt_all = select(Job).where(Job.status == "CANCELED")
-            jobs_done = (await session.execute(stmt_all)).scalars().all()
-            assert len(jobs_done) == N_JOBS
+            stmt_done = select(Job).where(Job.status == "CANCELED")
+            jobs_done = (await session.execute(stmt_done)).scalars().all()
+            assert len(jobs_done) == 1
             for job in jobs_done:
-                # TODO: improve checks
+                assert job.id == JOB_TO_CANCEL_ID
                 assert job.logs != ""
+                assert "CANCELED" in job.logs
+
+            stmt_done = select(Job).where(Job.status == "DONE")
+            jobs_done = (await session.execute(stmt_done)).scalars().all()
+            assert len(jobs_done) == N_JOBS - 1
+            for job in jobs_done:
+                assert job.logs != ""
+                assert "CANCELED" not in job.logs

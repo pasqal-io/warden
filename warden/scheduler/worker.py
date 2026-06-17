@@ -160,8 +160,7 @@ class LocalQPUWorker:
             logger.info("Job created on QPU")
 
             await self.await_job_execution(job_tracker)
-            if job_tracker.status not in ("CANCELED", "ERROR"):
-                logger.info("Job execution done")
+            logger.info("Job execution ended with status '%s'", job_tracker.status)
 
             # Flush potential last updates before return
             await job_tracker.push_update()

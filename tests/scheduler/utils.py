@@ -31,7 +31,9 @@ async def wait_until_scalar_equals(
         await asyncio.sleep(interval)
 
 
-async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> list[Job]:
+async def create_n_jobs(
+    db_session_maker: async_sessionmaker, n_jobs: int, shots: int = 100
+) -> list[Job]:
     """Creates n_jobs mock jobs to run in the warden db"""
     SLURM_USER_ID = "1234"
 
@@ -39,7 +41,7 @@ async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> li
         Job(
             sequence="{}",
             status="PENDING",
-            shots=100,
+            shots=shots,
             session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
         )
         for _ in range(n_jobs)
@@ -52,7 +54,7 @@ async def create_n_jobs(db_session_maker: async_sessionmaker, n_jobs: int) -> li
     return jobs_to_run
 
 
-def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
+def raise_task_exception(async_task: Task) -> None:
     """
     The main scheduler task is an infinite loop that we don't await.
     In case it encounters an unhandled exception during the test,
@@ -64,15 +66,15 @@ def raise_main_scheduler_task_exception(scheduler_task: Task) -> None:
     IF the scheduler task encounters an exception, we raise it again to
     make it visible to the developer.
     """
-    if scheduler_task.done():
-        if scheduler_task.cancelled():
+    if async_task.done():
+        if async_task.cancelled():
             return
 
-        exc = scheduler_task.exception()
+        exc = async_task.exception()
         if exc is not None:
             raise exc
 
-    scheduler_task.cancel()
+    async_task.cancel()
 
 
 @asynccontextmanager
@@ -84,7 +86,7 @@ async def scheduler_task_timeout(delay: float, scheduler_task: Task):
             yield
     except TimeoutError:
         # cleanup
-        raise_main_scheduler_task_exception(scheduler_task)
+        raise_task_exception(scheduler_task)
 
 
 def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:
