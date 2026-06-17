@@ -61,6 +61,7 @@ async def test_run_nominal(
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS
     - Check "DONE" jobs have the right results and non-empty logs
+        - Check those jobs have `scheduled_at` set
     """
 
     ##################
@@ -166,6 +167,7 @@ async def test_run_nominal(
         jobs_done = (await session.execute(stmt_all)).scalars().all()
         assert len(jobs_done) == N_JOBS
         for job in jobs_done:
+            assert job.scheduled_at is not None
             assert job.results == DUMMY_RESULTS
             assert len(job.logs) > 0
 
@@ -915,3 +917,178 @@ async def test_run_job_client_error_timeout(
         for job in jobs:
             assert len(job.logs) > 0
             assert "ERROR" in job.logs
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
+async def test_run_job_canceled_by_cancellation_worker(
+    strategy: SchedulerStrategy,
+    db_engine: AsyncEngine,
+    db_session_maker: async_sessionmaker,
+    httpx_mock: HTTPXMock,
+    caplog,
+):
+    """Test that the scheduler is able to process
+    a list of jobs where of of them is canceled by
+    the cancellation worker
+
+    Test rationale:
+    - Create N_JOBS dummy jobs to run
+    - QPU API is mocked:
+        - To return QPU status as "UP"
+        - To accept job creation requests
+        - To return "RUNNING" and then "DONE" status for each job
+        - For JOB_ID_CANCELED return "CANCELED" status
+    - Run scheduler until:
+        - All jobs have a "DONE" or "CANCELED" status is DB
+        - Test timeout after TEST_TIMEOUT_S
+    - Check n (jobs with status "DONE") = N_JOBS-1
+    - Check "DONE" jobs have the right results and non-empty logs
+    - Check n (jobs with status "CANCELED") = 1
+    - Check "CANCELED" job has non-empty logs
+    """
+
+    ##################
+    ### TEST CONF  ###
+    ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
+
+    TEST_TIMEOUT_S = 3
+    N_JOBS = 10
+
+    JOB_ID_CANCELED = 5
+
+    conf: Config = build_conf(strategy, QPU_URI)
+
+    ##################
+    ### TEST SETUP ###
+    ##################
+
+    # QPU status
+    httpx_mock.add_response(
+        method="GET",
+        url=SYSTEM_OPERATIONAL_API,
+        json={"data": {"operational_status": "UP"}},
+        is_reusable=True,
+    )
+    for id in range(N_JOBS):
+        return_create_json = {
+            "data": {
+                "uid": id,
+                "batch_id": SLURM_USER_ID,
+                "status": "PENDING",
+                "result": None,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": None,
+                "end_datetime": None,
+            }
+        }
+        # Create Job
+        httpx_mock.add_response(
+            method="POST", status_code=200, url=JOB_API, json=return_create_json
+        )
+        return_running_json = {
+            "data": {
+                "uid": id,
+                "batch_id": SLURM_USER_ID,
+                "status": "RUNNING",
+                "result": None,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+                "end_datetime": None,
+            }
+        }
+
+        return_done_json = {
+            "data": {
+                "uid": id,
+                "batch_id": SLURM_USER_ID,
+                "status": "DONE",
+                "result": DUMMY_RESULTS,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+                "end_datetime": (NOW + timedelta(seconds=2)).isoformat(),
+            }
+        }
+
+        return_canceled_json = {
+            "data": {
+                "uid": id,
+                "batch_id": SLURM_USER_ID,
+                "status": "CANCELED",
+                "result": None,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+                "end_datetime": (NOW + timedelta(seconds=2)).isoformat(),
+            }
+        }
+        # Job that was canceled by the cancellation worker
+        if id == JOB_ID_CANCELED:
+            # Job running
+            httpx_mock.add_response(
+                method="GET",
+                status_code=200,
+                url=JOB_API + f"/{id}",
+                json=return_running_json,
+            )
+            # Job was canceled
+            httpx_mock.add_response(
+                method="GET",
+                status_code=200,
+                url=JOB_API + f"/{id}",
+                json=return_canceled_json,
+            )
+            continue
+        # Job running normally
+        for _ in range(3):
+            httpx_mock.add_response(
+                method="GET",
+                status_code=200,
+                url=JOB_API + f"/{id}",
+                json=return_running_json,
+            )
+        # Job done
+        httpx_mock.add_response(
+            method="GET", status_code=200, url=JOB_API + f"/{id}", json=return_done_json
+        )
+
+    # Populate DB with jobs to run
+    await utils.create_n_jobs(db_session_maker, N_JOBS)
+
+    stmt_count = select(func.count(Job.id)).where(Job.status.in_(("DONE", "CANCELED")))
+
+    ##################
+    ### TEST RUN   ###
+    ##################
+
+    # RUN SCHEDULER
+    main_task = asyncio.create_task(run_scheduler(db_engine, conf))
+
+    async with db_session_maker() as session:
+        async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
+
+        stmt_done = select(Job).where(Job.status == "DONE")
+        jobs_done = (await session.execute(stmt_done)).scalars().all()
+        assert len(jobs_done) == N_JOBS - 1
+        for job in jobs_done:
+            assert job.results == DUMMY_RESULTS
+            assert len(job.logs) > 0
+
+        stmt_canceled = select(Job).where(Job.status == "CANCELED")
+        jobs_done = (await session.execute(stmt_canceled)).scalars().all()
+        assert len(jobs_done) == 1
+        for job in jobs_done:
+            assert job.results is None
+            assert len(job.logs) > 0
