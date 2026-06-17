@@ -68,6 +68,11 @@ def test_authorized_users_wrong_input():
         APIConfig(authorized_users=cast(Any, "1000"))
 
 
+def test_admin_users_default():
+    config = APIConfig()
+    assert config.admin_users == ["0"]
+
+
 def test_admin_users():
     """
     Test that admin_users is a list of strings

@@ -42,10 +42,6 @@ def init_auth(app: FastAPI, api_config: APIConfig) -> None:
     app.state.auth_config = auth_config
 
 
-# Backwards-compatible name for the old user_authorization module.
-init_authorization = init_auth
-
-
 def get_auth_config(request: Request) -> AuthConfig:
     """Return current auth policy."""
     auth_config = getattr(request.app.state, "auth_config", None)
@@ -57,6 +53,12 @@ def get_auth_config(request: Request) -> AuthConfig:
 
 
 AuthConfigDep = Annotated[AuthConfig, Depends(get_auth_config)]
+AdminUsersDep = Annotated[
+    set[str], Depends(lambda config=Depends(get_auth_config): config.admin_users)
+]
+AuthorizedUsersDep = Annotated[
+    set[str], Depends(lambda config=Depends(get_auth_config): config.authorized_users)
+]
 
 
 async def munge_identity(
@@ -97,17 +99,14 @@ async def munge_identity(
     return MungeIdentity(uid=str(uid), payload=payload)
 
 
-# Preferred name for route signatures.
-current_user = munge_identity
-CurrentUserDep = Annotated[MungeIdentity, Depends(current_user)]
+CurrentUserDep = Annotated[MungeIdentity, Depends(munge_identity)]
 
 
 async def require_admin(
     config: AuthConfigDep,
     identity: CurrentUserDep,
 ) -> MungeIdentity:
-    allowed_admin_users = config.admin_users or {"0"}
-    if identity.uid not in allowed_admin_users:
+    if identity.uid not in config.admin_users:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Endpoint restricted to admin user.",
@@ -148,8 +147,6 @@ async def require_valid_session(
     return session_record
 
 
-# Backwards-compatible name.
-verify_session = require_valid_session
 SessionDep = Annotated[Session, Depends(require_valid_session)]
 
 

@@ -92,7 +92,7 @@ class APIConfig(BaseSettings):
 
     # processing authorized_users as strings but allowing users to input numbers
     authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
-    admin_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
+    admin_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = ["0"]
 
 
 class Config(BaseSettings):

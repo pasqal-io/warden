@@ -4,14 +4,15 @@ api:
   # API bind port
   port: 8006
 
-# authorization:
+  # Authorization
+  # All lists must be of strings or integers.
+
   # List of user id authorized to create new jobs on the QPU by creating a new session.
-  # Must be list of strings or integers.
-  # If userlist is empty, all users are authorized.
+  # If empty/unset, all users are authorized.
   authorized_users: []
-  # List of admin uids
-  # If empty, 0 (root) is the only admin
-  admin_users: []
+  # List of admin uids authorized to set the available of the QPU + create sessions on behalf of user
+  # Root (uid 0) is the default admin. Values may be strings or integers.
+  admin_users: [0]
 
 database:
   # echo: false # Optional, SQLAlchemy echo
