@@ -113,9 +113,9 @@ async def test_run_scheduler_integration_cancellation_worker(
     Test rationale:
     - Inject httpx client through the config with
       a FastAPI TestClient requesting directly to the ASGI 'mock_qpu_api' app
-        - The 'mock_qpu_api' is set to simulate job execution timing
+        - The 'mock_qpu_api' is set to simulate job execution with a fixed duration
     - Create N_JOBS dummy job to run
-        - 1 of them is going to be canceled
+        - One of them is tagged to be canceled with `canceled_at` timestamp
     - Start the scheduler
     - Start the cancellation worker
     - Update the job in DB with a `canceled_at` timestamp to
@@ -152,7 +152,7 @@ async def test_run_scheduler_integration_cancellation_worker(
     app = mock_qpu_api_app
     app.state.is_timed = True
     app.state.shot_duration_s = 0.001  # simulate job execution timing
-    # Each job is expected to take 0.1 seconds to complete with 100 shots
+    # Each job with 100 shots is expected to take 0.1 seconds to complete
     conf.qpu._client = TestClient(app)
     #################################
 
@@ -163,7 +163,7 @@ async def test_run_scheduler_integration_cancellation_worker(
     job_to_cancel = Job(
         sequence="{}",
         status="PENDING",
-        shots=100,
+        shots=N_SHOTS,
         session=Session(slurm_job_id="1", user_id="1234"),
         canceled_at=datetime.now(),
     )

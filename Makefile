@@ -150,7 +150,7 @@ start-mock-qpu: $(VENV)/bin/python
 start-qutip-qpu: $(VENV)/bin/python
 	MOCK_QPU_API_EMUL=true $(MAKE) start-mock-qpu
 
-# Usage: make start-mock-qpu-timed SHOT_DURATION=10
+# Usage: make start-mock-qpu-timed SHOT_DURATION=0.01
 start-mock-qpu-timed:
 	env_vars="MOCK_QPU_API_IS_TIMED=true"; \
 	if [ -n "$(SHOT_DURATION)" ]; then \
