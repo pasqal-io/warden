@@ -95,7 +95,7 @@ def get_job(uid: int) -> Job | None:
 
         if job.is_timed:
             actual_duration = (job.end_datetime - job.start_datetime).total_seconds()
-            logger.info(f"Job {uid} completed after {actual_duration:.2f}s")
+            logger.debug(f"Job {uid} completed after {actual_duration:.2f}s")
 
     return job
 

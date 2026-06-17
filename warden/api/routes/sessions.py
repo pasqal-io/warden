@@ -3,13 +3,13 @@ from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import UUID4
-from sqlalchemy import Select
+from sqlalchemy import select
 
 from warden.api.routes.dependencies.auth import verify_root
 from warden.api.routes.dependencies.authorized_users import AuthorizedUsersDep
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.schemas.sessions import CreateSession, SessionResponse
-from warden.lib.models.sessions import Session
+from warden.lib.models import Job, Session
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/sessions")
@@ -43,11 +43,34 @@ async def revoke_session(
     db_session: DBSessionDep,
     _=Depends(verify_root),
 ) -> SessionResponse:
-    result = await db_session.execute(Select(Session).where(Session.id == id))
+    result = await db_session.execute(select(Session).where(Session.id == id))
     session_record = result.scalar_one_or_none()
     if session_record is None:
         raise HTTPException(status_code=404, detail="Session not found.")
     session_record.revoked_at = datetime.now(timezone.utc)
     await db_session.flush()
     await db_session.commit()
+
+    async with db_session.begin():
+        result = await db_session.execute(
+            select(Job)
+            .where(
+                Job.session_id == session_record.id,
+                Job.status.not_in(("ERROR", "DONE", "CANCELED")),
+                Job.canceled_at.is_(None),
+            )
+            .with_for_update(of=Job)
+        )
+        jobs_to_cancel = result.scalars()
+        for job in jobs_to_cancel:
+            logger.info(
+                "Cancelling job '%s' attached to session %s", job.id, session_record.id
+            )
+            job.canceled_at = datetime.now(timezone.utc)
+            # Not yet started by the worker
+            if job.scheduled_at is None:
+                # Set job to cancel
+                job.status = "CANCELED"
+            # Releases nowait
+
     return SessionResponse.from_model(session_record)
