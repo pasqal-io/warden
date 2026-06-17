@@ -96,7 +96,7 @@ async def test_run_scheduler_integration(
             for job in jobs_done:
                 assert job.results == FAKE_RESULTS
                 assert job.logs != ""
-                assert "done" in job.logs
+                assert "DONE" in job.logs
 
 
 @pytest.mark.asyncio
