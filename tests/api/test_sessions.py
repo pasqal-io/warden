@@ -61,17 +61,6 @@ async def test_create_session_configured_admin_user(client, app):
 
 
 @pytest.mark.asyncio
-async def test_create_session_empty_admin_users_disables_admin_access(client, app):
-    """Leaving admin_users empty means no user has admin access"""
-    set_auth_config(app, admin_users=set())
-
-    payload = {"user_id": "1000", "slurm_job_id": "1"}
-    with mock_munge_auth(app, uid=0):
-        response = await client.post("/sessions", json=payload)
-    assert response.status_code == 403
-
-
-@pytest.mark.asyncio
 async def test_create_session_non_authorized_user(client, app):
     """Creating a session using a non-authorized user when authorized_users is not empty"""
     set_auth_config(app, authorized_users={"2000"})

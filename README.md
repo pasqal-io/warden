@@ -100,6 +100,10 @@ The API server can also be configured to only accept new jobs from configured us
 
 The default value `[]` for `api.authorized_users` allows all users to create new jobs.
 
+`api.admin_users` must not be empty. The uid running the spank plugin must be
+included in `api.admin_users`; otherwise the plugin cannot acquire a session and
+Warden is unusable with it.
+
 ### Database
 
 Warden supports the following databases:

@@ -10,8 +10,8 @@ api:
   # List of user id authorized to create new jobs on the QPU by creating a new session.
   # If empty/unset, all users are authorized.
   authorized_users: []
-  # List of admin uids authorized to set the available of the QPU + create sessions on behalf of user
-  # Root (uid 0) is the default admin. Values may be strings or integers.
+  # List of admin uids authorized to set the availability of the QPU and create sessions on behalf of users.
+  # Must not be empty, and must include the uid running the spank plugin.
   admin_users: [0]
 
 database:

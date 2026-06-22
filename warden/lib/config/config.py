@@ -6,7 +6,13 @@ from typing import Annotated, Any, Literal
 
 import httpx
 import yaml
-from pydantic import BeforeValidator, Field, PrivateAttr, model_validator
+from pydantic import (
+    AfterValidator,
+    BeforeValidator,
+    Field,
+    PrivateAttr,
+    model_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -86,13 +92,23 @@ def coerce_to_str(v):
     return [str(item) for item in v]
 
 
+def ensure_non_empty(v: list[str]) -> list[str]:
+    # admin_users must list at least one uid (e.g. the user running the
+    # spank plugin), otherwise Warden cannot create sessions on behalf of users.
+    if not v:
+        raise ValueError("admin_users must not be empty")
+    return v
+
+
 class APIConfig(BaseSettings):
     host: str = "0.0.0.0"
     port: int = Field(default=8006, ge=1, le=65535)
 
     # processing authorized_users as strings but allowing users to input numbers
     authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
-    admin_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = ["0"]
+    admin_users: Annotated[
+        list[str], BeforeValidator(coerce_to_str), AfterValidator(ensure_non_empty)
+    ] = ["0"]
 
 
 class Config(BaseSettings):
