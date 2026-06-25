@@ -96,8 +96,13 @@ The API server can also be configured to only accept new jobs from configured us
 | Path       | Description             | Default   | Required | Example Value |
 |------------|-------------------------|-----------|----------|---------------|
 | `api.authorized_users` | List of user IDs auhorized to create new jobs  | `[]` | Yes      | `["1000", "2000", "0"]`   |
+| `api.admin_users` | List of admin user IDs authorized to administer QPU availability and create sessions on behalf of users | `[0]` | Yes | `[0, "1001"]` |
 
-The default value `[]` allows all users to create new jobs.
+The default value `[]` for `api.authorized_users` allows all users to create new jobs.
+
+`api.admin_users` must not be empty. The uid running the spank plugin must be
+included in `api.admin_users`; otherwise the plugin cannot acquire a session and
+Warden is unusable with it.
 
 ### Database
 

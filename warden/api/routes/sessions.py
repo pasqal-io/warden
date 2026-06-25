@@ -1,12 +1,15 @@
 from datetime import datetime, timezone
 from logging import getLogger
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import UUID4
 from sqlalchemy import Select
 
-from warden.api.routes.dependencies.auth import verify_root
-from warden.api.routes.dependencies.authorized_users import AuthorizedUsersDep
+from warden.api.routes.dependencies.auth import (
+    AdminUserDep,
+    AuthConfigDep,
+    ensure_user_is_authorized,
+)
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.schemas.sessions import CreateSession, SessionResponse
 from warden.lib.models.sessions import Session
@@ -19,14 +22,10 @@ router = APIRouter(prefix="/sessions")
 async def create_session(
     payload: CreateSession,
     db_session: DBSessionDep,
-    authorized_users: AuthorizedUsersDep,
-    _=Depends(verify_root),
+    auth_config: AuthConfigDep,
+    _admin: AdminUserDep,
 ) -> SessionResponse:
-    if authorized_users != [] and payload.user_id not in authorized_users:
-        logger.info(
-            f"Unauthorized user: {payload.user_id} attempting to create a session."
-        )
-        raise HTTPException(status_code=403, detail="User ID not authorized.")
+    ensure_user_is_authorized(auth_config, str(payload.user_id))
     new_session = Session(
         user_id=str(payload.user_id),
         slurm_job_id=payload.slurm_job_id,
@@ -41,7 +40,7 @@ async def create_session(
 async def revoke_session(
     id: UUID4,
     db_session: DBSessionDep,
-    _=Depends(verify_root),
+    _admin: AdminUserDep,
 ) -> SessionResponse:
     result = await db_session.execute(Select(Session).where(Session.id == id))
     session_record = result.scalar_one_or_none()

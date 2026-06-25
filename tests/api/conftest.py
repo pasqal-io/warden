@@ -66,7 +66,7 @@ def mock_munge_auth(
 ) -> Generator[None, None, None]:
     # The mock now uses the arguments passed to the context manager
     async def munge_identity_mock() -> MungeIdentity:
-        return MungeIdentity(uid=uid, payload=payload)
+        return MungeIdentity(uid=str(uid), payload=payload)
 
     app.dependency_overrides[munge_identity] = munge_identity_mock
 
