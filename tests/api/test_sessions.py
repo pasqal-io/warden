@@ -3,8 +3,8 @@ from datetime import datetime
 import pytest
 
 from tests.api.conftest import mock_munge_auth
-from warden.lib.models import Job, Session
 from warden.api.routes.dependencies.auth import AuthConfig
+from warden.lib.models import Job, Session
 
 
 def set_auth_config(

@@ -96,14 +96,14 @@ async def get_job(
 async def delete_job(
     id: int,
     db_session: DBSessionDep,
-    identity: MungeIdentity = Depends(munge_identity),
+    identity: CurrentUserDep,
 ) -> JobResponse:
     # Start transaction context
     async with db_session.begin():
         # Lock row/db during transaction
         result = await db_session.execute(
             select(Job)
-            .where(Job.user_id == str(identity.uid), Job.id == id)
+            .where(Job.user_id == identity.uid, Job.id == id)
             .with_for_update(of=Job)
         )
         job = result.scalar_one_or_none()
