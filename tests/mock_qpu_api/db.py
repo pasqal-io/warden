@@ -2,7 +2,6 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Optional
 
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
 from mock_qpu_api.models.program import Program, ProgramStatus
@@ -19,9 +18,7 @@ logger = logging.getLogger(f"uvicorn.{__name__}")
 ########
 
 
-def create_job(
-    job_model: JobCreation, is_timed: bool, shot_duration_s: Optional[float]
-) -> Job:
+def create_job(job_model: JobCreation) -> Job:
     keys = FAKE_JOB_DB.keys()
     if len(keys) == 0:
         new_uid = 0
@@ -40,10 +37,7 @@ def create_job(
         program_id=new_uid,
         context=job_model.context,
         batch_id=job_model.context.batch_id,
-        is_timed=is_timed,
     )
-    if shot_duration_s is not None:
-        new_job.shot_duration_s = shot_duration_s
 
     FAKE_JOB_DB[str(new_uid)] = new_job
     return new_job
@@ -56,7 +50,7 @@ def fetch_job(uid: int) -> Job | None:
     return FAKE_JOB_DB[str(uid)]
 
 
-def get_job(uid: int) -> Job | None:
+def get_job(uid: int, is_timed: bool, shot_duration_s: float) -> Job | None:
     """Implement GET /uid route logic"""
     if str(uid) not in FAKE_JOB_DB:
         return None
@@ -71,11 +65,10 @@ def get_job(uid: int) -> Job | None:
         update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING and (job.start_datetime is not None):
         # Check if job should keep running
-        if job.is_timed:
+        if is_timed:
             # if True:
-            expected_end_time = job.start_datetime + timedelta(
-                seconds=job.job_duration_s
-            )
+            job_duration_s = job.nb_run * shot_duration_s
+            expected_end_time = job.start_datetime + timedelta(seconds=job_duration_s)
             if expected_end_time and current_time < expected_end_time:
                 job.result = FAKE_PARTIAL_RESULTS
                 # Job is still running
@@ -93,7 +86,7 @@ def get_job(uid: int) -> Job | None:
         )
         update_program_status(uid=uid, status=program_status)
 
-        if job.is_timed:
+        if is_timed:
             actual_duration = (job.end_datetime - job.start_datetime).total_seconds()
             logger.debug(f"Job {uid} completed after {actual_duration:.2f}s")
 

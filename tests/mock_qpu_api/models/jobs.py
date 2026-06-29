@@ -53,13 +53,6 @@ class Job(BaseModel):
 
     progress: dict[str, Any] | None = None
 
-    is_timed: bool
-    shot_duration_s: float = DEFAULT_SHOT_DURATION_S
-
-    @property
-    def job_duration_s(self) -> float:
-        return self.shot_duration_s * self.nb_run
-
 
 class JobCreation(BaseModel):
     nb_run: int

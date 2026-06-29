@@ -1,11 +1,9 @@
 """Mock QPU API for Warden testing and development"""
 
-import os
-
 from fastapi import FastAPI
 
-from mock_qpu_api.models.jobs import DEFAULT_SHOT_DURATION_S
 from mock_qpu_api.routes import jobs, programs, system
+from mock_qpu_api.routes.dependencies.timed_job import init_timed_job
 
 PREFIX = "/api/v1"
 
@@ -17,10 +15,7 @@ def create_app():
         version="0.1.0",
     )
 
-    app.state.is_timed = "MOCK_QPU_API_IS_TIMED" in os.environ
-    app.state.shot_duration_s = float(
-        os.environ.get("MOCK_QPU_API_SHOT_DURATION_S", DEFAULT_SHOT_DURATION_S)
-    )
+    init_timed_job(app)
 
     app.include_router(prefix=PREFIX, router=jobs.router)
     app.include_router(prefix=PREFIX, router=programs.router)
