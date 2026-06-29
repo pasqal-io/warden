@@ -3,10 +3,16 @@ api:
   host: 0.0.0.0
   # API bind port
   port: 8006
+
+  # Authorization
+  # All lists must be of strings or integers.
+
   # List of user id authorized to create new jobs on the QPU by creating a new session.
-  # Must be list of strings or integers.
-  # If userlist is empty, all users are authorized.
+  # If empty/unset, all users are authorized.
   authorized_users: []
+  # List of admin uids authorized to set the availability of the QPU and create sessions on behalf of users.
+  # Must not be empty, and must include the uid running the spank plugin.
+  admin_users: [0]
 
 database:
   # echo: false # Optional, SQLAlchemy echo

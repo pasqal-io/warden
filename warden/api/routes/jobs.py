@@ -5,11 +5,7 @@ from logging import getLogger
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from warden.api.routes.dependencies.auth import (
-    MungeIdentity,
-    munge_identity,
-    verify_session,
-)
+from warden.api.routes.dependencies.auth import CurrentUserDep, SessionDep
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.jobs import (
@@ -21,7 +17,6 @@ from warden.api.schemas.jobs import (
     try_parse_AHSSequence,
 )
 from warden.api.utils.cudaq import normalize_cudaq_sequence
-from warden.lib.models.sessions import Session
 from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
 
 logger = getLogger(__name__)
@@ -32,7 +27,7 @@ router = APIRouter(prefix="/jobs")
 async def create_job(
     job: JobCreate,
     db_session: DBSessionDep,
-    session: Session = Depends(verify_session),
+    session: SessionDep,
     qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
     """
@@ -74,11 +69,9 @@ async def create_job(
 @router.get("")
 async def list_jobs(
     db_session: DBSessionDep,
-    identity: MungeIdentity = Depends(munge_identity),
+    identity: CurrentUserDep,
 ) -> list[JobResponse]:
-    result = await db_session.execute(
-        select(Job).where(Job.user_id == str(identity.uid))
-    )
+    result = await db_session.execute(select(Job).where(Job.user_id == identity.uid))
     jobs = result.scalars().all()
 
     return [JobResponse.from_model(job) for job in jobs]
@@ -88,10 +81,10 @@ async def list_jobs(
 async def get_job(
     id: int,
     db_session: DBSessionDep,
-    identity: MungeIdentity = Depends(munge_identity),
+    identity: CurrentUserDep,
 ) -> JobResponse:
     result = await db_session.execute(
-        select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
+        select(Job).where(Job.user_id == identity.uid, Job.id == id)
     )
     job = result.scalars().one_or_none()
     if job is None:
@@ -137,10 +130,10 @@ async def delete_job(
 async def get_job_logs(
     id: int,
     db_session: DBSessionDep,
-    identity: MungeIdentity = Depends(munge_identity),
+    identity: CurrentUserDep,
 ) -> JobLogResponse:
     result = await db_session.execute(
-        select(Job).where(Job.user_id == str(identity.uid), Job.id == id)
+        select(Job).where(Job.user_id == identity.uid, Job.id == id)
     )
     job = result.scalars().one_or_none()
     if job is None:
