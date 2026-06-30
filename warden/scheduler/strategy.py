@@ -35,7 +35,7 @@ class FifoScheduler(Scheduler):
             .limit(1)
             .with_for_update(of=Job)
         )
-        res = await session.execute(stmt.with_for_update(of=Job))
+        res = await session.execute(stmt)
         job = res.scalar_one_or_none()
         if job:
             job.scheduled_at = datetime.now(timezone.utc)

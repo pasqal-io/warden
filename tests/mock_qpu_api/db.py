@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+from mock_qpu_api.config import TimedConfig
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
 from mock_qpu_api.models.program import Program, ProgramStatus
 from mock_qpu_api.samples import FAKE_PARTIAL_RESULTS, FAKE_RESULTS
@@ -50,8 +51,22 @@ def fetch_job(uid: int) -> Job | None:
     return FAKE_JOB_DB[str(uid)]
 
 
-def get_job(uid: int, is_timed: bool, shot_duration_s: float) -> Job | None:
-    """Implement GET /uid route logic"""
+def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
+    """Implement GET jobs/uid route logic
+
+    If the job UID is not present in the DB, return None.
+
+    Getting a job that is in PENDING status "starts" it's execution by setting its status to RUNNING.
+
+    When a job is in RUNNING status, it checks:
+    - If the API is configured for a timed execution
+        - The `timed_config` gives us the expected end time
+        - If the job is expected to end before current time, it continues running.
+    - Else the job immediately ends it's execution
+
+    Job results are either mocked or emulated from Qutip depending on the API configuration.
+    """
+
     if str(uid) not in FAKE_JOB_DB:
         return None
     job = FAKE_JOB_DB[str(uid)]
@@ -65,11 +80,11 @@ def get_job(uid: int, is_timed: bool, shot_duration_s: float) -> Job | None:
         update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING and (job.start_datetime is not None):
         # Check if job should keep running
-        if is_timed:
+        if timed_config.is_timed:
             # if True:
-            job_duration_s = job.nb_run * shot_duration_s
+            job_duration_s = job.nb_run * timed_config.shot_duration_s
             expected_end_time = job.start_datetime + timedelta(seconds=job_duration_s)
-            if expected_end_time and current_time < expected_end_time:
+            if current_time < expected_end_time:
                 job.result = FAKE_PARTIAL_RESULTS
                 # Job is still running
                 return job
@@ -86,7 +101,7 @@ def get_job(uid: int, is_timed: bool, shot_duration_s: float) -> Job | None:
         )
         update_program_status(uid=uid, status=program_status)
 
-        if is_timed:
+        if timed_config.is_timed:
             actual_duration = (job.end_datetime - job.start_datetime).total_seconds()
             logger.debug(f"Job {uid} completed after {actual_duration:.2f}s")
 

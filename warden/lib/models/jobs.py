@@ -37,7 +37,7 @@ class Job(Base):
     canceled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
-        doc="Datetime when the job was canceled through the warden api.",
+        doc="Datetime when the first request to cancel the job was received by the warden api.",
     )
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

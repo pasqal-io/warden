@@ -929,7 +929,7 @@ async def test_run_job_canceled_by_cancellation_worker(
     caplog,
 ):
     """Test that the scheduler is able to process
-    a list of jobs where of of them is canceled by
+    a list of jobs where one of them is canceled by
     the cancellation worker
 
     Test rationale:
@@ -940,7 +940,7 @@ async def test_run_job_canceled_by_cancellation_worker(
         - To return "RUNNING" and then "DONE" status for each job
         - For JOB_ID_CANCELED return "CANCELED" status
     - Run scheduler until:
-        - All jobs have a "DONE" or "CANCELED" status is DB
+        - All jobs have a "DONE" or "CANCELED" status in DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "DONE") = N_JOBS-1
     - Check "DONE" jobs have the right results and non-empty logs

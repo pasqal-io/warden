@@ -93,7 +93,7 @@ async def get_job(
 
 
 @router.post("/{id}/cancel")
-async def delete_job(
+async def cancel_job(
     id: int,
     db_session: DBSessionDep,
     identity: CurrentUserDep,
