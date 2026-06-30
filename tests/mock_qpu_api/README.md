@@ -28,6 +28,13 @@ Only handles nominal behavior for Warden compatibility, meaning:
 - 1st job status GET request returns "RUNNING"
 - 2nd job status request returns "DONE" with mock results
 
+### Timed job behavior
+
+If we set the env variable `MOCK_QPU_API_IS_TIMED`, we can set the mock API to simulate a job runtime that depends on the number of shots requested in the job. 
+
+We can pass the duration in seconds of a single shot in the `MOCK_QPU_API_SHOT_DURATION_S` env var. If it is not set, the default is `0.01s`.
+
+Hence a job with 500 shots will take `500 x 0.01 = 5s` after the first `GET` request before it returns as `DONE`.
 
 ## Run
 

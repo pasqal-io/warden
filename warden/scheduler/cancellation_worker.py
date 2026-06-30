@@ -4,7 +4,7 @@ import asyncio
 import logging
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.config import Config
 from warden.lib.models import Job
@@ -13,7 +13,9 @@ from warden.lib.qpu_client import JobCancelationError, QPUClient, QPUClientReque
 logger = logging.getLogger(__name__)
 
 
-async def cancellation_worker(conf: Config, session_factory: async_sessionmaker):
+async def cancellation_worker(
+    conf: Config, session_factory: async_sessionmaker[AsyncSession]
+):
     """Check cancellation queue"""
 
     client = QPUClient(qpu_conf=conf.qpu)
@@ -33,7 +35,7 @@ async def cancellation_worker(conf: Config, session_factory: async_sessionmaker)
         async with session_factory() as session:
             job = (await session.execute(queue_stmt)).scalar_one_or_none()
 
-            if not isinstance(job, Job):
+            if not job:
                 logger.debug(f"No job to cancel, sleeping {sleep_interval}")
                 await asyncio.sleep(sleep_interval)
                 continue
@@ -41,7 +43,9 @@ async def cancellation_worker(conf: Config, session_factory: async_sessionmaker)
             logger.info("Cancelling job '%s'", job.id)
 
             try:
-                assert job.backend_id is not None
+                if job.backend_id is None:
+                    raise JobCancelationError("No backend ID foud in db")
+
                 client.cancel_job(int(job.backend_id))
                 logger.debug(
                     "Sent cancel request to QPU for job '%s' with QPU id '%s'",
