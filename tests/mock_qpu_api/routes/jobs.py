@@ -6,6 +6,7 @@ import mock_qpu_api.db as db
 from mock_qpu_api.models import JSendResponse
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
 from mock_qpu_api.routes.dependencies.timed_job import TimedConfigDep
+from mock_qpu_api.routes.exception import JobCancelationError
 
 router = APIRouter(prefix="/jobs")
 
@@ -33,13 +34,6 @@ async def cancel_job(uid: int) -> JSendResponse:
         # TODO: improve QPU error mimicking
         raise HTTPException(400, "Bad request")
     if job.status in (JobStatus.DONE, JobStatus.ERROR, JobStatus.CANCELED):
-        return JSendResponse(
-            code=400,
-            message="Not OK",
-            data={
-                "code": "3003",
-                "data": {"status": f"Job with status {job.status} not cancellable"},
-            },
-        )
+        raise JobCancelationError(job_status=job.status)
     job = db.cancel_job(uid)
     return JSendResponse(code=200, message="OK.", data=job)
