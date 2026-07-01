@@ -9,12 +9,10 @@ from mock_qpu_api.models.jobs import DEFAULT_SHOT_DURATION_S
 
 
 def init_timed_job(app: FastAPI) -> None:
-    is_timed = "MOCK_QPU_API_IS_TIMED" in os.environ
     shot_duration_s = float(
         os.environ.get("MOCK_QPU_API_SHOT_DURATION_S", DEFAULT_SHOT_DURATION_S)
     )
     app.state.timed_config = TimedConfig(
-        is_timed=is_timed,
         shot_duration_s=shot_duration_s,
     )
 

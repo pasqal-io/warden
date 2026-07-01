@@ -80,14 +80,12 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
         update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING and (job.start_datetime is not None):
         # Check if job should keep running
-        if timed_config.is_timed:
-            # if True:
-            job_duration_s = job.nb_run * timed_config.shot_duration_s
-            expected_end_time = job.start_datetime + timedelta(seconds=job_duration_s)
-            if current_time < expected_end_time:
-                job.result = FAKE_PARTIAL_RESULTS
-                # Job is still running
-                return job
+        job_duration_s = job.nb_run * timed_config.shot_duration_s
+        expected_end_time = job.start_datetime + timedelta(seconds=job_duration_s)
+        if current_time < expected_end_time:
+            job.result = FAKE_PARTIAL_RESULTS
+            # Job is still running
+            return job
         # Job should end
         if _uses_qutip_backend():
             result = _run_qutip_job(job)
@@ -101,9 +99,8 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
         )
         update_program_status(uid=uid, status=program_status)
 
-        if timed_config.is_timed:
-            actual_duration = (job.end_datetime - job.start_datetime).total_seconds()
-            logger.debug(f"Job {uid} completed after {actual_duration:.2f}s")
+        actual_duration = (job.end_datetime - job.start_datetime).total_seconds()
+        logger.debug(f"Job {uid} completed after {actual_duration:.2f}s")
 
     return job
 
