@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from mock_qpu_api.routes import jobs, system
+from mock_qpu_api.routes.dependencies.qutip_emul import init_qutip_emul
 from mock_qpu_api.routes.dependencies.timed_job import init_timed_job
 from mock_qpu_api.routes.exception import JobCancelationError
 
@@ -18,6 +19,7 @@ def create_app():
     )
 
     init_timed_job(app)
+    init_qutip_emul(app)
 
     app.include_router(prefix=PREFIX, router=jobs.router)
     app.include_router(prefix=PREFIX, router=system.router)

@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from datetime import datetime, timedelta
 
 from mock_qpu_api.config import TimedConfig
@@ -48,7 +47,7 @@ def fetch_job(uid: int) -> Job | None:
     return FAKE_JOB_DB[str(uid)]
 
 
-def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
+def get_job(uid: int, timed_config: TimedConfig, is_qutip_emul: bool) -> Job | None:
     """Implement GET jobs/uid route logic
 
     If the job UID is not present in the DB, return None.
@@ -82,7 +81,7 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
             # Job is still running
             return job
         # Job should end
-        if _uses_qutip_backend():
+        if is_qutip_emul:
             result = _run_qutip_job(job)
         else:
             result = FAKE_RESULTS
@@ -100,10 +99,6 @@ def cancel_job(uid: int) -> Job:
     job = FAKE_JOB_DB[str(uid)]
     job.status = JobStatus.CANCELED
     return job
-
-
-def _uses_qutip_backend() -> bool:
-    return "MOCK_QPU_API_EMUL" in os.environ
 
 
 def _run_qutip_job(job: Job) -> str | None:
