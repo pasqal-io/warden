@@ -5,11 +5,9 @@ from datetime import datetime, timedelta
 
 from mock_qpu_api.config import TimedConfig
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
-from mock_qpu_api.models.program import Program, ProgramStatus
 from mock_qpu_api.samples import FAKE_RESULTS
 
 FAKE_JOB_DB: dict[str, Job] = {}
-FAKE_PROGRAM_DB: dict[str, Program] = {}
 
 # Using the Uvicorn logger for easy logging setup
 logger = logging.getLogger(f"uvicorn.{__name__}")
@@ -25,7 +23,6 @@ def create_job(job_model: JobCreation) -> Job:
         new_uid = 0
     else:
         new_uid = int(max(FAKE_JOB_DB.keys())) + 1
-    create_program(new_uid)
 
     current_time = datetime.now()
     new_job = Job(
@@ -77,7 +74,6 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
     if job.status == JobStatus.PENDING:
         job.status = JobStatus.RUNNING
         job.start_datetime = current_time
-        update_program_status(uid=uid, status=ProgramStatus.RUNNING)
     elif job.status == JobStatus.RUNNING and (job.start_datetime is not None):
         # Check if job should keep running
         job_duration_s = job.nb_run * timed_config.shot_duration_s
@@ -93,10 +89,6 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
         job.status = JobStatus.DONE if result is not None else JobStatus.ERROR
         job.result = result
         job.end_datetime = current_time
-        program_status = (
-            ProgramStatus.DONE if result is not None else ProgramStatus.ERROR
-        )
-        update_program_status(uid=uid, status=program_status)
 
         actual_duration = (job.end_datetime - job.start_datetime).total_seconds()
         logger.debug(f"Job {uid} completed after {actual_duration:.2f}s")
@@ -107,31 +99,7 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
 def cancel_job(uid: int) -> Job:
     job = FAKE_JOB_DB[str(uid)]
     job.status = JobStatus.CANCELED
-    program = FAKE_PROGRAM_DB[str(job.program_id)]
-    program.status = ProgramStatus.CANCELED
     return job
-
-
-############
-# PROGRAMS #
-############
-
-
-def program_exists(uid: int):
-    return str(uid) in FAKE_PROGRAM_DB.keys()
-
-
-def create_program(new_uid: int) -> None:
-    # TODO: Check program satus at creation
-    new_program = Program(uid=new_uid, status=ProgramStatus.CREATED)
-    FAKE_PROGRAM_DB[str(new_uid)] = new_program
-
-
-def update_program_status(uid: int, status: ProgramStatus) -> None:
-    if not program_exists(uid):
-        # TODO: handle error
-        return
-    FAKE_PROGRAM_DB[str(uid)].status = status
 
 
 def _uses_qutip_backend() -> bool:
