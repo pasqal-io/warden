@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from mock_qpu_api.config import TimedConfig
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
 from mock_qpu_api.models.program import Program, ProgramStatus
-from mock_qpu_api.samples import FAKE_PARTIAL_RESULTS, FAKE_RESULTS
+from mock_qpu_api.samples import FAKE_RESULTS
 
 FAKE_JOB_DB: dict[str, Job] = {}
 FAKE_PROGRAM_DB: dict[str, Program] = {}
@@ -83,7 +83,6 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
         job_duration_s = job.nb_run * timed_config.shot_duration_s
         expected_end_time = job.start_datetime + timedelta(seconds=job_duration_s)
         if current_time < expected_end_time:
-            job.result = FAKE_PARTIAL_RESULTS
             # Job is still running
             return job
         # Job should end
@@ -108,7 +107,6 @@ def get_job(uid: int, timed_config: TimedConfig) -> Job | None:
 def cancel_job(uid: int) -> Job:
     job = FAKE_JOB_DB[str(uid)]
     job.status = JobStatus.CANCELED
-    job.result = FAKE_PARTIAL_RESULTS
     program = FAKE_PROGRAM_DB[str(job.program_id)]
     program.status = ProgramStatus.CANCELED
     return job

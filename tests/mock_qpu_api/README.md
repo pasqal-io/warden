@@ -48,7 +48,7 @@ The mock qpu API is configured through environment variables
 | Variable          | Description       | Default           | Required          | Example Value     |
 |-------------------|-------------------|-------------------|-------------------|-------------------|
 | `MOCK_QPU_API_SHOT_DURATION_S`          | Simulated duration of a job shot       | `0.01`           | No          | `0.05`     |
-| `MOCK_QPU_API_EMUL`          | Wether the mock API should return mocked values or results from a Qutip emulation. Defining the variable acts as a flag, no matter the value       | No           | No          | Any     |
+| `MOCK_QPU_API_EMUL`          | Whether the mock API should return mocked values or results from a Qutip emulation. Set to a non empty value to enable emulation       | No           | No          | Any     |
 
 ## Next steps
 
