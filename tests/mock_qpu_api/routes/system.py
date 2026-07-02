@@ -1,4 +1,4 @@
-"""Mock QPU Programs API route"""
+"""Mock QPU System API route"""
 
 from fastapi import APIRouter
 

@@ -14,7 +14,6 @@ Only the following endpoints are mocked (for Warden compatibility):
 - `POST /jobs`
 - `GET /jobs/<ID>`
 - `PUT /jobs/cancel`
-- `GET /programs/<ID>`
 - `GET /system`
 - `GET /system/operational`
 
