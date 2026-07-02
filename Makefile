@@ -142,6 +142,7 @@ ping:
 
 
 # Mock QPU when the actual QPU is not available
+# Set shot duration with the MOCK_QPU_SHOT_DURATION_S environment variable
 
 start-mock-qpu: $(VENV)/bin/python
 	$(VENV)/bin/python -m uvicorn mock_qpu_api.app:app --app-dir tests

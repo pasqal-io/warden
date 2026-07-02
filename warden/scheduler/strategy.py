@@ -1,6 +1,7 @@
 """Queuing strategies"""
 
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import case, select
@@ -32,9 +33,15 @@ class FifoScheduler(Scheduler):
                 Job.id,
             )
             .limit(1)
+            .with_for_update(of=Job)
         )
         res = await session.execute(stmt)
-        return res.scalar_one_or_none()
+        job = res.scalar_one_or_none()
+        if job:
+            job.scheduled_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(job)
+        return job
 
 
 schedulers = {SchedulerStrategy.FIFO: FifoScheduler()}

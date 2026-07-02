@@ -1,7 +1,9 @@
 import json
+from datetime import datetime
 
 import pytest
 from httpx import AsyncClient, Request, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from tests.api.conftest import mock_munge_auth, mock_qpu_client
@@ -372,3 +374,175 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
 
     assert response.status_code == 422
     assert "non-uniform" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_already_done(client, app, serialized_sequence: str):
+    """Assert that user can't cancel a job already done
+
+    1. Create a job in db with satus "DONE" for a given user
+    2. Call POST /job/id/cancel endpoint
+    3. Assert the API returns a 409
+    """
+    user_id = 1000
+    job = Job(
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        status="DONE",
+        shots=100,
+    )
+    async_session = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.post(f"/jobs/{job.id}/cancel")
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_not_found(client, app, serialized_sequence: str):
+    """Assert that user can't cancel a job that doesn't exist or
+    is not theirs
+
+    1. Create a job in db for a given user
+    2. Call POST /job/id/cancel endpoint with another user
+    3. Assert the API returns a 404
+    4. Call POST /job/id/cancel endpoint for a non-existing id
+    5. Assert the API returns a 404
+    """
+    user_id = 1000
+    wrong_user_id = 2000
+
+    job = Job(
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        shots=100,
+    )
+    async_session = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    with mock_munge_auth(app, uid=wrong_user_id):
+        response = await client.post(f"/jobs/{job.id}/cancel")
+    assert response.status_code == 404
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.post("/jobs/999/cancel")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_not_scheduled(client, app, serialized_sequence: str):
+    """Assert that a user can cancel a job not already scheduled
+
+    1. Create a job in db for a given user
+    2. Call POST /job/id/cancel endpoint
+    3. Assert the job is marked canceled in DB
+        - `canceled_at` is set
+        - `status` is "CANCELED"
+    """
+    user_id = 1000
+    job = Job(
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        shots=100,
+    )
+    async_session = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.post(f"/jobs/{job.id}/cancel")
+    assert response.status_code == 200
+    assert response.json()["status"] == "CANCELED"
+
+    # Double DB check
+    async with async_session() as session:
+        result = await session.execute(select(Job).where(Job.id == job.id))
+        job = result.scalar_one_or_none()
+
+    assert job.scheduled_at is None
+    assert job.canceled_at is not None
+    assert job.status == "CANCELED"
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_already_scheduled(client, app, serialized_sequence: str):
+    """Assert that a user can cancel a job already scheduled, but not yet executed
+
+    1. Create a job in db for a given user
+    2. Call POST /job/id/cancel endpoint
+    3. Assert the job is marked canceled in DB
+        - `canceled_at` is set
+        - `status` is still "PENDING", will be handled by the scheduler
+    """
+    user_id = 1000
+    job = Job(
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        scheduled_at=datetime.now(),
+        shots=100,
+    )
+    async_session = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.post(f"/jobs/{job.id}/cancel")
+    assert response.status_code == 200
+    assert response.json()["status"] == "PENDING"
+
+    # Double DB check
+    async with async_session() as session:
+        result = await session.execute(select(Job).where(Job.id == job.id))
+        job = result.scalar_one_or_none()
+
+    assert job.scheduled_at is not None
+    assert job.canceled_at is not None
+    assert job.status == "PENDING"
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_twice(client, app, serialized_sequence: str):
+    """Assert that user can't cancel a job multiple times
+
+    1. Create a job in db for a given user
+    2. Call POST /job/id/cancel endpoint
+    3. Assert the job is marked canceled in DB
+    4. Call POST /job/id/cancel endpoint
+    5. Assert the api rejects the request
+    """
+    user_id = 1000
+    job = Job(
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        shots=100,
+    )
+    async_session = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.post(f"/jobs/{job.id}/cancel")
+    assert response.status_code == 200
+    assert response.json()["status"] == "CANCELED"
+
+    with mock_munge_auth(app, uid=user_id):
+        response = await client.post(f"/jobs/{job.id}/cancel")
+    assert response.status_code == 409

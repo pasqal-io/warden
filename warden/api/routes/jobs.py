@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/jobs")
 @router.post("")
 async def create_job(
     job: JobCreate,
-    db: DBSessionDep,
+    db_session: DBSessionDep,
     session: SessionDep,
     qpu_client: AsyncQPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
@@ -58,19 +59,19 @@ async def create_job(
         sequence=sequence,
         session_id=session.id,
     )
-    db.add(new_job)
-    await db.flush()
-    await db.commit()
+    db_session.add(new_job)
+    await db_session.flush()
+    await db_session.commit()
     logger.info(f"Created warden job {new_job.id} for slurm job {session.slurm_job_id}")
     return JobResponse.from_model(new_job)
 
 
 @router.get("")
 async def list_jobs(
-    session: DBSessionDep,
+    db_session: DBSessionDep,
     identity: CurrentUserDep,
 ) -> list[JobResponse]:
-    result = await session.execute(select(Job).where(Job.user_id == identity.uid))
+    result = await db_session.execute(select(Job).where(Job.user_id == identity.uid))
     jobs = result.scalars().all()
 
     return [JobResponse.from_model(job) for job in jobs]
@@ -79,10 +80,10 @@ async def list_jobs(
 @router.get("/{id}")
 async def get_job(
     id: int,
-    session: DBSessionDep,
+    db_session: DBSessionDep,
     identity: CurrentUserDep,
 ) -> JobResponse:
-    result = await session.execute(
+    result = await db_session.execute(
         select(Job).where(Job.user_id == identity.uid, Job.id == id)
     )
     job = result.scalars().one_or_none()
@@ -91,13 +92,47 @@ async def get_job(
     return JobResponse.from_model(job)
 
 
+@router.post("/{id}/cancel")
+async def cancel_job(
+    id: int,
+    db_session: DBSessionDep,
+    identity: CurrentUserDep,
+) -> JobResponse:
+    # Start transaction context
+    async with db_session.begin():
+        # Lock row/db during transaction
+        result = await db_session.execute(
+            select(Job)
+            .where(Job.user_id == identity.uid, Job.id == id)
+            .with_for_update(of=Job)
+        )
+        job = result.scalar_one_or_none()
+        if job is None:
+            raise HTTPException(404, detail="Job not found")
+        elif job.status in ("CANCELED", "DONE", "ERROR"):
+            raise HTTPException(
+                409, detail=f"Job with status '{job.status}' can't be canceled"
+            )
+        elif job.canceled_at is not None:
+            raise HTTPException(
+                409, detail="Job with status was already requested to be stopped"
+            )
+        job.canceled_at = datetime.now(timezone.utc)
+        # Not yet started by the worker
+        if job.scheduled_at is None:
+            # Set job to cancel
+            job.status = "CANCELED"
+            # Releases nowait
+    return JobResponse.from_model(job)
+
+
 @router.get("/{id}/logs")
 async def get_job_logs(
     id: int,
-    session: DBSessionDep,
+    db_session: DBSessionDep,
     identity: CurrentUserDep,
 ) -> JobLogResponse:
-    result = await session.execute(
+    result = await db_session.execute(
         select(Job).where(Job.user_id == identity.uid, Job.id == id)
     )
     job = result.scalars().one_or_none()

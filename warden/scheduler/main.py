@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from warden.lib.config import Config
 from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
+from warden.scheduler.cancellation_worker import cancellation_worker
 from warden.scheduler.db import job_update_commiter
 from warden.scheduler.strategy import schedulers
 from warden.scheduler.types import JobUpdateQueue
@@ -56,6 +57,7 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
             logger.debug(f"No job to schedule, sleeping {sleep_time}")
             await asyncio.sleep(sleep_time)
             continue
+
         logger.info(f"Scheduling next job: {job.id}")
 
         queue = JobUpdateQueue(maxsize=QUEUE_MAXSIZE)
@@ -63,7 +65,8 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
         db_commit_task = asyncio.create_task(
             job_update_commiter(
                 job_id=job.id, queue=queue, session_factory=session_factory
-            )
+            ),
+            name=f"Job {job.id} DB commit worker",
         )
 
         # QPU job execution
@@ -73,7 +76,8 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
                 nb_run=job.shots,
                 sequence=job.sequence,
                 batch_id=job.session.slurm_job_id,
-            )
+            ),
+            name=f"Job {job.id} execution worker",
         )
 
         # Await end of job execution
@@ -89,6 +93,19 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
         logger.info(f"Job {job.id} ended with status: {status}")
 
 
+async def run_cancellation_worker(engine: AsyncEngine, conf: Config):
+    """Cancellation worker main logic
+
+    Runs the cancellation worker in an infinite loop.
+    Gets canceled by `main_async` when stop signal is received.
+    """
+    logger.info("Cancellation worker running.")
+
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+    await cancellation_worker(conf=conf, session_factory=session_factory)
+
+
 async def shutdown(engine: AsyncEngine):
     """Cleanup tasks and close DB connections."""
 
@@ -97,7 +114,9 @@ async def shutdown(engine: AsyncEngine):
 
     logger.info("Stopping all tasks")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    [task.cancel() for task in tasks]
+    for task in tasks:
+        logger.debug("Stopping '%s'", task.get_name())
+        task.cancel()
 
     await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -116,9 +135,27 @@ async def main_async(conf: Config | None = None):
         loop.add_signal_handler(sig, lambda s=sig: stop_event.set())
 
     try:
-        logger.info("Starting scheduler (Press Ctrl+C to exit)...")
-        loop.create_task(run_scheduler(engine, conf))
+        logger.info(
+            "Starting scheduler and cancellation worker (Press Ctrl+C to exit)..."
+        )
+
+        # Start both scheduler and cancellation worker as separate tasks with same lifetime
+        scheduler_task = loop.create_task(run_scheduler(engine, conf), name="Scheduler")
+        cancellation_task = loop.create_task(
+            run_cancellation_worker(engine, conf), name="Cancellation Worker"
+        )
+
+        # Wait for stop signal
         await stop_event.wait()
+
+        # Cancel both tasks
+        logger.info("Stopping scheduler and cancellation worker...")
+        scheduler_task.cancel()
+        cancellation_task.cancel()
+
+        # Wait for graceful shutdown
+        await asyncio.gather(scheduler_task, cancellation_task, return_exceptions=True)
+
     finally:
         await shutdown(engine)
         logger.info("Scheduler shutdown complete.")

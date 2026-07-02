@@ -4,6 +4,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+DEFAULT_SHOT_DURATION_S = 0.01
+
 
 class JobStatus(Enum):
     """The list of the possible job status."""

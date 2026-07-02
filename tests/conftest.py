@@ -7,6 +7,7 @@ from warden.lib.config.config import Config
 
 @pytest.fixture(scope="session")
 def mock_qpu_api_app():
+    # Set shot duration to 0 for quick qpu api behavior
     yield create_app()
 
 

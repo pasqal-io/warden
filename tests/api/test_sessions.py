@@ -1,7 +1,10 @@
+from datetime import datetime
+
 import pytest
 
 from tests.api.conftest import mock_munge_auth
 from warden.api.routes.dependencies.auth import AuthConfig
+from warden.lib.models import Job, Session
 
 
 def set_auth_config(
@@ -82,3 +85,83 @@ async def test_create_session_authorized_user(client, app):
     assert response.status_code == 200
     data = response.json()
     assert data["user_id"] == payload["user_id"]
+
+
+@pytest.mark.asyncio
+async def test_revoke_session_success(client, app):
+    """Nominal test case to revoke a session for a user using root munge token"""
+    user_id = 1000
+
+    async_session = app.state.db_session_factory
+    new_session = Session(user_id=str(user_id), slurm_job_id="1")
+
+    async with async_session() as session:
+        session.add(new_session)
+        await session.commit()
+        await session.refresh(new_session)
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.delete(f"/sessions/{new_session.id}")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_revoke_session_cancel_remaining_jobs(
+    client, app, serialized_sequence: str
+):
+    """Nominal test case to revoke a session with pending jobs for a user using root munge token
+
+    1. Create a session with done and pending jobs, with one of them being scheduled
+    2. Call the DELETE /sessions/{session_id} endpoint
+    3. Check all pending jobs have `canceled_at` set and "CANCELED" status
+    4. Check that the scheduled job has `canceled_at` set and still "PENDING" status
+    """
+    user_id = 1000
+
+    async_session = app.state.db_session_factory
+    new_session = Session(user_id=str(user_id), slurm_job_id="1")
+
+    async with async_session() as session:
+        session.add(new_session)
+        await session.commit()
+        await session.refresh(new_session)
+
+    done_jobs = [
+        Job(
+            sequence=serialized_sequence,
+            shots=100,
+            session=new_session,
+            status="DONE",
+            scheduled_at=datetime.now(),
+        )
+    ] * 5
+    pending_jobs = [
+        Job(sequence=serialized_sequence, shots=100, session=new_session)
+    ] * 5
+    scheduled_job = Job(
+        sequence=serialized_sequence,
+        shots=100,
+        session=new_session,
+        scheduled_at=datetime.now(),
+    )
+
+    async with async_session() as session:
+        session.add_all(pending_jobs)
+        session.add_all(done_jobs)
+        session.add(scheduled_job)
+        await session.commit()
+
+        with mock_munge_auth(app, uid=0):
+            response = await client.delete(f"/sessions/{new_session.id}")
+        assert response.status_code == 200
+
+        for job in pending_jobs:
+            await session.refresh(job)
+            assert job.canceled_at is not None
+            assert job.status == "CANCELED"
+        for job in done_jobs:
+            await session.refresh(job)
+            assert job.canceled_at is None
+        await session.refresh(scheduled_job)
+        assert scheduled_job.status == "PENDING"
+        assert scheduled_job.canceled_at is not None
