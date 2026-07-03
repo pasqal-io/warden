@@ -138,6 +138,7 @@ class LocalQPUWorker:
         queue: JobUpdateQueue,
         nb_run: int,
         sequence: str,
+        backend_id: str | None = None,
         batch_id: str | None = None,
     ) -> None:
         """Execute job on the QPU"""
@@ -153,6 +154,7 @@ class LocalQPUWorker:
                 job_tracker=job_tracker,
                 nb_run=nb_run,
                 sequence=sequence,
+                backend_id=backend_id,
                 batch_id=batch_id,
             )
             if job_tracker.is_error:
@@ -195,9 +197,27 @@ class LocalQPUWorker:
         job_tracker: JobExecutionTracker,
         nb_run: int,
         sequence: str,
+        backend_id: str | None,
         batch_id: str | None,
     ) -> None:
         """Create the job on the QPU"""
+
+        # Try to re-fetch the job status on the QPU
+        if backend_id and backend_id.isdigit():
+            logger.info(
+                "Job already has a backend_id '%s'. Trying to fetch status from QPU.",
+                backend_id,
+            )
+            try:
+                qpu_job_info = self.qpu_client.get_job(job_uid=int(backend_id))
+                await job_tracker.update_job(qpu_job_info)
+                return
+            except QPUClientRequestError as e:
+                logger.warning(
+                    "Failed fetching job status: %s. Re-starting corresponding job on the QPU",
+                    e,
+                )
+
         try:
             qpu_job_info = self.qpu_client.create_job(
                 nb_run=nb_run,

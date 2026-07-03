@@ -54,6 +54,31 @@ async def create_n_jobs(
     return jobs_to_run
 
 
+async def create_jobs_with_backend_ids(
+    db_session_maker: async_sessionmaker, backend_ids: list[str], shots: int = 100
+) -> list[Job]:
+    """Creates a job with a given backend_id"""
+    SLURM_USER_ID = "1234"
+
+    jobs = []
+    for backend_id in backend_ids:
+        jobs.append(
+            Job(
+                sequence="{}",
+                status="PENDING",
+                shots=shots,
+                backend_id=backend_id,
+                session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
+            )
+        )
+
+    async with db_session_maker() as session:
+        session.add_all(jobs)
+        await session.commit()
+
+    return jobs
+
+
 def raise_task_exception(async_task: Task) -> None:
     """
     The main scheduler task is an infinite loop that we don't await.

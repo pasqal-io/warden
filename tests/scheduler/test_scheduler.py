@@ -174,6 +174,159 @@ async def test_run_nominal(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", list(SchedulerStrategy))
+async def test_run_resume_job(
+    strategy: SchedulerStrategy,
+    db_engine: AsyncEngine,
+    db_session_maker: async_sessionmaker,
+    httpx_mock: HTTPXMock,
+    caplog,
+):
+    """Test that the scheduler is able to resume
+    execution of a job when Warden is restarted and a job is already running
+    on the QPU
+
+    Test rationale:
+    - Create 2 dummy jobs with a backend_id already set:
+        - One with a valid backend_id (BACKEND_ID)
+        - One with a non-existing backend_id (NON_EXISTING_BACKEND_ID)
+    - QPU API is mocked:
+        - To return QPU status as "UP"
+        - To return 400 for the non-existing backend_id job status request
+        - To accept job creation request for the re-created job (NEW_BACKEND_ID)
+        - To return "RUNNING" and then "DONE" status for BACKEND_ID and NEW_BACKEND_ID
+    - Run scheduler until:
+        - All jobs have a "DONE" status in DB
+        - Test timeout after TEST_TIMEOUT_S
+    - Check n (jobs with status "DONE") = 2
+    - Check "DONE" jobs have the right results and non-empty logs
+    - Check those jobs have `scheduled_at` set
+    """
+
+    ##################
+    ### TEST CONF  ###
+    ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
+
+    TEST_TIMEOUT_S = 5
+    BACKEND_ID = "1"
+    NON_EXISTING_BACKEND_ID = "9999"
+    NEW_BACKEND_ID = "2"
+
+    conf: Config = build_conf(strategy, QPU_URI)
+
+    ##################
+    ### TEST SETUP ###
+    ##################
+
+    # QPU status
+    httpx_mock.add_response(
+        method="GET",
+        url=SYSTEM_OPERATIONAL_API,
+        json={"data": {"operational_status": "UP"}},
+        is_reusable=True,
+    )
+    # Non-existing backend
+    httpx_mock.add_response(
+        method="GET",
+        url=JOB_API + f"/{NON_EXISTING_BACKEND_ID}",
+        status_code=400,
+        json={"message": "Bad request."},
+    )
+    # Creating a new job for non-existing backend
+    return_create_json = {
+        "data": {
+            "uid": NEW_BACKEND_ID,
+            "batch_id": SLURM_USER_ID,
+            "status": "PENDING",
+            "result": None,
+            "program_id": QPU_PROGRAM_UID,
+            "created_datetime": NOW.isoformat(),
+            "start_datetime": None,
+            "end_datetime": None,
+        }
+    }
+    # Create Job
+    httpx_mock.add_response(
+        method="POST", status_code=200, url=JOB_API, json=return_create_json
+    )
+    for backend_id in [BACKEND_ID, NEW_BACKEND_ID]:
+        return_running_json = {
+            "data": {
+                "uid": backend_id,
+                "batch_id": SLURM_USER_ID,
+                "status": "RUNNING",
+                "result": None,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+                "end_datetime": None,
+            }
+        }
+
+        return_done_json = {
+            "data": {
+                "uid": backend_id,
+                "batch_id": SLURM_USER_ID,
+                "status": "DONE",
+                "result": DUMMY_RESULTS,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+                "end_datetime": (NOW + timedelta(seconds=2)).isoformat(),
+            }
+        }
+        # Job running
+        for _ in range(2):
+            httpx_mock.add_response(
+                method="GET",
+                status_code=200,
+                url=JOB_API + f"/{backend_id}",
+                json=return_running_json,
+            )
+        # Job done
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            url=JOB_API + f"/{backend_id}",
+            json=return_done_json,
+        )
+
+    # Populate DB with jobs to run
+    await utils.create_jobs_with_backend_ids(
+        db_session_maker, [BACKEND_ID, NON_EXISTING_BACKEND_ID]
+    )
+
+    stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
+
+    ##################
+    ### TEST RUN   ###
+    ##################
+
+    # RUN SCHEDULER
+    main_task = asyncio.create_task(run_scheduler(db_engine, conf))
+
+    async with db_session_maker() as session:
+        async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                1,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
+
+        stmt_all = select(Job).where(Job.status == "DONE")
+        jobs_done = (await session.execute(stmt_all)).scalars().all()
+        assert len(jobs_done) == 2
+        for job in jobs_done:
+            assert job.scheduled_at is not None
+            assert job.results == DUMMY_RESULTS
+            assert len(job.logs) > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_qpu_down(
     strategy: SchedulerStrategy,
     db_engine: AsyncEngine,

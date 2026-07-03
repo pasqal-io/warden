@@ -75,6 +75,7 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
                 queue=queue,
                 nb_run=job.shots,
                 sequence=job.sequence,
+                backend_id=job.backend_id,
                 batch_id=job.session.slurm_job_id,
             ),
             name=f"Job {job.id} execution worker",
