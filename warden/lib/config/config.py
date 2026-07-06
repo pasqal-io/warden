@@ -1,5 +1,6 @@
 """Yaml config definition"""
 
+import ssl
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -75,10 +76,30 @@ class QPUConfig(BaseSettings):
     retry_max: int = 10
     retry_sleep_s: float = 1
 
-    _client: httpx.Client = PrivateAttr(default_factory=httpx.Client)
+    # TLS verification policy for requests to the QPU backend. Mirrors httpx's
+    # ``verify`` argument, with an extra "system" mode:
+    #   "system"        -> verify against the OS trust store, e.g.
+    #                      /etc/pki/ca-trust, /etc/ssl/certs (default)
+    #   true            -> verify against certifi's CA bundle (httpx default)
+    #   false           -> disable verification (INSECURE; dev/e2e only)
+    #   "<path/to.pem>" -> verify against a specific CA bundle / cert file
+    tls_verify: bool | str = "system"
+
+    _client: httpx.Client | None = PrivateAttr(default=None)
 
     @property
-    def client(self):
+    def verify(self) -> bool | str | ssl.SSLContext:
+        """Translate ``tls_verify`` into an httpx ``verify`` argument."""
+        if self.tls_verify == "system":
+            # ssl.create_default_context() loads OpenSSL's default verify paths,
+            # which is where update-ca-trust publishes OS trust anchors.
+            return ssl.create_default_context()
+        return self.tls_verify
+
+    @property
+    def client(self) -> httpx.Client:
+        if self._client is None:
+            self._client = httpx.Client(verify=self.verify)
         self._client.base_url = self.uri + API_PREFIX
         return self._client
 

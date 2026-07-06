@@ -197,7 +197,9 @@ class AsyncQPUClient:
 
     def __init__(self, qpu_conf: QPUConfig):
         self.conf = qpu_conf
-        self.client = AsyncClient(base_url=qpu_conf.uri + "/api/v1")
+        self.client = AsyncClient(
+            base_url=qpu_conf.uri + "/api/v1", verify=qpu_conf.verify
+        )
 
     async def get_specs(self) -> str:
         """Get QPU serialized device specs."""
