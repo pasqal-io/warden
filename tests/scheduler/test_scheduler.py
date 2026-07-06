@@ -213,6 +213,7 @@ async def test_run_resume_job(
     BACKEND_ID = "1"
     NON_EXISTING_BACKEND_ID = "9999"
     NEW_BACKEND_ID = "2"
+    N_JOBS = 2
 
     conf: Config = build_conf(strategy, QPU_URI)
 
@@ -312,13 +313,13 @@ async def test_run_resume_job(
             await utils.wait_until_scalar_equals(
                 session,
                 stmt_count,
-                1,
+                N_JOBS,
                 interval=SUCCESS_CHECK_INTERVAL_S,
             )
 
         stmt_all = select(Job).where(Job.status == "DONE")
         jobs_done = (await session.execute(stmt_all)).scalars().all()
-        assert len(jobs_done) == 2
+        assert len(jobs_done) == N_JOBS
         for job in jobs_done:
             assert job.scheduled_at is not None
             assert job.results == DUMMY_RESULTS
