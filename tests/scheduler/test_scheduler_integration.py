@@ -138,7 +138,7 @@ async def test_run_scheduler_integration_cancellation_worker(
 
     TEST_TIMEOUT_S = 10
     N_JOBS = 5
-    N_SHOTS = 100
+    N_SHOTS = 500
 
     conf = Config(
         scheduler=SchedulerConfig(
@@ -157,13 +157,15 @@ async def test_run_scheduler_integration_cancellation_worker(
     # Simulate job execution timing so that
     # the cancellation worker has time to observe and cancel jobs
     app.state.timed_config = TimedConfig(shot_duration_s=0.001)
-    # Each job with 100 shots is expected to take 0.1 seconds to complete
+    # Each job with 500 shots is expected to take 0.5 seconds to complete
     conf.qpu._client = TestClient(app)
     #################################
 
     ##################
     ### TEST SETUP ###
     ##################
+
+    await utils.create_n_jobs(db_session_maker, N_JOBS - 1, N_SHOTS)
 
     job_to_cancel = Job(
         sequence="{}",
@@ -179,8 +181,6 @@ async def test_run_scheduler_integration_cancellation_worker(
         await session.refresh(job_to_cancel)
 
     JOB_TO_CANCEL_ID = job_to_cancel.id
-
-    await utils.create_n_jobs(db_session_maker, N_JOBS - 1, N_SHOTS)
 
     stmt = select(func.count(Job.id)).where(Job.status.in_(("CANCELED", "DONE")))
 
