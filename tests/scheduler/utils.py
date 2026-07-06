@@ -104,7 +104,7 @@ def raise_task_exception(async_task: Task) -> None:
 
 @asynccontextmanager
 async def scheduler_task_timeout(delay: float, scheduler_task: Task):
-    """Manage test timeout and cleanup main scheduler task on test timeout"""
+    """Manage test timeout and cleanup main scheduler task on test end"""
 
     try:
         async with timeout(delay):
@@ -112,6 +112,15 @@ async def scheduler_task_timeout(delay: float, scheduler_task: Task):
     except TimeoutError:
         # cleanup
         raise_task_exception(scheduler_task)
+    finally:
+        # Always cancel the scheduler task so it does not keep running
+        # after the test body finishes and fixture teardown begins
+        # (which drops/deletes the DB tables it is still querying).
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:

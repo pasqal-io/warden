@@ -211,6 +211,7 @@ class LocalQPUWorker:
             try:
                 qpu_job_info = self.qpu_client.get_job(job_uid=int(backend_id))
                 await job_tracker.update_job(qpu_job_info)
+                logger.info("Job status fetched from QPU: %s", job_tracker.status)
                 return
             except QPUClientRequestError as e:
                 logger.warning(
