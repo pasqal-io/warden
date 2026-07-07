@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 import mock_qpu_api.db as db
 from mock_qpu_api.models import JSendResponse
 from mock_qpu_api.models.jobs import Job, JobCreation, JobStatus
+from mock_qpu_api.routes.dependencies.qutip_emul import QutipEmulDep
 from mock_qpu_api.routes.dependencies.timed_job import TimedConfigDep
 from mock_qpu_api.routes.exception import JobCancelationError
 
@@ -19,8 +20,10 @@ async def create_job(job_model: JobCreation) -> JSendResponse[Job]:
 
 
 @router.get("/{uid}")
-async def get_job(uid: int, timed_config: TimedConfigDep) -> JSendResponse[Job]:
-    job = db.get_job(uid, timed_config)
+async def get_job(
+    uid: int, timed_config: TimedConfigDep, is_qutip_emul: QutipEmulDep
+) -> JSendResponse[Job]:
+    job = db.get_job(uid, timed_config, is_qutip_emul)
     if job is None:
         # TODO: improve QPU error mimicking
         raise HTTPException(400, "Bad request")
