@@ -58,7 +58,7 @@ async def create_n_jobs(
 async def create_jobs_with_backend_ids(
     db_session_maker: async_sessionmaker, backend_ids: list[str], shots: int = 100
 ) -> list[Job]:
-    """Creates a job with a given backend_id"""
+    """Creates a jobs with given backend_ids"""
     SLURM_USER_ID = "1234"
 
     jobs = []
