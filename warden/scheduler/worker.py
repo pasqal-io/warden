@@ -159,7 +159,6 @@ class LocalQPUWorker:
             )
             if job_tracker.is_error:
                 return
-            logger.info("Job created on QPU")
 
             await self.await_job_execution(job_tracker)
             logger.info("Job execution ended with status '%s'", job_tracker.status)
@@ -227,6 +226,7 @@ class LocalQPUWorker:
             )
 
             await job_tracker.update_job(qpu_job_info)
+            logger.info("Job created on QPU")
         except QPUClientRequestError as e:
             logger.error(f"Failed creating job: {e}")
             await job_tracker.to_error()

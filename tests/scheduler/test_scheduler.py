@@ -186,18 +186,20 @@ async def test_run_resume_job(
     on the QPU
 
     Test rationale:
-    - Create 2 dummy jobs with a backend_id already set:
+    - Create 3 dummy jobs with a backend_id already set:
         - One with a valid backend_id (BACKEND_ID)
         - One with a non-existing backend_id (NON_EXISTING_BACKEND_ID)
+        - One with a valid backend_id whose execution is already "DONE" on the QPU
     - QPU API is mocked:
         - To return QPU status as "UP"
         - To return 400 for the non-existing backend_id job status request
         - To accept job creation request for the re-created job (NEW_BACKEND_ID)
         - To return "RUNNING" and then "DONE" status for BACKEND_ID and NEW_BACKEND_ID
+        - To return "DONE" status for ALREADY_DONE_BACKEND_ID
     - Run scheduler until:
         - All jobs have a "DONE" status in DB
         - Test timeout after TEST_TIMEOUT_S
-    - Check n (jobs with status "DONE") = 2
+    - Check n (jobs with status "DONE") = 3
     - Check "DONE" jobs have the right results and non-empty logs
     - Check those jobs have `scheduled_at` set
     """
@@ -210,10 +212,11 @@ async def test_run_resume_job(
     caplog.set_level(logging.INFO, logger="warden")
 
     TEST_TIMEOUT_S = 5
-    BACKEND_ID = "1"
+    NORMAL_BACKEND_ID = "1"
     NON_EXISTING_BACKEND_ID = "9999"
     NEW_BACKEND_ID = "2"
-    N_JOBS = 2
+    ALREADY_DONE_BACKEND_ID = "3"
+    N_JOBS = 3
 
     conf: Config = build_conf(strategy, QPU_URI)
 
@@ -228,7 +231,7 @@ async def test_run_resume_job(
         json={"data": {"operational_status": "UP"}},
         is_reusable=True,
     )
-    # Non-existing backend
+    # Non-existing backend id
     httpx_mock.add_response(
         method="GET",
         url=JOB_API + f"/{NON_EXISTING_BACKEND_ID}",
@@ -248,11 +251,11 @@ async def test_run_resume_job(
             "end_datetime": None,
         }
     }
-    # Create Job
     httpx_mock.add_response(
         method="POST", status_code=200, url=JOB_API, json=return_create_json
     )
-    for backend_id in [BACKEND_ID, NEW_BACKEND_ID]:
+    # Nominal running scenario
+    for backend_id in [NORMAL_BACKEND_ID, NEW_BACKEND_ID]:
         return_running_json = {
             "data": {
                 "uid": backend_id,
@@ -293,10 +296,31 @@ async def test_run_resume_job(
             url=JOB_API + f"/{backend_id}",
             json=return_done_json,
         )
+    # Job that was already done
+    return_done_json = {
+        "data": {
+            "uid": ALREADY_DONE_BACKEND_ID,
+            "batch_id": SLURM_USER_ID,
+            "status": "DONE",
+            "result": DUMMY_RESULTS,
+            "program_id": QPU_PROGRAM_UID,
+            "created_datetime": NOW.isoformat(),
+            "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+            "end_datetime": (NOW + timedelta(seconds=2)).isoformat(),
+        }
+    }
+    httpx_mock.add_response(
+        method="GET",
+        status_code=200,
+        url=JOB_API + f"/{ALREADY_DONE_BACKEND_ID}",
+        json=return_done_json,
+        is_reusable=True,
+    )
 
     # Populate DB with jobs to run
     await utils.create_jobs_with_backend_ids(
-        db_session_maker, [BACKEND_ID, NON_EXISTING_BACKEND_ID]
+        db_session_maker,
+        [NORMAL_BACKEND_ID, NON_EXISTING_BACKEND_ID, ALREADY_DONE_BACKEND_ID],
     )
 
     stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
