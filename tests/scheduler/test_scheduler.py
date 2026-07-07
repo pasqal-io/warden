@@ -664,6 +664,135 @@ async def test_run_job_timeout(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strategy", list(SchedulerStrategy))
+async def test_run_resume_job_timeout(
+    strategy: SchedulerStrategy,
+    db_engine: AsyncEngine,
+    db_session_maker: async_sessionmaker,
+    httpx_mock: HTTPXMock,
+    caplog,
+):
+    """Test that the scheduler is able to resume
+    execution of a job that is supposed to be timedout
+
+    Test rationale:
+    - Create 1 dummy jobs with a backend_id and a created_at timestamp 120s ago
+    - QPU API is mocked:
+        - To return the status of the job as "RUNNING"
+        - Accept the job's cancelation request
+    - Run scheduler until:
+        - All jobs have a "DONE" status in DB
+        - Test timeout after TEST_TIMEOUT_S
+    - Check n (jobs with status "CANCELED") == 1
+    - Check "CANCELED" jobs have the right results and non-empty logs
+    - Check those jobs have `scheduled_at` set
+    """
+
+    ##################
+    ### TEST CONF  ###
+    ##################
+
+    # Enable warden logging for jobs 'logs' field to be populated
+    caplog.set_level(logging.INFO, logger="warden")
+
+    TEST_TIMEOUT_S = 5
+    N_JOBS = 1
+    BACKEND_ID = "1"
+    # Setting the job's created_at at a time that is already timedout
+    JOB_CREATED_AT = NOW - timedelta(seconds=120)
+    EXPECTED_JOB_STATUS = "CANCELED"
+
+    conf: Config = build_conf(strategy, QPU_URI)
+    # Setting the scheduler's config to a timeout shorter than the job's age
+    conf.scheduler.job_polling_timeout_s = 60
+
+    ##################
+    ### TEST SETUP ###
+    ##################
+
+    # QPU status
+    httpx_mock.add_response(
+        method="GET",
+        url=SYSTEM_OPERATIONAL_API,
+        json={"data": {"operational_status": "UP"}},
+        is_reusable=True,
+    )
+    # Initial job status probe
+    return_running_json = {
+        "data": {
+            "uid": BACKEND_ID,
+            "batch_id": SLURM_USER_ID,
+            "status": "RUNNING",
+            "result": None,
+            "program_id": QPU_PROGRAM_UID,
+            "created_datetime": JOB_CREATED_AT.isoformat(),
+            "start_datetime": (JOB_CREATED_AT + timedelta(seconds=1)).isoformat(),
+            "end_datetime": None,
+        }
+    }
+    for _ in range(2):
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            url=JOB_API + f"/{BACKEND_ID}",
+            json=return_running_json,
+        )
+    # Job cancellation requests
+    return_cancelled_job_status = {
+        "data": {
+            "uid": BACKEND_ID,
+            "batch_id": SLURM_USER_ID,
+            "status": "CANCELED",
+            "result": None,
+            "program_id": QPU_PROGRAM_UID,
+            # TODO: CHECK RETURN FIELDS HERE
+            "created_datetime": JOB_CREATED_AT.isoformat(),
+            "start_datetime": (JOB_CREATED_AT + timedelta(seconds=1)).isoformat(),
+            "end_datetime": None,
+        }
+    }
+    httpx_mock.add_response(
+        method="PUT",
+        status_code=200,
+        url=JOB_API + f"/{BACKEND_ID}/cancel",
+        json=return_cancelled_job_status,
+    )
+
+    # Populate DB with jobs to run
+    await utils.create_jobs_with_backend_ids(
+        db_session_maker,
+        [BACKEND_ID],
+    )
+
+    stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_JOB_STATUS)
+
+    ##################
+    ### TEST RUN   ###
+    ##################
+
+    # RUN SCHEDULER
+    main_task = asyncio.create_task(run_scheduler(db_engine, conf))
+
+    async with db_session_maker() as session:
+        async with utils.scheduler_task_timeout(TEST_TIMEOUT_S, main_task):
+            await utils.wait_until_scalar_equals(
+                session,
+                stmt_count,
+                N_JOBS,
+                interval=SUCCESS_CHECK_INTERVAL_S,
+            )
+
+        stmt_all = select(Job).where(Job.status == EXPECTED_JOB_STATUS)
+        jobs_done = (await session.execute(stmt_all)).scalars().all()
+        assert len(jobs_done) == N_JOBS
+        for job in jobs_done:
+            assert job.scheduled_at is not None
+            assert job.results is None
+            assert len(job.logs) > 0
+            assert "CANCELED" in job.logs
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_run_retry_transient_errors(
     strategy: SchedulerStrategy,
     db_engine: AsyncEngine,

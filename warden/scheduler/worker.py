@@ -12,6 +12,7 @@ from warden.lib.qpu_client import (
     QPUClient,
     QPUClientRequestError,
     QPUJobInfo,
+    UTCDatetime,
 )
 from warden.scheduler.errors import QPUDownError
 from warden.scheduler.types import JobUpdate, JobUpdateQueue
@@ -42,6 +43,10 @@ class JobExecutionTracker:
     @property
     def is_error(self) -> bool:
         return self.status == "ERROR"
+
+    @property
+    def created_datetime(self) -> UTCDatetime:
+        return self.job.created_datetime
 
     async def update_job(self, qpu_job_info: QPUJobInfo):
         self._qpu_job_info = qpu_job_info
@@ -128,7 +133,7 @@ class LocalQPUWorker:
         return self.operational_status == "UP"
 
     @staticmethod
-    def is_timed_out(timeout_s: int | float, start: datetime) -> bool:
+    def is_timed_out(timeout_s: int | float, start: UTCDatetime) -> bool:
         if timeout_s < 0:
             return False
         return (datetime.now(tz=timezone.utc) - start).total_seconds() > timeout_s
@@ -233,7 +238,8 @@ class LocalQPUWorker:
 
     async def await_job_execution(self, job_tracker: JobExecutionTracker) -> None:
         """Polling the job status until completion, error, or cancellation"""
-        polling_start = datetime.now(tz=timezone.utc)
+
+        polling_start = job_tracker.created_datetime
         await self._get_job_poll(job_tracker)
         while job_tracker.status not in ("ERROR", "DONE", "CANCELED"):
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
