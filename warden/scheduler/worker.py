@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 from warden.lib.config import Config
 from warden.lib.qpu_client import (
@@ -131,7 +131,7 @@ class LocalQPUWorker:
     def is_timed_out(timeout_s: int | float, start: datetime) -> bool:
         if timeout_s < 0:
             return False
-        return (datetime.now() - start).total_seconds() > timeout_s
+        return (datetime.now(tz=timezone.utc) - start).total_seconds() > timeout_s
 
     async def execute_job(
         self,
@@ -169,7 +169,7 @@ class LocalQPUWorker:
     async def poll_qpu(self, job_tracker: JobExecutionTracker) -> None:
         """Check the QPU status"""
         try:
-            polling_start = datetime.now()
+            polling_start = datetime.now(tz=timezone.utc)
             while not self.is_operational:
                 if self.is_timed_out(
                     self.conf_sched.qpu_polling_timeout_s, polling_start
@@ -233,7 +233,7 @@ class LocalQPUWorker:
 
     async def await_job_execution(self, job_tracker: JobExecutionTracker) -> None:
         """Polling the job status until completion, error, or cancellation"""
-        polling_start = datetime.now()
+        polling_start = datetime.now(tz=timezone.utc)
         await self._get_job_poll(job_tracker)
         while job_tracker.status not in ("ERROR", "DONE", "CANCELED"):
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
