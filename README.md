@@ -86,9 +86,17 @@ The API server host and port are configurable through the YAML config or environ
 
 Warden's access to the PASQAL QPU can be configured through the YAML config or environment:
 
-| Path       | Variable          | Description             | Default                 | Required | Example Value             |
-|------------|-------------------|-------------------------|-------------------------|----------|---------------------------|
-| `qpu.uri`  | `WARDEN_QPU_URI`  | PASQAL QPU API uri      | `http://localhost:8005` | Yes      | `http://127.0.0.1:8005`   |
+| Path             | Variable                | Description                          | Default                 | Required | Example Value             |
+|------------------|-------------------------|--------------------------------------|-------------------------|----------|---------------------------|
+| `qpu.uri`        | `WARDEN_QPU_URI`        | PASQAL QPU API uri                   | `http://localhost:8005` | Yes      | `http://127.0.0.1:8005`   |
+| `qpu.tls_verify` | _(YAML only)_           | TLS verification for an https backend | `system`                | No       | `system`                  |
+
+`qpu.tls_verify` only applies when `qpu.uri` uses `https`. It accepts:
+
+- `system`: verify against the OS trust store (default). Use this for backends with self-signed certs: add the CA to `/etc/pki/ca-trust/source/anchors/` and run `update-ca-trust` (or `/etc/ssl/certs`).
+- `true`: verify against the bundled (certifi) CA store.
+- `false`: disable verification entirely. **Insecure**, dev/local testing only.
+- a path (e.g. `/etc/warden/backend-ca.pem`) — verify against a specific CA bundle / certificate file.
 
 
 The API server can also be configured to only accept new jobs from configured user IDs:

@@ -74,6 +74,16 @@ qpu:
   # Local Pasqal QPU API configuration
   uri: http://localhost:8000
 
+  # TLS verification policy for requests to the QPU backend.
+  # Only relevant when 'uri' uses https. Accepts:
+  #   system     -> verify against the OS trust store, e.g. anchors added to
+  #                 /etc/pki/ca-trust/source/anchors/ (run update-ca-trust) or
+  #                 /etc/ssl/certs. Use this for backends with self-signed certs.
+  #   true       -> verify against the bundled (certifi) CA bundle
+  #   false      -> disable verification entirely (INSECURE; dev/e2e only)
+  #   <path.pem> -> verify against a specific CA bundle / certificate file
+  tls_verify: system
+
   # Request retry policy
   # Max number of retries to the QPU API in case of 
   # transient errors during requests
