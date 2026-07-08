@@ -93,9 +93,9 @@ Warden's access to the PASQAL QPU can be configured through the YAML config or e
 
 `qpu.tls_verify` only applies when `qpu.uri` uses `https`. It accepts:
 
-- `system` — verify against the OS trust store (default). Use this for backends with self-signed certs: add the CA to `/etc/pki/ca-trust/source/anchors/` and run `update-ca-trust` (or `/etc/ssl/certs`).
-- `true` — verify against the bundled (certifi) CA store.
-- `false` — disable verification entirely. **Insecure**, dev/e2e only.
+- `system`: verify against the OS trust store (default). Use this for backends with self-signed certs: add the CA to `/etc/pki/ca-trust/source/anchors/` and run `update-ca-trust` (or `/etc/ssl/certs`).
+- `true`: verify against the bundled (certifi) CA store.
+- `false`: disable verification entirely. **Insecure**, dev/local testing only.
 - a path (e.g. `/etc/warden/backend-ca.pem`) — verify against a specific CA bundle / certificate file.
 
 
