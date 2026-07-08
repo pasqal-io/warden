@@ -82,7 +82,7 @@ qpu:
   #   true       -> verify against the bundled (certifi) CA bundle
   #   false      -> disable verification entirely (INSECURE; dev/e2e only)
   #   <path.pem> -> verify against a specific CA bundle / certificate file
-  # tls_verify: system
+  tls_verify: system
 
   # Request retry policy
   # Max number of retries to the QPU API in case of 
