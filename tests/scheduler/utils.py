@@ -33,10 +33,16 @@ async def wait_until_scalar_equals(
 
 
 async def create_n_jobs(
-    db_session_maker: async_sessionmaker, n_jobs: int, shots: int = 100
+    db_session_maker: async_sessionmaker,
+    n_jobs: int,
+    shots: int = 100,
+    backend_ids: list[str] | None = None,
 ) -> list[Job]:
     """Creates n_jobs mock jobs to run in the warden db"""
     SLURM_USER_ID = "1234"
+
+    if backend_ids and len(backend_ids) != n_jobs:
+        raise Exception("Length of 'backend_ids' should match 'n_jobs' parameter")
 
     jobs_to_run = [
         Job(
@@ -44,8 +50,9 @@ async def create_n_jobs(
             status="PENDING",
             shots=shots,
             session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
+            backend_id=backend_ids[i] if backend_ids else None,
         )
-        for _ in range(n_jobs)
+        for i in range(n_jobs)
     ]
 
     async with db_session_maker() as session:
@@ -53,31 +60,6 @@ async def create_n_jobs(
         await session.commit()
 
     return jobs_to_run
-
-
-async def create_jobs_with_backend_ids(
-    db_session_maker: async_sessionmaker, backend_ids: list[str], shots: int = 100
-) -> list[Job]:
-    """Creates a jobs with given backend_ids"""
-    SLURM_USER_ID = "1234"
-
-    jobs = []
-    for backend_id in backend_ids:
-        jobs.append(
-            Job(
-                sequence="{}",
-                status="PENDING",
-                shots=shots,
-                backend_id=backend_id,
-                session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
-            )
-        )
-
-    async with db_session_maker() as session:
-        session.add_all(jobs)
-        await session.commit()
-
-    return jobs
 
 
 def raise_task_exception(async_task: Task) -> None:

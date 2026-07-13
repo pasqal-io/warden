@@ -318,9 +318,14 @@ async def test_run_resume_job(
     )
 
     # Populate DB with jobs to run
-    await utils.create_jobs_with_backend_ids(
+    await utils.create_n_jobs(
         db_session_maker,
-        [NORMAL_BACKEND_ID, NON_EXISTING_BACKEND_ID, ALREADY_DONE_BACKEND_ID],
+        3,
+        backend_ids=[
+            NORMAL_BACKEND_ID,
+            NON_EXISTING_BACKEND_ID,
+            ALREADY_DONE_BACKEND_ID,
+        ],
     )
 
     stmt_count = select(func.count(Job.id)).where(Job.status == "DONE")
@@ -758,9 +763,10 @@ async def test_run_resume_job_timeout(
     )
 
     # Populate DB with jobs to run
-    await utils.create_jobs_with_backend_ids(
+    await utils.create_n_jobs(
         db_session_maker,
-        [BACKEND_ID],
+        n_jobs=1,
+        backend_ids=[BACKEND_ID],
     )
 
     stmt_count = select(func.count(Job.id)).where(Job.status == EXPECTED_JOB_STATUS)
