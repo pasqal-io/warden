@@ -198,3 +198,46 @@ async def test_fifo_job_running(db_session_maker):
         assert schedule[2].id == 3
         assert schedule[3].id == 2
         assert schedule[4] is None
+
+
+@pytest.mark.asyncio
+async def test_fifo_weights_sessions_by_qpu_slots(db_session_maker):
+    """QPU slots weight job-level scheduling turns across sessions."""
+
+    scheduler = schedulers[SchedulerStrategy.FIFO]
+    now = datetime.now()
+    large = Session(slurm_job_id="large", user_id="1000", qpu_slots=5)
+    small = Session(slurm_job_id="small", user_id="1001", qpu_slots=1)
+    jobs = []
+    for index in range(12):
+        jobs.extend(
+            [
+                Job(
+                    session=large,
+                    shots=100,
+                    sequence="{}",
+                    status="PENDING",
+                    created_at=now + timedelta(microseconds=index * 2),
+                ),
+                Job(
+                    session=small,
+                    shots=100,
+                    sequence="{}",
+                    status="PENDING",
+                    created_at=now + timedelta(microseconds=index * 2 + 1),
+                ),
+            ]
+        )
+
+    async with db_session_maker() as session:
+        session.add_all(jobs)
+        await session.commit()
+        scheduled_sessions = []
+        for _ in range(6):
+            job = await scheduler.get_next_job(session)
+            scheduled_sessions.append(job.session.slurm_job_id)
+            job.status = "DONE"
+            await session.commit()
+
+    assert scheduled_sessions.count("large") == 5
+    assert scheduled_sessions.count("small") == 1

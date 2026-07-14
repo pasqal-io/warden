@@ -72,6 +72,7 @@ class SchedulerConfig(BaseSettings):
 
 class QPUConfig(BaseSettings):
     uri: str = "http://localhost:8000"
+    qpu_slots_total: int | None = Field(default=None, gt=0)
 
     retry_max: int = 10
     retry_sleep_s: float = 1

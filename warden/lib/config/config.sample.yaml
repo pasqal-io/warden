@@ -74,6 +74,11 @@ qpu:
   # Local Pasqal QPU API configuration
   uri: http://localhost:8000
 
+  # Optional Warden-enforced QPU slot capacity.
+  # If unset, session creation stores requested qpu_slots but does not enforce
+  # an aggregate limit. Set this for local QPU reservation admission.
+  # qpu_slots_total: 10
+
   # TLS verification policy for requests to the QPU backend.
   # Only relevant when 'uri' uses https. Accepts:
   #   system     -> verify against the OS trust store, e.g. anchors added to

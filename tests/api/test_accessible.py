@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 
 from tests.api.conftest import mock_munge_auth
+from warden.lib.models import Session
 
 
 @pytest.mark.asyncio
@@ -70,3 +71,32 @@ async def test_accessible_auth_update(client: AsyncClient, app):
     with mock_munge_auth(app, uid=0):
         response = await client.post("/accessible", json=payload)
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_accessible_get_contract_for_external_polling(client: AsyncClient):
+    """Verify GET /accessible is unauthenticated and schema-stable."""
+
+    response = await client.get("/accessible")
+    assert response.status_code == 200
+    assert {"is_accessible", "message"}.issubset(response.json())
+    assert isinstance(response.json()["is_accessible"], bool)
+    assert isinstance(response.json()["message"], str)
+
+
+@pytest.mark.asyncio
+async def test_accessible_reports_configured_qpu_slots(client: AsyncClient, app):
+    """Verify GET /accessible includes configured QPU slot capacity."""
+
+    app.state.qpu_config.qpu_slots_total = 10
+    async_session = app.state.db_session_factory
+    async with async_session() as session:
+        session.add(Session(user_id="1000", slurm_job_id="1", qpu_slots=4))
+        await session.commit()
+
+    response = await client.get("/accessible")
+
+    assert response.status_code == 200
+    assert response.json()["qpu_slots_total"] == 10
+    assert response.json()["qpu_slots_used"] == 4
+    assert response.json()["qpu_slots_available"] == 6
