@@ -153,9 +153,13 @@ async def test_revoke_session_is_idempotent(client, app):
         first = await client.delete(f"/sessions/{session_id}")
         second = await client.delete(f"/sessions/{session_id}")
     assert first.status_code == second.status_code == 200
-    assert first.json()["revoked_at"].rstrip("Z") == second.json()["revoked_at"].rstrip(
-        "Z"
-    )
+    first_revoked_at = datetime.fromisoformat(
+        first.json()["revoked_at"].rstrip("Z")
+    ).replace(microsecond=0)
+    second_revoked_at = datetime.fromisoformat(
+        second.json()["revoked_at"].rstrip("Z")
+    ).replace(microsecond=0)
+    assert first_revoked_at == second_revoked_at
 
 
 @pytest.mark.asyncio

@@ -33,7 +33,9 @@ async def is_accessible(
     )
 
 
-async def qpu_slot_state(db_session: DBSessionDep, qpu_config: QPUConfig) -> dict[str, int]:
+async def qpu_slot_state(
+    db_session: DBSessionDep, qpu_config: QPUConfig
+) -> dict[str, int]:
     if qpu_config.qpu_slots_total is None:
         return {}
     result = await db_session.execute(
