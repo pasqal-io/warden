@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from logging import getLogger
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import UUID4
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 
 from warden.api.routes.dependencies.auth import (
     AdminUserDep,
@@ -78,7 +80,7 @@ async def lock_qpu_capacity(db_session: DBSessionDep) -> None:
         .where(QPUCapacityLock.id == 1)
         .values(revision=QPUCapacityLock.revision + 1)
     )
-    if result.rowcount != 1:
+    if cast(CursorResult[Any], result).rowcount != 1:
         raise RuntimeError(
             "QPU capacity lock is missing; run the latest Warden database migration."
         )

@@ -26,7 +26,7 @@ async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     async with app.state.db_session_factory() as session:
-        session.add(QPUCapacityLock(id=1))
+        await session.merge(QPUCapacityLock(id=1))
         await session.commit()
     yield app
     async with app.state.db_engine.begin() as conn:

@@ -235,6 +235,7 @@ async def test_fifo_weights_sessions_by_qpu_slots(db_session_maker):
         scheduled_sessions = []
         for _ in range(6):
             job = await scheduler.get_next_job(session)
+            assert job is not None
             scheduled_sessions.append(job.session.slurm_job_id)
             job.status = "DONE"
             await session.commit()
