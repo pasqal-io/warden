@@ -8,7 +8,8 @@ from sqlalchemy import CursorResult, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from warden.lib.config import SchedulerStrategy
-from warden.lib.models import Job
+from warden.lib.models import Job, Session
+from warden.lib.models.sessions import active_session_filter
 
 SCHEDULABLE_STATUS = ["PENDING", "RUNNING"]
 
@@ -47,16 +48,18 @@ class Scheduler(ABC):
 
 
 class FifoScheduler(Scheduler):
-    """Simple FIFO Queue"""
+    """FIFO queue with turns weighted by each session's QPU slots"""
 
     @staticmethod
     async def _get_next_job_id(session: AsyncSession) -> Optional[int]:
         candidate_stmt = (
             select(Job.id)
-            .where(Job.status.in_(SCHEDULABLE_STATUS))
+            .join(Session)
+            .where(Job.status.in_(SCHEDULABLE_STATUS), active_session_filter())
             .order_by(
                 # Rank jobs with an assigned backend before pending ones without
                 case((Job.backend_id.is_(None), 1), else_=0),
+                Session.scheduler_vruntime,
                 Job.backend_id.asc(),
                 Job.created_at,
                 Job.id,
@@ -64,6 +67,20 @@ class FifoScheduler(Scheduler):
             .limit(1)
         )
         return (await session.execute(candidate_stmt)).scalar_one_or_none()
+
+    async def get_next_job(self, session: AsyncSession) -> Optional[Job]:
+        job = await super().get_next_job(session)
+        if job is not None and job.backend_id is None:
+            await session.execute(
+                update(Session)
+                .where(Session.id == job.session_id)
+                .values(
+                    scheduler_vruntime=Session.scheduler_vruntime
+                    + 1.0 / Session.qpu_slots
+                )
+            )
+            await session.commit()
+        return job
 
 
 schedulers = {SchedulerStrategy.FIFO: FifoScheduler()}

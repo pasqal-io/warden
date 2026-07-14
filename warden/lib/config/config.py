@@ -187,6 +187,15 @@ class QPUConfig(WardenSettings):
     uri: str = Field(
         default="http://localhost:8000", description="Local Pasqal QPU API URI."
     )
+    qpu_slots_total: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Optional Warden-enforced QPU slot capacity. If unset, session "
+            "creation stores requested qpu_slots but does not enforce an "
+            "aggregate limit. Set this for local QPU reservation admission."
+        ),
+    )
 
     retry_max: int = Field(
         default=10,
