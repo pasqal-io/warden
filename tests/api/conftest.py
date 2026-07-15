@@ -1,5 +1,6 @@
 import json
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from typing import AsyncGenerator, Callable, Generator
 
 import pytest
@@ -13,6 +14,7 @@ from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.lib.config.config import APIConfig, Config, DatabaseConfig, QPUConfig
 from warden.lib.db.database import Base
+from warden.lib.models import Job, Session
 from warden.lib.qpu_client.client import AsyncQPUClient
 
 
@@ -249,3 +251,54 @@ def qpu_specs() -> dict:
     specs = json.loads(DigitalAnalogDevice.to_abstract_repr())
     specs["name"] = "FRESNEL_CAN1"
     return specs
+
+
+async def acct_populate_db(
+    app,
+    serialized_sequence: str,
+    n_users: int,
+    first_session_start: datetime = datetime(2026, 1, 1, 0, 0, 0),
+    session_duration: timedelta = timedelta(hours=1),
+    user_time_offset: timedelta = timedelta(hours=1),
+) -> tuple[list[str], list[Job], list[Session]]:
+    """Creates mock data for accounting testing in DB"""
+    BASE_START_DATETIME = first_session_start
+    BASE_END_DATETIME = BASE_START_DATETIME + session_duration
+    user_uids = [str(i) for i in range(1000, 1000 + n_users)]
+
+    # Create at least one session and job per user
+    sessions = []
+    jobs = []
+    for i, uid in enumerate(user_uids):
+        start_session = BASE_START_DATETIME + i * user_time_offset
+        end_session = BASE_END_DATETIME + i * user_time_offset
+
+        sessions.append(
+            Session(
+                created_at=start_session,
+                revoked_at=end_session,
+                user_id=uid,
+                slurm_job_id=str(i),
+            )
+        )
+        jobs.append(
+            Job(
+                status="DONE",
+                logs="",
+                shots=100,
+                sequence=serialized_sequence,
+                created_at=start_session,
+                scheduled_at=start_session,
+                started_at=start_session,
+                ended_at=end_session,
+                # Relationship
+                session=sessions[-1],
+            )
+        )
+
+    async_session_factory = app.state.db_session_factory
+    async with async_session_factory() as db_session:
+        db_session.add_all(sessions)
+        db_session.add_all(jobs)
+        await db_session.commit()
+    return user_uids, jobs, sessions

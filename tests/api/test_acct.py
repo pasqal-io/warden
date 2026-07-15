@@ -3,8 +3,7 @@ from datetime import datetime, timedelta
 import pytest
 from httpx import AsyncClient
 
-from tests.api.conftest import mock_munge_auth
-from warden.lib.models import Job, Session
+from tests.api.conftest import acct_populate_db, mock_munge_auth
 
 ACCT_ENDPOINT = "/acct"
 
@@ -29,48 +28,11 @@ async def test_acct_required_start(client: AsyncClient, app):
 
 
 @pytest.mark.asyncio
-async def test_acct_nominal_pagination(client, app, serialized_sequence):
+async def test_acct_nominal_pagination_filter(client, app, serialized_sequence):
     """Assert that the accounting data query returns the right number of rows."""
-    START_DATETIME = datetime(2026, 1, 1, 0, 0, 0)
-    END_DATETIME = datetime(2026, 1, 1, 1, 0, 0)
     N_USERS = 10
-    user_uids = [str(i) for i in range(1000, 1000 + N_USERS)]
 
-    # Create at least one session and job per user
-    sessions = []
-    jobs = []
-    for i, uid in enumerate(user_uids):
-        start_session = START_DATETIME + timedelta(hours=i)
-        end_session = END_DATETIME + timedelta(hours=i)
-
-        sessions.append(
-            Session(
-                created_at=start_session,
-                revoked_at=end_session,
-                user_id=uid,
-                slurm_job_id=str(i),
-            )
-        )
-        jobs.append(
-            Job(
-                status="DONE",
-                logs="",
-                shots=100,
-                sequence=serialized_sequence,
-                created_at=start_session,
-                scheduled_at=start_session,
-                started_at=start_session,
-                ended_at=end_session,
-                # Relationship
-                session=sessions[-1],
-            )
-        )
-
-    async_session_factory = app.state.db_session_factory
-    async with async_session_factory() as db_session:
-        db_session.add_all(sessions)
-        db_session.add_all(jobs)
-        await db_session.commit()
+    user_uids, _, _ = await acct_populate_db(app, serialized_sequence, N_USERS)
 
     # Test default
     with mock_munge_auth(app, uid=0):
@@ -128,3 +90,68 @@ async def test_acct_nominal_pagination(client, app, serialized_sequence):
     assert response.json()["pagination"]["end"] == N_USERS
     assert len(response.json()["data"]) == 2
     assert response.json()["data"][0]["user_id"] == user_uids[N_USERS - 2]
+
+
+@pytest.mark.asyncio
+async def test_acct_nominal_datetime_filter(client, app, serialized_sequence):
+    """Assert that the accounting data query correctly filters according to start/end datetime."""
+
+    N_USERS = 10
+    FIRST_SESSION_START = datetime(2026, 1, 1, 0, 0, 0)
+
+    SESSION_DURATION = timedelta(minutes=45)
+    USER_TIME_OFFSET = timedelta(hours=1)
+
+    user_ids, _, sessions = await acct_populate_db(
+        app,
+        serialized_sequence,
+        first_session_start=FIRST_SESSION_START,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+        user_time_offset=USER_TIME_OFFSET,
+    )
+
+    # Test default get all
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT + "?start_datetime=" + FIRST_SESSION_START.isoformat()
+        )
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == N_USERS
+    assert response.json()["data"][0]["user_id"] == user_ids[0]
+
+    # Test filtering only first user session
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime="
+            + FIRST_SESSION_START.isoformat()
+            + "&end_datetime="
+            + (sessions[0].revoked_at + timedelta(seconds=1)).isoformat()
+        )
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == 1
+    assert response.json()["data"][0]["user_id"] == user_ids[0]
+
+    # Test time filtering is total partition of data
+    # We split the filtering exactly at the revocation time of the 2nd user's session
+    with mock_munge_auth(app, uid=0):
+        response_before = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime="
+            + FIRST_SESSION_START.isoformat()
+            + "&end_datetime="
+            + sessions[1].revoked_at.isoformat()
+            + "&limit=100"
+        )
+        response_after = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime="
+            + sessions[1].revoked_at.isoformat()
+            + "&limit=100"
+        )
+    assert response_after.status_code == 200
+    assert response_before.status_code == 200
+
+    assert len(response_before.json()["data"]) == 1
+    assert len(response_after.json()["data"]) == 9
