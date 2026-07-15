@@ -6,21 +6,25 @@ from httpx import AsyncClient
 from tests.api.conftest import mock_munge_auth
 from warden.lib.models import Job, Session
 
+ACCT_ENDPOINT = "/acct"
+
 
 @pytest.mark.asyncio
 async def test_acct_required_start(client: AsyncClient, app):
     """Assert that 'start_datetime' is required in the accounting data query."""
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get("/acct")
+        response = await client.get(ACCT_ENDPOINT)
     assert response.status_code == 422
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get("/acct?end_datetime=2022-01-01T00:00:00")
+        response = await client.get(ACCT_ENDPOINT + "?end_datetime=2022-01-01T00:00:00")
     assert response.status_code == 422
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get("/acct?start_datetime=2022-01-01T00:00:00")
+        response = await client.get(
+            ACCT_ENDPOINT + "?start_datetime=2022-01-01T00:00:00"
+        )
     assert response.status_code == 200
 
 
@@ -30,8 +34,6 @@ async def test_acct_nominal_pagination(client, app, serialized_sequence):
     START_DATETIME = datetime(2026, 1, 1, 0, 0, 0)
     END_DATETIME = datetime(2026, 1, 1, 1, 0, 0)
     N_USERS = 10
-    PAGINATION_LIMIT = 5
-    PAGINATION_OFFSET = 4
     user_uids = [str(i) for i in range(1000, 1000 + N_USERS)]
 
     # Create at least one session and job per user
@@ -73,28 +75,56 @@ async def test_acct_nominal_pagination(client, app, serialized_sequence):
     # Test default
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            "/acct?start_datetime=2020-01-01T00:00:00&limit=100"
+            ACCT_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
     assert response.json()["pagination"]["total"] == N_USERS
+    assert response.json()["pagination"]["start"] == 0
+    assert response.json()["pagination"]["end"] == N_USERS
     assert len(response.json()["data"]) == N_USERS
     assert response.json()["data"][0]["user_id"] == user_uids[0]
 
-    # Test pagination
+    # Test pagination limit
+    PAGINATION_LIMIT = 5
+    assert PAGINATION_LIMIT < N_USERS
+
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            f"/acct?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
+            ACCT_ENDPOINT
+            + f"?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
         )
     assert response.status_code == 200
     assert response.json()["pagination"]["total"] == N_USERS
+    assert response.json()["pagination"]["start"] == 0
+    assert response.json()["pagination"]["end"] == PAGINATION_LIMIT
     assert len(response.json()["data"]) == PAGINATION_LIMIT
+    assert response.json()["data"][0]["user_id"] == user_uids[0]
 
     # Test offset
+    PAGINATION_LIMIT = 5
+    PAGINATION_OFFSET = 4
+    assert PAGINATION_LIMIT + PAGINATION_OFFSET < N_USERS
+
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            f"/acct?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}&offset={PAGINATION_OFFSET}"
+            ACCT_ENDPOINT
+            + f"?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}&offset={PAGINATION_OFFSET}"
         )
     assert response.status_code == 200
     assert response.json()["pagination"]["total"] == N_USERS
+    assert response.json()["pagination"]["start"] == PAGINATION_OFFSET
+    assert response.json()["pagination"]["end"] == PAGINATION_LIMIT + PAGINATION_OFFSET
     assert len(response.json()["data"]) == PAGINATION_LIMIT
     assert response.json()["data"][0]["user_id"] == user_uids[PAGINATION_OFFSET]
+
+    # Test offset end of data length
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT + f"?start_datetime=2020-01-01T00:00:00&offset={N_USERS - 2}"
+        )
+    assert response.status_code == 200
+    assert response.json()["pagination"]["total"] == N_USERS
+    assert response.json()["pagination"]["start"] == N_USERS - 2
+    assert response.json()["pagination"]["end"] == N_USERS
+    assert len(response.json()["data"]) == 2
+    assert response.json()["data"][0]["user_id"] == user_uids[N_USERS - 2]
