@@ -30,7 +30,7 @@ async def test_job_nominal_flow_success(
     with mock_munge_auth(app, uid=0):
         response = await client.post(
             "/sessions",
-            json={"user_id": str(user_id), "slurm_job_id": "1"},
+            json={"user_id": str(user_id), "scheduler_job_id": "1"},
         )
     assert response.status_code == 200
     session_id = response.json()["id"]
@@ -53,7 +53,9 @@ async def test_job_nominal_flow_success(
 
     # 4. Revoke the session as the root user
     with mock_munge_auth(app, uid=0):
-        response = await client.delete(f"/sessions/{session_id}")
+        response = await client.delete(
+            "/sessions", headers={"X-Warden-Session": session_id}
+        )
     assert response.status_code == 200
 
     # 5. Send a job on the revoked session
@@ -91,7 +93,7 @@ async def test_list_jobs(client, app, serialized_sequence: str):
         Job(
             sequence=serialized_sequence,
             shots=100,
-            session=Session(slurm_job_id="1", user_id=str(user_id)),
+            session=Session(scheduler_job_id="1", user_id=str(user_id)),
         )
         for _ in range(10)
     ]
@@ -99,14 +101,14 @@ async def test_list_jobs(client, app, serialized_sequence: str):
         Job(
             sequence=serialized_sequence,
             shots=100,
-            session=Session(slurm_job_id="2", user_id="1001"),
+            session=Session(scheduler_job_id="2", user_id="1001"),
         )
     )
     jobs.append(
         Job(
             sequence=serialized_sequence,
             shots=100,
-            session=Session(slurm_job_id="3", user_id="1002"),
+            session=Session(scheduler_job_id="3", user_id="1002"),
         )
     )
     async_session = app.state.db_session_factory
@@ -136,7 +138,7 @@ async def test_get_job_success(client, app, serialized_sequence: str):
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
     )
@@ -168,7 +170,7 @@ async def test_get_job_not_found(client, app, serialized_sequence: str):
     user_id = 1000
     wrong_user_id = 1001
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
     )
@@ -213,14 +215,14 @@ async def test_job_logs_success(client: AsyncClient, app, serialized_sequence: s
     user_id = 1000
     job_1 = Job(
         id=1,
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
         logs="Those are logs",
     )
     job_2 = Job(
         id=2,
-        session=Session(user_id=str(user_id), slurm_job_id="2"),
+        session=Session(user_id=str(user_id), scheduler_job_id="2"),
         sequence=serialized_sequence,
         shots=100,
     )
@@ -257,7 +259,7 @@ async def test_job_logs_not_found(client: AsyncClient, app, serialized_sequence:
     JOB_ID = 1
     job = Job(
         id=JOB_ID,
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
         logs="Those are logs",
@@ -287,7 +289,7 @@ async def test_create_job_with_cudaq_payload(
     with mock_munge_auth(app, uid=0):
         response = await client.post(
             "/sessions",
-            json={"user_id": str(user_id), "slurm_job_id": "1"},
+            json={"user_id": str(user_id), "scheduler_job_id": "1"},
         )
     assert response.status_code == 200
     session_id = response.json()["id"]
@@ -325,7 +327,7 @@ async def test_create_job_with_cudaq_payload_specs_fetch_failure_returns_503(
     with mock_munge_auth(app, uid=0):
         response = await client.post(
             "/sessions",
-            json={"user_id": str(user_id), "slurm_job_id": "1"},
+            json={"user_id": str(user_id), "scheduler_job_id": "1"},
         )
     assert response.status_code == 200
     session_id = response.json()["id"]
@@ -354,7 +356,7 @@ async def test_create_job_with_cudaq_payload_invalid_sequence_returns_422(
     with mock_munge_auth(app, uid=0):
         response = await client.post(
             "/sessions",
-            json={"user_id": str(user_id), "slurm_job_id": "1"},
+            json={"user_id": str(user_id), "scheduler_job_id": "1"},
         )
     assert response.status_code == 200
     session_id = response.json()["id"]
@@ -387,7 +389,7 @@ async def test_cancel_job_already_done(client, app, serialized_sequence: str):
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         status="DONE",
         shots=100,
@@ -419,7 +421,7 @@ async def test_cancel_job_not_found(client, app, serialized_sequence: str):
     wrong_user_id = 2000
 
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
     )
@@ -451,7 +453,7 @@ async def test_cancel_job_not_scheduled(client, app, serialized_sequence: str):
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
     )
@@ -489,7 +491,7 @@ async def test_cancel_job_already_scheduled(client, app, serialized_sequence: st
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         scheduled_at=datetime.now(),
         shots=100,
@@ -528,7 +530,7 @@ async def test_cancel_job_twice(client, app, serialized_sequence: str):
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
     )
@@ -562,7 +564,7 @@ async def test_concurrent_cancels_have_a_single_winner(
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
         status="PENDING",

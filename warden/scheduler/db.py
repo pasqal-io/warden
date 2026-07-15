@@ -1,11 +1,13 @@
 """DB commit async worker"""
 
 import logging
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from warden.lib.models import Job
+from warden.lib.models import Job, Session
+from warden.lib.session_lifecycle import TERMINAL_JOB_STATUSES
 from warden.scheduler.types import JobUpdateQueue
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,7 @@ async def job_update_commiter(
     job_id: int,
     queue: JobUpdateQueue,
     session_factory: async_sessionmaker[AsyncSession],
+    session_idle_timeout_s: int,
 ):
     """Consumes Job Updates to db"""
     while True:
@@ -43,6 +46,20 @@ async def job_update_commiter(
             try:
                 async with session.begin():
                     await session.execute(stmt)
+                    if job_update.status in TERMINAL_JOB_STATUSES:
+                        session_id = (
+                            await session.execute(
+                                select(Job.session_id).where(Job.id == job_id)
+                            )
+                        ).scalar_one()
+                        await session.execute(
+                            update(Session)
+                            .where(Session.id == session_id)
+                            .values(
+                                idle_expires_at=datetime.now(timezone.utc)
+                                + timedelta(seconds=session_idle_timeout_s)
+                            )
+                        )
                 logger.debug(f"Job {job_id} updated in db")
             except Exception as e:
                 logger.error(f"DB Update failed: {e}")

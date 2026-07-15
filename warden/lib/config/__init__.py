@@ -5,6 +5,7 @@ from warden.lib.config.config import (
     QPUConfig,
     SchedulerConfig,
     SchedulerStrategy,
+    SessionConfig,
 )
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "QPUConfig",
     "SchedulerConfig",
     "SchedulerStrategy",
+    "SessionConfig",
     "APIConfig",
 ]

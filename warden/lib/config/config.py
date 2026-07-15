@@ -181,6 +181,38 @@ class SchedulerConfig(WardenSettings):
     )
 
 
+class SessionConfig(WardenSettings):
+    """Warden session lifetime configuration."""
+
+    idle_timeout_s: int = Field(
+        default=3600,
+        gt=0,
+        description=(
+            "Seconds a session may stay without pending or running jobs "
+            "before Warden revokes it."
+        ),
+    )
+    max_lifetime_s: int = Field(
+        default=2_592_000,
+        gt=0,
+        description="Absolute session lifetime in seconds, regardless of activity.",
+    )
+    reaper_interval_s: float = Field(
+        default=30,
+        gt=0,
+        description="Seconds between checks for expired sessions.",
+    )
+
+    @model_validator(mode="after")
+    def ensure_max_lifetime_exceeds_idle_timeout(self) -> "SessionConfig":
+        """Require the absolute lifetime to cover the idle timeout."""
+        if self.max_lifetime_s < self.idle_timeout_s:
+            raise ValueError(
+                "max_lifetime_s must be greater than or equal to idle_timeout_s"
+            )
+        return self
+
+
 class QPUConfig(WardenSettings):
     """QPU backend connection configuration."""
 
@@ -323,6 +355,7 @@ class Config(WardenSettings):
     api: APIConfig = APIConfig()
     database: DatabaseConfig = SqliteConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
+    sessions: SessionConfig = SessionConfig()
     logging: dict[str, Any] = DEFAULT_LOGGING_CONFIG
     qpu: QPUConfig = QPUConfig()
 

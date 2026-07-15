@@ -7,6 +7,7 @@ from warden.api.routes import accessible, acct, jobs, qpu, sessions, status
 from warden.api.routes.dependencies.auth import init_auth
 from warden.api.routes.dependencies.db import init_db
 from warden.api.routes.dependencies.qpu_client import init_qpu_client
+from warden.api.routes.dependencies.session_config import init_session_config
 from warden.lib.config import Config
 
 TAGS_METADATA = [
@@ -27,6 +28,7 @@ def create_app(config: Config):
     init_db(app, config.database)
     init_qpu_client(app, config.qpu)
     init_auth(app, config.api)
+    init_session_config(app, config.sessions)
 
     app.include_router(jobs.router, tags=["jobs"])
     app.include_router(sessions.router, tags=["sessions"])

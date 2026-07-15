@@ -15,6 +15,7 @@ from warden.api.utils.munge import (
 )
 from warden.lib.config.config import APIConfig
 from warden.lib.models.sessions import Session
+from warden.lib.session_lifecycle import session_is_expired
 
 logger = getLogger(__name__)
 
@@ -72,9 +73,7 @@ async def munge_identity(
 
     try:
         payload, uid = await asyncio.to_thread(decode_munge, x_munge_cred.encode())
-        logger.debug(
-            f"Successfully decoded munge token, uid {uid} payload {str(payload)}"
-        )
+        logger.debug("Successfully decoded MUNGE credential for uid %s", uid)
     except MungeReplayError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -127,7 +126,9 @@ async def require_valid_session(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing 'X-Warden-Session' header.",
         )
-    result = await db.execute(select(Session).where(Session.id == session_id))
+    result = await db.execute(
+        select(Session).where(Session.id == session_id).with_for_update(of=Session)
+    )
     session_record = result.scalar_one_or_none()
     if session_record is None:
         raise HTTPException(
@@ -138,6 +139,11 @@ async def require_valid_session(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Session has been revoked.",
+        )
+    if await session_is_expired(db, session_record):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Session has expired.",
         )
     if identity.uid != session_record.user_id:
         raise HTTPException(

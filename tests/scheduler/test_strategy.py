@@ -18,7 +18,7 @@ async def test_fifo_nominal(db_session_maker):
     jobs = [
         Job(
             id=1,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -26,7 +26,7 @@ async def test_fifo_nominal(db_session_maker):
         ),
         Job(
             id=2,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -34,7 +34,7 @@ async def test_fifo_nominal(db_session_maker):
         ),
         Job(
             id=3,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -42,7 +42,7 @@ async def test_fifo_nominal(db_session_maker):
         ),
         Job(
             id=4,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -81,7 +81,7 @@ async def test_fifo_id_precedence(db_session_maker):
     jobs = [
         Job(
             id=1,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -89,7 +89,7 @@ async def test_fifo_id_precedence(db_session_maker):
         ),
         Job(
             id=2,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -97,7 +97,7 @@ async def test_fifo_id_precedence(db_session_maker):
         ),
         Job(
             id=3,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -105,7 +105,7 @@ async def test_fifo_id_precedence(db_session_maker):
         ),
         Job(
             id=4,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -144,7 +144,7 @@ async def test_fifo_job_running(db_session_maker):
     jobs = [
         Job(
             id=1,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -153,7 +153,7 @@ async def test_fifo_job_running(db_session_maker):
         ),
         Job(
             id=2,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -161,7 +161,7 @@ async def test_fifo_job_running(db_session_maker):
         ),
         Job(
             id=3,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="PENDING",
@@ -169,7 +169,7 @@ async def test_fifo_job_running(db_session_maker):
         ),
         Job(
             id=4,
-            session=Session(slurm_job_id="1", user_id="1000"),
+            session=Session(scheduler_job_id="1", user_id="1000"),
             shots=100,
             sequence="{}",
             status="RUNNING",
@@ -206,8 +206,8 @@ async def test_fifo_weights_sessions_by_qpu_slots(db_session_maker):
 
     scheduler = schedulers[SchedulerStrategy.FIFO]
     now = datetime.now()
-    large = Session(slurm_job_id="large", user_id="1000", qpu_slots=5)
-    small = Session(slurm_job_id="small", user_id="1001", qpu_slots=1)
+    large = Session(scheduler_job_id="large", user_id="1000", qpu_slots=5)
+    small = Session(scheduler_job_id="small", user_id="1001", qpu_slots=1)
     jobs = []
     for index in range(12):
         jobs.extend(
@@ -236,7 +236,7 @@ async def test_fifo_weights_sessions_by_qpu_slots(db_session_maker):
         for _ in range(6):
             job = await scheduler.get_next_job(session)
             assert job is not None
-            scheduled_sessions.append(job.session.slurm_job_id)
+            scheduled_sessions.append(job.session.scheduler_job_id)
             job.status = "DONE"
             await session.commit()
 

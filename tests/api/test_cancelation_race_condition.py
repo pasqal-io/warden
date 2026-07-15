@@ -41,7 +41,7 @@ async def test_repeated_job_cancel_and_scheduler_pick_race(
 
     for _ in range(40):
         job = Job(
-            session=Session(user_id=str(user_id), slurm_job_id="1"),
+            session=Session(user_id=str(user_id), scheduler_job_id="1"),
             sequence=serialized_sequence,
             shots=100,
             status="PENDING",
@@ -97,7 +97,7 @@ async def test_repeated_session_revoke_and_scheduler_pick_race(
     scheduler = schedulers[strategy]
 
     for _ in range(40):
-        session_record = Session(user_id=str(user_id), slurm_job_id="1")
+        session_record = Session(user_id=str(user_id), scheduler_job_id="1")
         job = Job(
             session=session_record,
             sequence=serialized_sequence,
@@ -184,7 +184,7 @@ async def test_cancel_racing_scheduler_pick_is_not_claimed(
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
         status="PENDING",
@@ -233,7 +233,7 @@ async def test_session_revoke_racing_scheduler_pick_is_not_claimed(
     instead of `POST /jobs/{id}/cancel`.
     """
     user_id = 1000
-    session_record = Session(user_id=str(user_id), slurm_job_id="1")
+    session_record = Session(user_id=str(user_id), scheduler_job_id="1")
     job = Job(
         session=session_record,
         sequence=serialized_sequence,

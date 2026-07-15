@@ -91,7 +91,7 @@ async def test_accessible_reports_configured_qpu_slots(client: AsyncClient, app)
     app.state.qpu_config.qpu_slots_total = 10
     async_session = app.state.db_session_factory
     async with async_session() as session:
-        session.add(Session(user_id="1000", slurm_job_id="1", qpu_slots=4))
+        session.add(Session(user_id="1000", scheduler_job_id="1", qpu_slots=4))
         await session.commit()
 
     response = await client.get("/accessible")

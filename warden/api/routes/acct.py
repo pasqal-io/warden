@@ -265,7 +265,7 @@ async def get_jobs_accounting(
             Job,
             Job.execution_time,
             Job.wait_time,
-            Session.slurm_job_id,
+            Session.scheduler_job_id.label("slurm_job_id"),
         )
         .join(Session, Session.id == Job.session_id)
         .where(and_(True, *db_query_filters))
@@ -326,7 +326,9 @@ def _build_acct_sessions_db_query_filters(
         filters.append(Session.id.in_(acct_sessions_query.session_id))
 
     if acct_sessions_query.slurm_job_id:
-        filters.append(Session.slurm_job_id.in_(acct_sessions_query.slurm_job_id))
+        filters.append(
+            Session.scheduler_job_id.in_(acct_sessions_query.slurm_job_id)
+        )
 
     return filters
 
@@ -351,7 +353,7 @@ def _build_acct_jobs_db_query_filters(
         filters.append(Job.session_id.in_(acct_jobs_query.session_id))
 
     if acct_jobs_query.slurm_job_id:
-        filters.append(Session.slurm_job_id.in_(acct_jobs_query.slurm_job_id))
+        filters.append(Session.scheduler_job_id.in_(acct_jobs_query.slurm_job_id))
 
     if acct_jobs_query.status:
         filters.append(Job.status.in_(acct_jobs_query.status))

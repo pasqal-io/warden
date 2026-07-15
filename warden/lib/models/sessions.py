@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import (
@@ -37,13 +37,28 @@ class Session(Base):
         DateTime(timezone=True), nullable=True
     )
     user_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    slurm_job_id: Mapped[str] = mapped_column(
-        String(255), doc="ID of the slurm job which created this session."
+    scheduler_job_id: Mapped[str] = mapped_column(
+        String(255),
+        index=True,
+        doc="ID of the scheduler job which created this session.",
     )
     qpu_slots: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     scheduler_vruntime: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0
     )
+    idle_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+        default=lambda: datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+        default=lambda: datetime.now(timezone.utc) + timedelta(days=30),
+    )
+    revocation_reason: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     @hybrid_property
     def duration(self):

@@ -220,7 +220,7 @@ case, `GET /accessible` also returns `qpu_slots_total`, `qpu_slots_used`, and
 
 Capacity admission is serialized in the database, so concurrent session
 requests cannot oversubscribe the configured total. Warden derives session
-idempotency from `(user_id, slurm_job_id)`: repeating an active request for
+idempotency from `(user_id, scheduler_job_id)`: repeating an active request for
 the same scheduler job returns the existing session, while changing its slot
 count returns `409`.
 
@@ -228,3 +228,11 @@ count returns `409`.
 session receives approximately five scheduling turns for every turn received
 by a one-slot session, while jobs remain FIFO within a session. Running QPU jobs
 are not preempted.
+
+Warden retires sessions independently of scheduler wall time. A session is
+revoked after `sessions.idle_timeout_s` without pending or running Warden jobs,
+or after the absolute `sessions.max_lifetime_s` fallback. This handles missing
+Slurm SPANK and Grid Engine epilog cleanup without invalidating jobs whose
+scheduler allocation was extended. Administrators can find sessions with
+`GET /sessions?scheduler_job_id=<id>&active=true` and revoke one immediately
+with `DELETE /sessions` and the session ID in the `X-Warden-Session` header.

@@ -9,6 +9,7 @@ from sqlalchemy import CursorResult, case, select, update
 from warden.api.routes.dependencies.auth import CurrentUserDep, SessionDep
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.api.routes.dependencies.session_config import SessionConfigDep
 from warden.api.schemas.jobs import (
     AHSSequence,
     Job,
@@ -18,7 +19,9 @@ from warden.api.schemas.jobs import (
     try_parse_AHSSequence,
 )
 from warden.api.utils.cudaq import normalize_cudaq_sequence
+from warden.lib.models import Session
 from warden.lib.qpu_client import QPUClient, QPUClientRequestError
+from warden.lib.session_lifecycle import idle_deadline
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
@@ -29,6 +32,7 @@ async def create_job(
     job: JobCreate,
     db_session: DBSessionDep,
     session: SessionDep,
+    session_config: SessionConfigDep,
     qpu_client: QPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
     """
@@ -61,9 +65,14 @@ async def create_job(
         session_id=session.id,
     )
     db_session.add(new_job)
+    session.idle_expires_at = idle_deadline(session_config)
     await db_session.flush()
     await db_session.commit()
-    logger.info(f"Created warden job {new_job.id} for slurm job {session.slurm_job_id}")
+    logger.info(
+        "Created warden job %s for scheduler job %s",
+        new_job.id,
+        session.scheduler_job_id,
+    )
     return JobResponse.from_model(new_job)
 
 
@@ -98,6 +107,7 @@ async def cancel_job(
     id: int,
     db_session: DBSessionDep,
     identity: CurrentUserDep,
+    session_config: SessionConfigDep,
 ) -> JobResponse:
     async with db_session.begin():
         # Atomic claim: ownership and the cancelability guards are
@@ -136,6 +146,13 @@ async def cancel_job(
                 )
             raise HTTPException(
                 409, detail="Job with status was already requested to be stopped"
+            )
+        if job.scheduled_at is None:
+            # Canceled before the worker picked it up: the session is idle again
+            await db_session.execute(
+                update(Session)
+                .where(Session.id == job.session_id)
+                .values(idle_expires_at=idle_deadline(session_config))
             )
     return JobResponse.from_model(job)
 
