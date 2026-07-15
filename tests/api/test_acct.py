@@ -121,13 +121,15 @@ async def test_acct_nominal_datetime_filter(client, app, serialized_sequence):
     assert response.json()["data"][0]["user_id"] == user_ids[0]
 
     # Test filtering only first user session
+    first_session = sessions[0]
+    assert first_session.revoked_at is not None
     with mock_munge_auth(app, uid=0):
         response = await client.get(
             ACCT_ENDPOINT
             + "?start_datetime="
             + FIRST_SESSION_START.isoformat()
             + "&end_datetime="
-            + (sessions[0].revoked_at + timedelta(seconds=1)).isoformat()
+            + (first_session.revoked_at + timedelta(seconds=1)).isoformat()
         )
     assert response.status_code == 200
     assert len(response.json()["data"]) == 1
@@ -135,19 +137,21 @@ async def test_acct_nominal_datetime_filter(client, app, serialized_sequence):
 
     # Test time filtering is total partition of data
     # We split the filtering exactly at the revocation time of the 2nd user's session
+    second_session = sessions[1]
+    assert second_session.revoked_at is not None
     with mock_munge_auth(app, uid=0):
         response_before = await client.get(
             ACCT_ENDPOINT
             + "?start_datetime="
             + FIRST_SESSION_START.isoformat()
             + "&end_datetime="
-            + sessions[1].revoked_at.isoformat()
+            + second_session.revoked_at.isoformat()
             + "&limit=100"
         )
         response_after = await client.get(
             ACCT_ENDPOINT
             + "?start_datetime="
-            + sessions[1].revoked_at.isoformat()
+            + second_session.revoked_at.isoformat()
             + "&limit=100"
         )
     assert response_after.status_code == 200
