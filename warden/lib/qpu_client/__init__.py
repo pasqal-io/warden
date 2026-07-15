@@ -5,6 +5,7 @@ from warden.lib.qpu_client.types import (
     QPUInfo,
     QPUJobInfo,
     QPUOperationalStatus,
+    UTCDatetime,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "QPUClientRequestError",
     "JobCancelationError",
     "JobStatus",
+    "UTCDatetime",
 ]

@@ -5,6 +5,7 @@ from asyncio import Task, timeout
 from contextlib import asynccontextmanager
 from typing import Any
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.config import Config, QPUConfig, SchedulerConfig, SchedulerStrategy
@@ -32,10 +33,16 @@ async def wait_until_scalar_equals(
 
 
 async def create_n_jobs(
-    db_session_maker: async_sessionmaker, n_jobs: int, shots: int = 100
+    db_session_maker: async_sessionmaker,
+    n_jobs: int,
+    shots: int = 100,
+    backend_ids: list[str] | None = None,
 ) -> list[Job]:
     """Creates n_jobs mock jobs to run in the warden db"""
     SLURM_USER_ID = "1234"
+
+    if backend_ids and len(backend_ids) != n_jobs:
+        raise Exception("Length of 'backend_ids' should match 'n_jobs' parameter")
 
     jobs_to_run = [
         Job(
@@ -43,8 +50,9 @@ async def create_n_jobs(
             status="PENDING",
             shots=shots,
             session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
+            backend_id=backend_ids[i] if backend_ids else None,
         )
-        for _ in range(n_jobs)
+        for i in range(n_jobs)
     ]
 
     async with db_session_maker() as session:
@@ -79,14 +87,40 @@ def raise_task_exception(async_task: Task) -> None:
 
 @asynccontextmanager
 async def scheduler_task_timeout(delay: float, scheduler_task: Task):
-    """Manage test timeout and cleanup main scheduler task on test timeout"""
+    """Manage test timeout and cleanup main scheduler task on test end.
+
+    On timeout, fails the test with a descriptive pytest message.
+    If the scheduler task itself raised an exception, that is reported
+    as the cause so the real error is immediately visible.
+    """
 
     try:
         async with timeout(delay):
             yield
     except TimeoutError:
-        # cleanup
-        raise_task_exception(scheduler_task)
+        # Check whether the scheduler crashed
+        scheduler_exc: BaseException | None = None
+        if scheduler_task.done() and not scheduler_task.cancelled():
+            scheduler_exc = scheduler_task.exception()
+
+        if scheduler_exc is not None:
+            pytest.fail(
+                f"Test timed out after {delay}s because the scheduler task "
+                f"raised an exception: {type(scheduler_exc).__name__}: {scheduler_exc}"
+            )
+        else:
+            pytest.fail(
+                f"Test timed out after {delay}s waiting for the scheduler "
+                "to reach the expected state."
+            )
+    finally:
+        # Always cancel the scheduler task so it does not keep running after
+        # the test body finishes and fixture teardown begins
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:
