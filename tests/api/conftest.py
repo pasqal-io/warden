@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import AsyncGenerator, Callable, Generator
+from typing import AsyncGenerator, Callable, Generator, Sequence
 
 import pytest
 import pytest_asyncio
@@ -260,8 +260,14 @@ async def acct_populate_db(
     first_session_start: datetime = datetime(2026, 1, 1, 0, 0, 0),
     session_duration: timedelta = timedelta(hours=1),
     user_time_offset: timedelta = timedelta(hours=1),
+    job_statuses: Sequence[str] = ("DONE",),
 ) -> tuple[list[str], list[Job], list[Session]]:
-    """Creates mock data for accounting testing in DB"""
+    """Creates mock data for accounting testing in DB
+
+    One session per user, and one job per entry in ``job_statuses`` per user.
+    Passing several statuses makes the jobs aggregation produce more rows than
+    the sessions aggregation, which is what exercises their pagination.
+    """
     BASE_START_DATETIME = first_session_start
     BASE_END_DATETIME = BASE_START_DATETIME + session_duration
     user_uids = [str(i) for i in range(1000, 1000 + n_users)]
@@ -281,20 +287,21 @@ async def acct_populate_db(
                 slurm_job_id=str(i),
             )
         )
-        jobs.append(
-            Job(
-                status="DONE",
-                logs="",
-                shots=100,
-                sequence=serialized_sequence,
-                created_at=start_session,
-                scheduled_at=start_session,
-                started_at=start_session,
-                ended_at=end_session,
-                # Relationship
-                session=sessions[-1],
+        for status in job_statuses:
+            jobs.append(
+                Job(
+                    status=status,
+                    logs="",
+                    shots=100,
+                    sequence=serialized_sequence,
+                    created_at=start_session,
+                    scheduled_at=start_session,
+                    started_at=start_session,
+                    ended_at=end_session,
+                    # Relationship
+                    session=sessions[-1],
+                )
             )
-        )
 
     async_session_factory = app.state.db_session_factory
     async with async_session_factory() as db_session:

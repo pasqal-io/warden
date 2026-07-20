@@ -159,3 +159,91 @@ async def test_acct_nominal_datetime_filter(client, app, serialized_sequence):
 
     assert len(response_before.json()["data"]) == 1
     assert len(response_after.json()["data"]) == 9
+
+
+@pytest.mark.asyncio
+async def test_acct_reported_durations(client, app, serialized_sequence):
+    """Assert that reported session and job durations are the real elapsed seconds.
+
+    The aggregation uses ``extract('epoch', ...)``, which only has the intended
+    meaning on PostgreSQL. This pins the value on every supported backend.
+    """
+    N_USERS = 3
+    SESSION_DURATION = timedelta(hours=1)
+    EXPECTED_SECONDS = int(SESSION_DURATION.total_seconds())
+
+    await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
+        )
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert len(data) == N_USERS
+
+    for user_data in data:
+        # One session of SESSION_DURATION per user.
+        assert user_data["sessions"]["count"] == 1
+        assert user_data["sessions"]["total_duration"] == EXPECTED_SECONDS
+
+        # One job, spanning the whole session.
+        assert user_data["jobs"]["count"] == 1
+        assert len(user_data["jobs"]["stats"]) == 1
+        assert user_data["jobs"]["stats"][0]["total_duration"] == EXPECTED_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_acct_jobs_are_aligned_with_paginated_users(
+    client, app, serialized_sequence
+):
+    """Assert that job stats belong to the users on the returned page.
+
+    The sessions aggregation groups by user, the jobs aggregation groups by
+    (user, status). Paginating both with the same offset/limit only lines up
+    when every user has exactly one status, so give each user several.
+    """
+    N_USERS = 6
+    JOB_STATUSES = ("DONE", "ERROR", "CANCELED")
+    PAGINATION_LIMIT = 3
+    PAGINATION_OFFSET = 3
+    assert PAGINATION_LIMIT + PAGINATION_OFFSET <= N_USERS
+
+    user_uids, _, _ = await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT
+            + f"?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
+            + f"&offset={PAGINATION_OFFSET}"
+        )
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert len(data) == PAGINATION_LIMIT
+
+    expected_uids = user_uids[PAGINATION_OFFSET : PAGINATION_OFFSET + PAGINATION_LIMIT]
+    assert [user_data["user_id"] for user_data in data] == expected_uids
+
+    for user_data in data:
+        # Each user on the page owns exactly one job per status.
+        assert user_data["jobs"]["count"] == len(JOB_STATUSES), (
+            f"user {user_data['user_id']} reported {user_data['jobs']['count']} "
+            f"jobs, expected {len(JOB_STATUSES)}"
+        )
+        assert {stat["status"] for stat in user_data["jobs"]["stats"]} == set(
+            JOB_STATUSES
+        )
+        for stat in user_data["jobs"]["stats"]:
+            assert stat["count"] == 1
