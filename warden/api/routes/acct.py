@@ -19,6 +19,7 @@ from warden.api.schemas.acct import (
     PaginationResponse,
     SessionsSummary,
 )
+from warden.lib.db.functions import duration_seconds
 from warden.lib.models import Job, Session
 
 logger = getLogger(__name__)
@@ -54,10 +55,9 @@ async def get_accounting_snapshot(
         select(
             Session.user_id,
             func.count(Session.id).label("session_count"),
-            # Check
             func.coalesce(
                 func.sum(
-                    func.extract("epoch", Session.revoked_at - Session.created_at)
+                    duration_seconds(Session.created_at, Session.revoked_at),
                 ),
                 0,
             ).label("total_session_duration"),
@@ -78,25 +78,38 @@ async def get_accounting_snapshot(
         user_id = session_row.user_id
         user_sessions_summary[user_id] = SessionsSummary(
             count=session_row.session_count,
-            total_duration=session_row.total_session_duration,
+            total_duration=int(session_row.total_session_duration or 0),
         )
 
-    # Query to get jobs data aggregated by user_id and job status
+    if not user_sessions_summary:
+        return GetAcctResponse(
+            data=[],
+            pagination=PaginationResponse(
+                total=total_count,
+                start=params.offset,
+                end=params.offset,
+            ),
+        )
+
+    # Query to get jobs data aggregated by user_id and job status.
+    # This aggregation has one row per (user, status), so it cannot share the
+    # request's offset/limit with the sessions aggregation above. It is instead
+    # restricted to the users on the page that query just returned.
     jobs_stmt = (
         select(
             Session.user_id,
             Job.status,
             func.count(Job.id).label("job_count"),
             func.coalesce(
-                func.sum(func.extract("epoch", Job.ended_at - Job.started_at)), 0
+                func.sum(duration_seconds(Job.started_at, Job.ended_at)), 0
             ).label("total_job_duration"),
         )
-        .join(Session, Session.id == Job.session_id, isouter=True)
-        .where(and_(*session_filters))
+        .join(Session, Session.id == Job.session_id)
+        .where(
+            and_(*session_filters, Session.user_id.in_(user_sessions_summary.keys()))
+        )
         .group_by(Session.user_id, Job.status)
         .order_by(Session.user_id)
-        .offset(params.offset)
-        .limit(params.limit)
     )
 
     jobs_result = await db_session.execute(jobs_stmt)
