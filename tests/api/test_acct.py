@@ -220,7 +220,7 @@ async def test_acct_jobs_are_aligned_with_paginated_users(
 
     The sessions aggregation groups by user, the jobs aggregation groups by
     (user, status). Paginating both with the same offset/limit only lines up
-    when every user has exactly one status, so give each user several.
+    when every user has exactly one status, so we test by giving each user several.
     """
     N_USERS = 6
     JOB_STATUSES = ("DONE", "ERROR", "CANCELED")
