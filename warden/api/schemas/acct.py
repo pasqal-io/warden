@@ -11,6 +11,19 @@ class PaginationResponse(BaseModel):
     start: int
     end: int
 
+    @classmethod
+    def for_page(
+        cls, *, offset: int, count: int, total: int
+    ) -> "PaginationResponse":
+        """Pagination for a page holding ``count`` items starting at ``offset``.
+
+        ``start`` is clamped to ``total`` so it never points beyond the data
+        (e.g. an offset past the end), which keeps the invariant
+        ``start <= end <= total`` and ``end - start == count``.
+        """
+        start = min(offset, total)
+        return cls(total=total, start=start, end=start + count)
+
 
 class SessionsSummary(BaseModel):
     count: int

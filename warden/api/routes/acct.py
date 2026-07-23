@@ -84,10 +84,8 @@ async def get_accounting_snapshot(
     if not user_sessions_summary:
         return GetAcctResponse(
             data=[],
-            pagination=PaginationResponse(
-                total=total_count,
-                start=params.offset,
-                end=params.offset,
+            pagination=PaginationResponse.for_page(
+                offset=params.offset, count=0, total=total_count
             ),
         )
 
@@ -142,10 +140,8 @@ async def get_accounting_snapshot(
 
         acct_data_list.append(user_acct_data)
 
-    pagination_resp = PaginationResponse(
-        total=total_count,
-        start=params.offset,
-        end=min(params.offset + len(acct_data_list), total_count),
+    pagination_resp = PaginationResponse.for_page(
+        offset=params.offset, count=len(acct_data_list), total=total_count
     )
 
     return GetAcctResponse(

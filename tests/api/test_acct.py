@@ -91,6 +91,19 @@ async def test_acct_nominal_pagination_filter(client, app, serialized_sequence):
     assert len(response.json()["data"]) == 2
     assert response.json()["data"][0]["user_id"] == user_uids[N_USERS - 2]
 
+    # Test offset past the end: the page is empty, and start/end are clamped to
+    # total so the response stays consistent (end - start == 0 items, never
+    # pointing beyond the data).
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT + f"?start_datetime=2020-01-01T00:00:00&offset={N_USERS + 10}"
+        )
+    assert response.status_code == 200
+    assert response.json()["pagination"]["total"] == N_USERS
+    assert response.json()["pagination"]["start"] == N_USERS
+    assert response.json()["pagination"]["end"] == N_USERS
+    assert len(response.json()["data"]) == 0
+
 
 @pytest.mark.asyncio
 async def test_acct_nominal_datetime_filter(client, app, serialized_sequence):
