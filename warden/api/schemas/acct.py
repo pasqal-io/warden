@@ -12,9 +12,7 @@ class PaginationResponse(BaseModel):
     end: int
 
     @classmethod
-    def for_page(
-        cls, *, offset: int, count: int, total: int
-    ) -> "PaginationResponse":
+    def for_page(cls, *, offset: int, count: int, total: int) -> "PaginationResponse":
         """Pagination for a page holding ``count`` items starting at ``offset``.
 
         ``start`` is clamped to ``total`` so it never points beyond the data
