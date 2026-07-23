@@ -5,7 +5,7 @@ from httpx import AsyncClient
 
 from tests.api.conftest import acct_populate_db, mock_munge_auth
 
-ACCT_ENDPOINT = "/acct"
+ACCT_ENDPOINT = "/accounting"
 
 
 @pytest.mark.asyncio

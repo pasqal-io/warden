@@ -23,7 +23,7 @@ from warden.lib.db.functions import duration_seconds
 from warden.lib.models import Job, Session
 
 logger = getLogger(__name__)
-router = APIRouter(prefix="/acct")
+router = APIRouter(prefix="/accounting")
 
 
 @router.get("")

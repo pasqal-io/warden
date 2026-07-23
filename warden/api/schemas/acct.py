@@ -83,7 +83,7 @@ class AcctResponse(BaseModel):
 # Routes
 
 
-# GET /acct
+# GET /accounting
 class GetAcctRequest(AcctRequest):
     user_ids: set[UserID] | None = Field(default=None)
 
@@ -92,7 +92,7 @@ class GetAcctResponse(AcctResponse):
     data: list[AcctData]
 
 
-# GET /acct/user/{user_id}
+# GET /accounting/user/{user_id}
 class GetAcctUserRequest(AcctRequest):
     pass
 
@@ -101,7 +101,7 @@ class GetAcctUserResponse(AcctResponse):
     pass
 
 
-# GET /acct/jobs
+# GET /accounting/jobs
 class GetAcctJobsRequest(AcctRequest):
     session_id: SessionID | None
     user_id: UserID | None
