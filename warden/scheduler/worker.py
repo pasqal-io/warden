@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 from warden.lib.config import Config
 from warden.lib.qpu_client import (
@@ -43,9 +43,17 @@ class JobExecutionTracker:
     def is_error(self) -> bool:
         return self.status == "ERROR"
 
-    async def update_job(self, qpu_job_info: QPUJobInfo):
+    @property
+    def is_in_terminal_state(self) -> bool:
+        return self.status in ("DONE", "CANCELED", "ERROR")
+
+    async def update_job(
+        self, qpu_job_info: QPUJobInfo, enforce_end_datetime: bool = False
+    ):
         self._qpu_job_info = qpu_job_info
         self._status = qpu_job_info.status or "ERROR"
+        if enforce_end_datetime and self._qpu_job_info.end_datetime is None:
+            self._qpu_job_info.end_datetime = datetime.now(timezone.utc)
         await self.push_update()
 
     async def to_error(self):
@@ -214,7 +222,7 @@ class LocalQPUWorker:
         """Polling the job status until completion, error, or cancellation"""
         polling_start = datetime.now()
         await self._get_job_poll(job_tracker)
-        while job_tracker.status not in ("ERROR", "DONE", "CANCELED"):
+        while not job_tracker.is_in_terminal_state:
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
                 logger.warning(
                     f"Job timed out (max {self.conf_sched.job_polling_timeout_s} s). "
@@ -223,12 +231,15 @@ class LocalQPUWorker:
                 )
                 try:
                     qpu_job_info = self.qpu_client.cancel_job(job_tracker.job.uid)
-                    await job_tracker.update_job(qpu_job_info)
+                    await job_tracker.update_job(
+                        qpu_job_info, enforce_end_datetime=True
+                    )
                 except (JobCancelationError, QPUClientRequestError) as e:
                     logger.error(f"Failed cancelling job: {e}")
                     await job_tracker.to_error()
                     continue
                 logger.info("Job cancellation done")
+                # TODO: Ensure ended_at here and ping pasqos
                 continue
             await asyncio.sleep(self.conf_sched.job_polling_interval_s)
             await self._get_job_poll(job_tracker)

@@ -299,6 +299,8 @@ async def test_run_job_timeout(
         - n(jobs !"PENDING") = N_JOBS
         - canceled_jobs_ids in JOB_TIMEOUT_CANCELED_ID
         - canceled_jobs have non-empty logs containing "Terminating"
+        - canceled_jobs have `ended_at` set, even though the mocked cancel
+          response never reports an end_datetime
         - done_jobs_ids not in JOB_TIMEOUT_CANCELED_ID
         - done_jobs_ids have non-empty logs
     """
@@ -478,6 +480,9 @@ async def test_run_job_timeout(
             assert job.id in JOB_TIMEOUT_CANCELED_ID
             assert len(job.logs) > 0
             assert "Terminating" in job.logs
+            # The mocked cancel response never reports an end_datetime; the
+            # worker must still backfill `ended_at` for the canceled job.
+            assert job.ended_at is not None
         job_done = (await session.execute(stmt_done)).scalars().all()
         for job in job_done:
             assert job.id not in JOB_TIMEOUT_CANCELED_ID
