@@ -31,11 +31,14 @@ class SessionsSummary(BaseModel):
 class JobSummaryStats(BaseModel):
     status: str
     count: int
-    total_duration: int
+    execution_time: int
+    wait_time: int
 
 
 class JobsSummary(BaseModel):
-    count: int = Field(0, ge=0)
+    count: int = Field(default=0, ge=0)
+    execution_time: int = Field(default=0, ge=0)
+    wait_time: int = Field(default=0, ge=0)
     stats: list[JobSummaryStats] = Field(default_factory=list)
 
 
@@ -71,8 +74,8 @@ class AcctRequest(BaseModel):
     start_datetime: datetime
     end_datetime: datetime | None = Field(default=None)
     # Pagination
-    limit: int = Field(100, gt=0, le=100)
-    offset: int = Field(0, ge=0)
+    limit: int = Field(default=100, gt=0, le=100)
+    offset: int = Field(default=0, ge=0)
 
 
 class AcctResponse(BaseModel):

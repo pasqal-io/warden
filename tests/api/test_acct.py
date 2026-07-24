@@ -209,7 +209,8 @@ async def test_acct_reported_durations(client, app, serialized_sequence):
         # One job, spanning the whole session.
         assert user_data["jobs"]["count"] == 1
         assert len(user_data["jobs"]["stats"]) == 1
-        assert user_data["jobs"]["stats"][0]["total_duration"] == EXPECTED_SECONDS
+        assert user_data["jobs"]["stats"][0]["execution_time"] == EXPECTED_SECONDS
+        assert user_data["jobs"]["stats"][0]["wait_time"] == 0
 
 
 @pytest.mark.asyncio
@@ -317,4 +318,3 @@ async def test_acct_user_filtering(client, app, serialized_sequence):
 
     data = response.json()["data"]
     assert len(data) == 0
-

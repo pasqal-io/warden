@@ -100,7 +100,10 @@ async def get_accounting_snapshot(
             func.count(Job.id).label("job_count"),
             func.coalesce(
                 func.sum(duration_seconds(Job.started_at, Job.ended_at)), 0
-            ).label("total_job_duration"),
+            ).label("execution_time"),
+            func.coalesce(
+                func.sum(duration_seconds(Job.created_at, Job.started_at)), 0
+            ).label("wait_time"),
         )
         .join(Session, Session.id == Job.session_id)
         .where(
@@ -117,14 +120,19 @@ async def get_accounting_snapshot(
 
     for job_row in jobs_data:
         user_id = job_row.user_id
+        row_execution_time = int(job_row.execution_time)
+        row_wait_time = int(job_row.wait_time)
         if user_id not in user_jobs_summaries:
             user_jobs_summaries[user_id] = JobsSummary(count=0)
         user_jobs_summaries[user_id].count += job_row.job_count
+        user_jobs_summaries[user_id].execution_time += row_execution_time
+        user_jobs_summaries[user_id].wait_time += row_wait_time
         user_jobs_summaries[user_id].stats.append(
             JobSummaryStats(
                 status=job_row.status,
                 count=job_row.job_count,
-                total_duration=int(job_row.total_job_duration or 0),
+                execution_time=row_execution_time,
+                wait_time=row_wait_time,
             )
         )
 
