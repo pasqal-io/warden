@@ -260,3 +260,61 @@ async def test_acct_jobs_are_aligned_with_paginated_users(
         )
         for stat in user_data["jobs"]["stats"]:
             assert stat["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_acct_user_filtering(client, app, serialized_sequence):
+    """Assert that accounting data can be filtered by user"""
+
+    N_USERS = 10
+    JOB_STATUSES = ("DONE", "ERROR", "CANCELED")
+
+    user_uids, _, _ = await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    # Filter with a single user
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime=2020-01-01T00:00:00"
+            + f"&user_ids={user_uids[0]}"
+        )
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["user_id"] == user_uids[0]
+
+    # Filter with several users
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime=2020-01-01T00:00:00"
+            + f"&user_ids={user_uids[0]}"
+            + f"&user_ids={user_uids[1]}"
+            + f"&user_ids={user_uids[2]}"
+            + f"&user_ids={user_uids[3]}"
+        )
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert len(data) == 4
+    assert data[0]["user_id"] == user_uids[0]
+    assert data[1]["user_id"] == user_uids[1]
+    assert data[2]["user_id"] == user_uids[2]
+    assert data[3]["user_id"] == user_uids[3]
+
+    # Filter with non-existing user
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_ENDPOINT + "?start_datetime=2020-01-01T00:00:00" + "&user_ids=9999999"
+        )
+    assert response.status_code == 200
+
+    data = response.json()["data"]
+    assert len(data) == 0
+

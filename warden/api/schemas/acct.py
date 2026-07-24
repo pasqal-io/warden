@@ -85,7 +85,7 @@ class AcctResponse(BaseModel):
 
 # GET /accounting
 class GetAcctRequest(AcctRequest):
-    user_ids: set[UserID] | None = Field(default=None)
+    user_ids: list[UserID] | None = Field(default=None)
 
 
 class GetAcctResponse(AcctResponse):
