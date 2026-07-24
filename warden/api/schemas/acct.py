@@ -1,9 +1,11 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
+from fastapi import Query
 from pydantic import BaseModel, Field
 
 from warden.api.schemas.common import JobID, SessionID, UserID
+from warden.lib.models import Session
 
 
 class PaginationResponse(BaseModel):
@@ -52,24 +54,39 @@ class AcctUserData(BaseModel):
     pass
 
 
-class SessionsData(BaseModel):
+class SessionData(BaseModel):
     id: SessionID
     user_id: UserID
     created_at: datetime
     revoked_at: datetime | None
     slurm_job_id: str
+    total_duration: int = Field(default=0, ge=0)
+    jobs_count: int = Field(default=0, ge=0)
+
+    @classmethod
+    def from_session_record(cls, session: Session) -> "SessionData":
+        return cls(
+            id=session.id,
+            user_id=session.user_id,
+            created_at=session.created_at,
+            revoked_at=session.revoked_at,
+            slurm_job_id=session.slurm_job_id,
+        )
 
 
 class JobData(BaseModel):
     id: JobID
     user_id: UserID
     session_id: SessionID
-    execution_time: int
     status: str
+    execution_time: int
+    wait_time: int
 
 
 # Common parameters for request and response
 class AcctRequest(BaseModel):
+    # User filtering
+    user_ids: list[UserID] | None = Field(default=None)
     # Time filtering
     start_datetime: datetime
     end_datetime: datetime | None = Field(default=None)
@@ -88,27 +105,35 @@ class AcctResponse(BaseModel):
 
 # GET /accounting
 class GetAcctRequest(AcctRequest):
-    user_ids: list[UserID] | None = Field(default=None)
+    pass
 
 
 class GetAcctResponse(AcctResponse):
     data: list[AcctData]
 
 
-# GET /accounting/user/{user_id}
-class GetAcctUserRequest(AcctRequest):
-    pass
+GetAcctRequestQueryParams = Annotated[GetAcctRequest, Query()]
 
 
-class GetAcctUserResponse(AcctResponse):
-    pass
+# GET /accounting/sessions
+class GetAcctSessionsRequest(AcctRequest):
+    slurm_job_id: str | None = Field(default=None)
+
+
+class GetAcctSessionsResponse(AcctResponse):
+    data: list[SessionData]
+
+
+GetAcctSessionsRequestQueryParams = Annotated[GetAcctSessionsRequest, Query()]
 
 
 # GET /accounting/jobs
 class GetAcctJobsRequest(AcctRequest):
-    session_id: SessionID | None
-    user_id: UserID | None
+    session_id: SessionID | None = Field(default=None)
 
 
 class GetAcctJobsResponse(AcctResponse):
     data: list[JobData]
+
+
+GetAcctJobsRequestQueryParams = Annotated[GetAcctJobsRequest, Query()]
