@@ -109,7 +109,7 @@ class Job(Base):
         """Seconds from started_at to effective_end, or None if either is unset."""
         if self.started_at is None or self.effective_end is None:
             return None
-        return (self.effective_end - self.started_at).total_seconds()
+        return int((self.effective_end - self.started_at).total_seconds())
 
     @execution_time.inplace.expression
     @classmethod
@@ -122,7 +122,7 @@ class Job(Base):
         """Seconds from created_at to started_at, or None if not started yet."""
         if self.started_at is None:
             return None
-        return (self.started_at - self.created_at).total_seconds()
+        return int((self.started_at - self.created_at).total_seconds())
 
     @wait_time.inplace.expression
     @classmethod

@@ -40,7 +40,7 @@ class Session(Base):
     def duration(self):
         if self.revoked_at is None:
             return None
-        return (self.revoked_at - self.created_at).total_seconds()
+        return int((self.revoked_at - self.created_at).total_seconds())
 
     @duration.inplace.expression
     @classmethod
