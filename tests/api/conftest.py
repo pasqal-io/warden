@@ -270,7 +270,7 @@ async def acct_populate_db(
     """
     BASE_START_DATETIME = first_session_start
     BASE_END_DATETIME = BASE_START_DATETIME + session_duration
-    user_uids = [str(i) for i in range(1000, 1000 + n_users)]
+    user_uids = [str(i) for i in range(9000, 9000 + n_users)]
 
     # Create at least one session and job per user
     sessions = []

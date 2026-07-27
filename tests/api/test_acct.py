@@ -6,6 +6,8 @@ from httpx import AsyncClient
 from tests.api.conftest import acct_populate_db, mock_munge_auth
 
 ACCT_ENDPOINT = "/accounting"
+ACCT_SESSIONS_ENDPOINT = "/accounting/sessions"
+ACCT_JOBS_ENDPOINT = "/accounting/jobs"
 
 
 @pytest.mark.asyncio
@@ -318,3 +320,124 @@ async def test_acct_user_filtering(client, app, serialized_sequence):
 
     data = response.json()["data"]
     assert len(data) == 0
+
+
+@pytest.mark.asyncio
+async def test_acct_jobs_user_filtering(client, app, serialized_sequence):
+    """Assert that /accounting/jobs filters by user and reports the right count."""
+    N_USERS = 3
+    JOB_STATUSES = ("DONE", "ERROR")
+
+    user_uids, _, _ = await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_JOBS_ENDPOINT
+            + "?start_datetime=2020-01-01T00:00:00"
+            + f"&user_ids={user_uids[0]}"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == len(JOB_STATUSES)
+    assert len(body["data"]) == len(JOB_STATUSES)
+    assert all(job["user_id"] == user_uids[0] for job in body["data"])
+
+
+@pytest.mark.asyncio
+async def test_acct_jobs_session_id_filtering(client, app, serialized_sequence):
+    """Assert that /accounting/jobs can be filtered by session_id."""
+    N_USERS = 2
+    JOB_STATUSES = ("DONE", "ERROR")
+
+    _, _, sessions = await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_JOBS_ENDPOINT
+            + "?start_datetime=2020-01-01T00:00:00"
+            + f"&session_id={sessions[0].id}"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == len(JOB_STATUSES)
+    assert len(body["data"]) == len(JOB_STATUSES)
+    assert all(job["session_id"] == str(sessions[0].id) for job in body["data"])
+
+
+@pytest.mark.asyncio
+async def test_acct_sessions_nominal(client, app, serialized_sequence):
+    """Assert that /accounting/sessions lists one row per session with its
+    own duration and job count."""
+    N_USERS = 4
+    JOB_STATUSES = ("DONE", "ERROR")
+    SESSION_DURATION = timedelta(minutes=30)
+
+    user_uids, _, sessions = await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+        job_statuses=JOB_STATUSES,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_SESSIONS_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == N_USERS
+    assert len(body["data"]) == N_USERS
+
+    expected_duration = int(SESSION_DURATION.total_seconds())
+    for i, session_data in enumerate(body["data"]):
+        assert session_data["id"] == str(sessions[i].id)
+        assert session_data["user_id"] == user_uids[i]
+        assert session_data["total_duration"] == expected_duration
+        assert session_data["jobs_count"] == len(JOB_STATUSES)
+
+
+@pytest.mark.asyncio
+async def test_acct_jobs_nominal(client, app, serialized_sequence):
+    """Assert that /accounting/jobs lists one row per job with its own
+    status and durations."""
+    N_USERS = 2
+    SESSION_DURATION = timedelta(minutes=20)
+
+    user_uids, jobs, _ = await acct_populate_db(
+        app,
+        serialized_sequence,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            ACCT_JOBS_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == N_USERS
+    assert len(body["data"]) == N_USERS
+
+    expected_execution_time = int(SESSION_DURATION.total_seconds())
+    for i, job_data in enumerate(body["data"]):
+        assert job_data["id"] == jobs[i].id
+        assert job_data["user_id"] == user_uids[i]
+        assert job_data["status"] == "DONE"
+        assert job_data["execution_time"] == expected_execution_time
+        assert job_data["wait_time"] == 0

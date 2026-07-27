@@ -130,6 +130,7 @@ GetAcctSessionsRequestQueryParams = Annotated[GetAcctSessionsRequest, Query()]
 # GET /accounting/jobs
 class GetAcctJobsRequest(AcctRequest):
     session_id: SessionID | None = Field(default=None)
+    status: str | None = Field(default=None)
 
 
 class GetAcctJobsResponse(AcctResponse):

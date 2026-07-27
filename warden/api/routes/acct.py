@@ -24,7 +24,6 @@ from warden.api.schemas.acct import (
     SessionData,
     SessionsSummary,
 )
-from warden.lib.db.functions import duration_seconds
 from warden.lib.models import Job, Session
 
 logger = getLogger(__name__)
@@ -61,9 +60,7 @@ async def get_accounting_snapshot(
             Session.user_id,
             func.count(Session.id).label("session_count"),
             func.coalesce(
-                func.sum(
-                    duration_seconds(Session.created_at, Session.revoked_at),
-                ),
+                func.sum(Session.duration),
                 0,
             ).label("total_session_duration"),
         )
@@ -103,12 +100,8 @@ async def get_accounting_snapshot(
             Session.user_id,
             Job.status,
             func.count(Job.id).label("job_count"),
-            func.coalesce(
-                func.sum(duration_seconds(Job.started_at, Job.ended_at)), 0
-            ).label("execution_time"),
-            func.coalesce(
-                func.sum(duration_seconds(Job.created_at, Job.started_at)), 0
-            ).label("wait_time"),
+            func.coalesce(func.sum(Job.execution_time), 0).label("execution_time"),
+            func.coalesce(func.sum(Job.wait_time), 0).label("wait_time"),
         )
         .join(Session, Session.id == Job.session_id)
         .where(
@@ -198,9 +191,7 @@ async def get_sessions_accounting(
     sessions_stmt = (
         select(
             Session,
-            duration_seconds(Session.created_at, Session.revoked_at).label(
-                "total_session_duration"
-            ),
+            Session.duration.label("total_session_duration"),
             func.count(Job.id).label("job_count"),
         )
         .join(Job, Job.session_id == Session.id)
@@ -236,13 +227,19 @@ async def get_jobs_accounting(
 ) -> GetAcctJobsResponse:
 
     # Base jobs filter
-    jobs_filter = [Job.ended_at >= params.start_datetime]
+    jobs_filter = [Job.effective_end >= params.start_datetime]
 
     if params.end_datetime:
-        jobs_filter.append(Job.ended_at < params.end_datetime)
+        jobs_filter.append(Job.effective_end < params.end_datetime)
 
     if params.user_ids:
-        jobs_filter.append(Session.user_id.in_(params.user_ids))
+        jobs_filter.append(Job.user_id.in_(params.user_ids))
+
+    if params.session_id:
+        jobs_filter.append(Job.session_id == params.session_id)
+
+    if params.status:
+        jobs_filter.append(Job.status == params.status)
 
     # Get total count for pagination
     total_count_stmt = select(func.count(Job.id)).where(and_(*jobs_filter))
@@ -250,22 +247,22 @@ async def get_jobs_accounting(
     total_count = total_result.scalar() or 0
 
     if total_count == 0:
-        return GetAcctSessionsResponse(
+        return GetAcctJobsResponse(
             data=[],
             pagination=PaginationResponse.for_page(
                 offset=params.offset, count=0, total=total_count
             ),
         )
 
+    # Job.session is eagerly loaded (lazy="joined"), so Job.user_id (an
+    # association proxy to session.user_id) is available on each row without
+    # an extra join/select column here.
     jobs_stmt = (
         select(
             Job,
-            Session.user_id,
-            duration_seconds(Job.started_at, Job.ended_at).label("execution_time"),
-            duration_seconds(Job.created_at, Job.started_at).label("wait_time"),
+            Job.execution_time.label("execution_time"),
+            Job.wait_time.label("wait_time"),
         )
-        .join(Session, Session.id == Job.session_id)
-        .group_by(Job.id)
         .where(and_(*jobs_filter))
         .order_by(Job.created_at)
         .offset(params.offset)
@@ -279,11 +276,11 @@ async def get_jobs_accounting(
     for job_row in jobs_data:
         job_data = JobData(
             id=job_row.Job.id,
-            user_id=job_row.user_id,
+            user_id=job_row.Job.user_id,
             session_id=job_row.Job.session_id,
             status=job_row.Job.status,
-            execution_time=job_row.execution_time,
-            wait_time=job_row.wait_time,
+            execution_time=int(job_row.execution_time or 0),
+            wait_time=int(job_row.wait_time or 0),
         )
         return_data.append(job_data)
     return GetAcctJobsResponse(
