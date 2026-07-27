@@ -196,7 +196,7 @@ async def get_sessions_accounting(
             Session.duration.label("total_session_duration"),
             func.count(Job.id).label("job_count"),
         )
-        .join(Job, Job.session_id == Session.id)
+        .outerjoin(Job, Job.session_id == Session.id)
         .group_by(Session.id)
         .where(and_(*session_filters))
         .order_by(Session.created_at)
