@@ -36,7 +36,7 @@ async def get_accounting_snapshot(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
 ) -> GetAcctResponse:
-    """High-level accounting data"""
+    """High-level accounting report"""
 
     # Base session filter
     session_filters = [Session.revoked_at >= params.start_datetime]
@@ -162,6 +162,8 @@ async def get_sessions_accounting(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
 ) -> GetAcctSessionsResponse:
+    """Session-based accounting report"""
+
     # Base session filter
     session_filters = [Session.revoked_at >= params.start_datetime]
 
@@ -225,6 +227,7 @@ async def get_jobs_accounting(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
 ) -> GetAcctJobsResponse:
+    """Jobs-based accounting report"""
 
     # Base jobs filter
     jobs_filter = [Job.effective_end >= params.start_datetime]
@@ -279,6 +282,7 @@ async def get_jobs_accounting(
             user_id=job_row.Job.user_id,
             session_id=job_row.Job.session_id,
             status=job_row.Job.status,
+            shots=job_row.Job.shots,
             execution_time=int(job_row.execution_time or 0),
             wait_time=int(job_row.wait_time or 0),
         )

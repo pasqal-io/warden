@@ -79,6 +79,7 @@ class JobData(BaseModel):
     user_id: UserID
     session_id: SessionID
     status: str
+    shots: int
     execution_time: int
     wait_time: int
 
