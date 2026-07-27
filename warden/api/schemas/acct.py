@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from warden.api.schemas.common import JobID, SessionID, UserID
 from warden.lib.models import Session
@@ -94,6 +94,19 @@ class AcctRequest(BaseModel):
     # Pagination
     limit: int = Field(default=100, gt=0, le=100)
     offset: int = Field(default=0, ge=0)
+
+    @field_validator("start_datetime", "end_datetime")
+    @classmethod
+    def _to_naive_utc(cls, value: datetime | None) -> datetime | None:
+        """Normalize to naive UTC, since not all supported DB backends
+        preserve tzinfo on the stored `DateTime(timezone=True)` columns.
+
+        Aware datetimes are converted to UTC and naive datetimes are assumed
+        to already be UTC.
+        """
+        if value is None or value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 class AcctResponse(BaseModel):

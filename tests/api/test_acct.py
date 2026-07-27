@@ -1,9 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import pytest
 from httpx import AsyncClient
 
 from tests.api.conftest import acct_populate_db, mock_munge_auth
+from warden.api.schemas.acct import AcctRequest
 
 ACCT_ENDPOINT = "/accounting"
 ACCT_SESSIONS_ENDPOINT = "/accounting/sessions"
@@ -174,6 +176,82 @@ async def test_acct_nominal_datetime_filter(client, app, serialized_sequence):
 
     assert len(response_before.json()["data"]) == 1
     assert len(response_after.json()["data"]) == 9
+
+
+def test_acct_request_normalizes_datetimes_to_naive_utc():
+    """The `start_datetime`/`end_datetime` validator must produce naive UTC
+    values regardless of the offset supplied by the caller, since not every
+    supported DB backend preserves timezone info on stored columns."""
+
+    naive_utc = datetime(2026, 1, 1, 12, 0, 0)
+    aware_non_utc = naive_utc.replace(tzinfo=timezone(timedelta(hours=2))) + timedelta(
+        hours=2
+    )
+
+    req = AcctRequest(start_datetime=aware_non_utc, end_datetime=aware_non_utc)
+    assert req.start_datetime == naive_utc
+    assert req.start_datetime.tzinfo is None
+    assert req.end_datetime == naive_utc
+    assert req.end_datetime.tzinfo is None
+
+    # Naive input is assumed to already be UTC and passed through unchanged.
+    req_naive = AcctRequest(start_datetime=naive_utc)
+    assert req_naive.start_datetime == naive_utc
+    assert req_naive.start_datetime.tzinfo is None
+
+    # end_datetime is optional; None must pass through untouched.
+    assert req_naive.end_datetime is None
+
+
+@pytest.mark.asyncio
+async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
+    client, app, serialized_sequence
+):
+    """Assert that a start_datetime with a non-UTC offset selects the same
+    rows as its naive-UTC equivalent, i.e. the request-level normalization
+    is actually applied to query params, not just direct model usage."""
+
+    N_USERS = 10
+    FIRST_SESSION_START = datetime(2026, 1, 1, 0, 0, 0)
+    SESSION_DURATION = timedelta(minutes=45)
+    USER_TIME_OFFSET = timedelta(hours=1)
+
+    _, _, sessions = await acct_populate_db(
+        app,
+        serialized_sequence,
+        first_session_start=FIRST_SESSION_START,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+        user_time_offset=USER_TIME_OFFSET,
+    )
+
+    second_session = sessions[1]
+    assert second_session.revoked_at is not None
+
+    # Same instant as `revoked_at` (naive, assumed UTC), expressed at UTC+2.
+    aware_equivalent = (second_session.revoked_at + timedelta(hours=2)).replace(
+        tzinfo=timezone(timedelta(hours=2))
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response_naive = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime="
+            + second_session.revoked_at.isoformat()
+            + "&limit=100"
+        )
+        response_aware = await client.get(
+            ACCT_ENDPOINT
+            + "?start_datetime="
+            # `+` is form-encoding shorthand for a space in query strings, so
+            # a raw `+HH:MM` offset must be percent-encoded, same as any real
+            # HTTP client does automatically (e.g. httpx's `params=` kwarg).
+            + quote(aware_equivalent.isoformat())
+            + "&limit=100"
+        )
+    assert response_naive.status_code == 200
+    assert response_aware.status_code == 200
+    assert response_naive.json()["data"] == response_aware.json()["data"]
 
 
 @pytest.mark.asyncio
