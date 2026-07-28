@@ -226,23 +226,28 @@ async def get_jobs_accounting(
 ) -> GetAcctJobsResponse:
     """Jobs-based accounting report"""
 
-    # Base jobs filter
-    jobs_filter = [Job.effective_end >= params.start_datetime]
+    # Base session filter
+    filters = [Session.revoked_at >= params.start_datetime]
 
     if params.end_datetime:
-        jobs_filter.append(Job.effective_end < params.end_datetime)
+        filters.append(Session.revoked_at < params.end_datetime)
 
     if params.user_ids:
-        jobs_filter.append(Job.user_id.in_(params.user_ids))
+        filters.append(Session.user_id.in_(params.user_ids))
 
     if params.session_id:
-        jobs_filter.append(Job.session_id == params.session_id)
+        filters.append(Session.id == params.session_id)
 
     if params.status:
-        jobs_filter.append(Job.status == params.status)
+        filters.append(Job.status == params.status)
 
     # Get total count for pagination
-    total_count_stmt = select(func.count(Job.id)).where(and_(*jobs_filter))
+    total_count_stmt = (
+        select(func.count(Job.id))
+        .join(Session, Session.id == Job.session_id)
+        .where(and_(*filters))
+    )
+
     total_result = await db_session.execute(total_count_stmt)
     total_count = total_result.scalar() or 0
 
@@ -263,7 +268,8 @@ async def get_jobs_accounting(
             Job.execution_time,
             Job.wait_time,
         )
-        .where(and_(*jobs_filter))
+        .join(Session, Session.id == Job.session_id)
+        .where(and_(*filters))
         .order_by(Job.created_at)
         .offset(params.offset)
         .limit(params.limit)
