@@ -295,7 +295,98 @@ async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
 
 
 @pytest.mark.asyncio
-async def test_acct_reported_durations(client, app):
+@pytest.mark.parametrize("endpoint", (ACCT_ENDPOINT,))
+async def test_acct_nominal(client, app, endpoint):
+    """Assert that /accounting lists one row per user with its session and
+    job summaries (counts and durations) correctly aggregated."""
+    N_USERS = 3
+    JOB_STATUSES = ("DONE", "ERROR")
+    SESSION_DURATION = timedelta(minutes=30)
+    JOB_WAIT = timedelta(seconds=15)
+    JOB_EXECUTION = timedelta(seconds=45)
+
+    user_uids, _, _ = await acct_populate_db(
+        app,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+        job_statuses=JOB_STATUSES,
+        job_wait_time=JOB_WAIT,
+        job_execution_time=JOB_EXECUTION,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == N_USERS
+    assert len(body["data"]) == N_USERS
+
+    expected_session_duration = int(SESSION_DURATION.total_seconds())
+    expected_wait_time = int(JOB_WAIT.total_seconds())
+    expected_execution_time = int(JOB_EXECUTION.total_seconds())
+    # One job per status, so per-user totals are the per-job time times the
+    # number of statuses.
+    expected_jobs_execution_time = expected_execution_time * len(JOB_STATUSES)
+    expected_jobs_wait_time = expected_wait_time * len(JOB_STATUSES)
+
+    for i, user_data in enumerate(body["data"]):
+        assert user_data["user_id"] == user_uids[i]
+        assert user_data["sessions"]["count"] == 1
+        assert user_data["sessions"]["total_duration"] == expected_session_duration
+        assert user_data["jobs"]["count"] == len(JOB_STATUSES)
+        assert user_data["jobs"]["execution_time"] == expected_jobs_execution_time
+        assert user_data["jobs"]["wait_time"] == expected_jobs_wait_time
+        assert {stat["status"] for stat in user_data["jobs"]["stats"]} == set(
+            JOB_STATUSES
+        )
+        for stat in user_data["jobs"]["stats"]:
+            assert stat["count"] == 1
+            assert stat["execution_time"] == expected_execution_time
+            assert stat["wait_time"] == expected_wait_time
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_ENDPOINT,))
+async def test_acct_session_without_jobs(client, app, endpoint):
+    """Assert that a session with no job is still reported, with an empty
+    job summary rather than a missing/erroring row."""
+    N_USERS = 2
+    SESSION_DURATION = timedelta(minutes=30)
+
+    user_uids, _, _ = await acct_populate_db(
+        app,
+        n_users=N_USERS,
+        session_duration=SESSION_DURATION,
+        job_statuses=(),
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == N_USERS
+    assert len(body["data"]) == N_USERS
+
+    expected_session_duration = int(SESSION_DURATION.total_seconds())
+    for i, user_data in enumerate(body["data"]):
+        assert user_data["user_id"] == user_uids[i]
+        assert user_data["sessions"]["count"] == 1
+        assert user_data["sessions"]["total_duration"] == expected_session_duration
+        assert user_data["jobs"]["count"] == 0
+        assert user_data["jobs"]["execution_time"] == 0
+        assert user_data["jobs"]["wait_time"] == 0
+        assert user_data["jobs"]["stats"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_ENDPOINT,))
+async def test_acct_reported_durations(client, app, endpoint):
     """Assert that reported session and job durations are the real elapsed seconds.
 
     The aggregation uses ``extract('epoch', ...)``, which only has the intended
@@ -320,7 +411,7 @@ async def test_acct_reported_durations(client, app):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            ACCT_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -452,6 +543,7 @@ async def test_acct_sessions_nominal(client, app, endpoint):
     for i, session_data in enumerate(body["data"]):
         assert session_data["id"] == str(sessions[i].id)
         assert session_data["user_id"] == user_uids[i]
+        assert session_data["slurm_job_id"] == sessions[i].slurm_job_id
         assert session_data["total_duration"] == expected_duration
         assert session_data["jobs_count"] == len(JOB_STATUSES)
 
@@ -530,7 +622,11 @@ async def test_acct_jobs_nominal(client, app, endpoint):
     EXPECTED_EXECUTION_TIME = int(JOB_EXECUTION.total_seconds())
 
     user_uids, jobs, _ = await acct_populate_db(
-        app, n_users=N_USERS, job_wait_time=JOB_WAIT, job_execution_time=JOB_EXECUTION
+        app,
+        n_users=N_USERS,
+        job_wait_time=JOB_WAIT,
+        job_execution_time=JOB_EXECUTION,
+        job_statuses=("DONE",),
     )
 
     with mock_munge_auth(app, uid=0):
@@ -546,6 +642,7 @@ async def test_acct_jobs_nominal(client, app, endpoint):
     for i, job_data in enumerate(body["data"]):
         assert job_data["id"] == jobs[i].id
         assert job_data["user_id"] == user_uids[i]
+        assert job_data["session_id"] == str(jobs[i].session_id)
         assert job_data["status"] == "DONE"
         assert job_data["execution_time"] == EXPECTED_EXECUTION_TIME
         assert job_data["wait_time"] == EXPECTED_WAIT_TIME
