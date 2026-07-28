@@ -50,10 +50,6 @@ class AcctData(BaseModel):
     jobs: JobsSummary
 
 
-class AcctUserData(BaseModel):
-    pass
-
-
 class SessionData(BaseModel):
     id: SessionID
     user_id: UserID
@@ -118,15 +114,11 @@ class AcctResponse(BaseModel):
 
 
 # GET /accounting
-class GetAcctRequest(AcctRequest):
-    pass
-
-
 class GetAcctResponse(AcctResponse):
     data: list[AcctData]
 
 
-GetAcctRequestQueryParams = Annotated[GetAcctRequest, Query()]
+GetAcctRequestQueryParams = Annotated[AcctRequest, Query()]
 
 
 # GET /accounting/sessions

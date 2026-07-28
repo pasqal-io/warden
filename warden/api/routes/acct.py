@@ -59,10 +59,7 @@ async def get_accounting_snapshot(
         select(
             Session.user_id,
             func.count(Session.id).label("session_count"),
-            func.coalesce(
-                func.sum(Session.duration),
-                0,
-            ).label("total_session_duration"),
+            func.sum(Session.duration).label("total_session_duration"),
         )
         .where(and_(*session_filters))
         .group_by(Session.user_id)
@@ -193,7 +190,7 @@ async def get_sessions_accounting(
     sessions_stmt = (
         select(
             Session,
-            Session.duration.label("total_session_duration"),
+            Session.duration,
             func.count(Job.id).label("job_count"),
         )
         .outerjoin(Job, Job.session_id == Session.id)
@@ -210,7 +207,7 @@ async def get_sessions_accounting(
     return_data = []
     for session_row in sessions_data:
         session_data = SessionData.from_session_record(session_row.Session)
-        session_data.total_duration = int(session_row.total_session_duration)
+        session_data.total_duration = int(session_row.duration or 0)
         session_data.jobs_count = int(session_row.job_count)
         return_data.append(session_data)
     return GetAcctSessionsResponse(
@@ -263,8 +260,8 @@ async def get_jobs_accounting(
     jobs_stmt = (
         select(
             Job,
-            Job.execution_time.label("execution_time"),
-            Job.wait_time.label("wait_time"),
+            Job.execution_time,
+            Job.wait_time,
         )
         .where(and_(*jobs_filter))
         .order_by(Job.created_at)

@@ -239,7 +239,6 @@ class LocalQPUWorker:
                     await job_tracker.to_error()
                     continue
                 logger.info("Job cancellation done")
-                # TODO: Ensure ended_at here and ping pasqos
                 continue
             await asyncio.sleep(self.conf_sched.job_polling_interval_s)
             await self._get_job_poll(job_tracker)
