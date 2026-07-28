@@ -255,7 +255,6 @@ def qpu_specs() -> dict:
 
 async def acct_populate_db(
     app,
-    serialized_sequence: str,
     n_users: int,
     first_session_start: datetime = datetime(2026, 1, 1, 0, 0, 0),
     session_duration: timedelta = timedelta(hours=1),
@@ -264,7 +263,7 @@ async def acct_populate_db(
 ) -> tuple[list[str], list[Job], list[Session]]:
     """Creates mock data for accounting testing in DB
 
-    One session per user, and one job per entry in ``job_statuses`` per user.
+    One session per user, and one job per entry in `job_statuses` per user.
     Passing several statuses makes the jobs aggregation produce more rows than
     the sessions aggregation, which is what exercises their pagination.
     """
@@ -293,7 +292,7 @@ async def acct_populate_db(
                     status=status,
                     logs="",
                     shots=100,
-                    sequence=serialized_sequence,
+                    sequence="",
                     created_at=start_session,
                     scheduled_at=start_session,
                     started_at=start_session,

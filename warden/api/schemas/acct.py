@@ -93,16 +93,20 @@ class AcctRequest(BaseModel):
 
     @field_validator("start_datetime", "end_datetime")
     @classmethod
-    def _to_naive_utc(cls, value: datetime | None) -> datetime | None:
-        """Normalize to naive UTC, since not all supported DB backends
-        preserve tzinfo on the stored `DateTime(timezone=True)` columns.
+    def _to_utc(cls, value: datetime | None) -> datetime | None:
+        """Normalize to UTC, since not all supported DB backends
+        preserve tzinfo on the stored `DateTime(timezone=True)` columns
+        but keep UTC tz info for postgres backend.
 
         Aware datetimes are converted to UTC and naive datetimes are assumed
         to already be UTC.
         """
-        if value is None or value.tzinfo is None:
-            return value
-        return value.astimezone(timezone.utc).replace(tzinfo=None)
+        if value is None:
+            return None
+        elif value.tzinfo is None:
+            # Assumed to be UTC
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class AcctResponse(BaseModel):
