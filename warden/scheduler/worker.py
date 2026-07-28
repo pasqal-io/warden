@@ -52,7 +52,7 @@ class JobExecutionTracker:
     def created_datetime(self) -> UTCDatetime:
         return self.job.created_datetime
 
-      async def update_job(
+    async def update_job(
         self, qpu_job_info: QPUJobInfo, enforce_end_datetime: bool = False
     ):
         self._qpu_job_info = qpu_job_info
