@@ -84,7 +84,7 @@ class JobData(BaseModel):
 class AcctRequest(BaseModel):
     # User filtering
     user_ids: list[UserID] | None = Field(default=None)
-    # Time filtering
+    # Time filtering on the sessions end
     start_datetime: datetime
     end_datetime: datetime | None = Field(default=None)
     # Pagination

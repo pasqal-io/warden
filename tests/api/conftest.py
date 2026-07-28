@@ -260,6 +260,8 @@ async def acct_populate_db(
     session_duration: timedelta = timedelta(hours=1),
     user_time_offset: timedelta = timedelta(hours=1),
     job_statuses: Sequence[str] = ("DONE",),
+    job_wait_time: timedelta = timedelta(seconds=15),
+    job_execution_time: timedelta = timedelta(seconds=45),
 ) -> tuple[list[str], list[Job], list[Session]]:
     """Creates mock data for accounting testing in DB
 
@@ -275,13 +277,17 @@ async def acct_populate_db(
     sessions = []
     jobs = []
     for i, uid in enumerate(user_uids):
-        start_session = BASE_START_DATETIME + i * user_time_offset
-        end_session = BASE_END_DATETIME + i * user_time_offset
+        session_start = BASE_START_DATETIME + i * user_time_offset
+        session_end = BASE_END_DATETIME + i * user_time_offset
+
+        job_created = session_start
+        job_started = session_start + job_wait_time
+        job_ended = job_started + job_execution_time
 
         sessions.append(
             Session(
-                created_at=start_session,
-                revoked_at=end_session,
+                created_at=session_start,
+                revoked_at=session_end,
                 user_id=uid,
                 slurm_job_id=str(i),
             )
@@ -293,10 +299,10 @@ async def acct_populate_db(
                     logs="",
                     shots=100,
                     sequence="",
-                    created_at=start_session,
-                    scheduled_at=start_session,
-                    started_at=start_session,
-                    ended_at=end_session,
+                    created_at=job_created,
+                    scheduled_at=job_started,
+                    started_at=job_started,
+                    ended_at=job_ended,
                     # Relationship
                     session=sessions[-1],
                 )

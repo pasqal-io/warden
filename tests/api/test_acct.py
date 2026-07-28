@@ -4,11 +4,45 @@ from urllib.parse import quote
 import pytest
 
 from tests.api.conftest import acct_populate_db, mock_munge_auth
+from warden.api.schemas.acct import AcctRequest
 
 ACCT_ENDPOINT = "/accounting"
 ACCT_SESSIONS_ENDPOINT = "/accounting/sessions"
 ACCT_JOBS_ENDPOINT = "/accounting/jobs"
 ACCT_ENDPOINTS = [ACCT_ENDPOINT, ACCT_JOBS_ENDPOINT, ACCT_SESSIONS_ENDPOINT]
+
+###############################################################################
+############################### ACCT QUERY TESTS ##############################
+###############################################################################
+
+
+def test_acct_request_normalizes_datetimes_to_utc():
+    """The `start_datetime`/`end_datetime` validator must produce UTC-aware
+    values regardless of the offset supplied by the caller, since not every
+    supported DB backend preserves timezone info on stored columns."""
+
+    naive_utc = datetime(2026, 1, 1, 12, 0, 0)
+    aware_utc = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    aware_non_utc = naive_utc.replace(tzinfo=timezone(timedelta(hours=2))) + timedelta(
+        hours=2
+    )
+
+    req = AcctRequest(start_datetime=aware_non_utc, end_datetime=aware_non_utc)
+    assert req.start_datetime == aware_utc
+    assert req.end_datetime == aware_utc
+
+    # Naive input is assumed to already be UTC and passed through unchanged.
+    req_naive = AcctRequest(start_datetime=naive_utc)
+    assert req_naive.start_datetime == aware_utc
+    assert req_naive.start_datetime.tzinfo is timezone.utc
+
+    # end_datetime is optional; None must pass through untouched.
+    assert req_naive.end_datetime is None
+
+
+###############################################################################
+############################## COMMON ROUTE TESTS #############################
+###############################################################################
 
 
 @pytest.mark.asyncio
@@ -80,8 +114,64 @@ async def test_acct_pagination(
 
 
 @pytest.mark.asyncio
-async def test_acct_datetime_filter(client, app):
-    """Assert that the accounting data query correctly filters according to start/end datetime."""
+@pytest.mark.parametrize("endpoint", ACCT_ENDPOINTS)
+async def test_acct_user_id_filtering(client, app, endpoint):
+    """Test that accounting routes correctly filter by user_ids
+
+    Rationale:
+    - Populate DB with 10 users with each one session with one job
+    - So, for any route, len(data) = number of user_id selected
+    """
+
+    N_USERS = 10
+
+    user_ids, _, _ = await acct_populate_db(
+        app,
+        N_USERS,
+    )
+
+    # No filter
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(endpoint + "?start_datetime=1999-01-01&limit=10")
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == N_USERS
+
+    # Filter with all user_ids
+    with mock_munge_auth(app, uid=0):
+        request = endpoint + "?start_datetime=1999-01-01&limit=10"
+        for user_id in user_ids:
+            request += "&user_ids=" + user_id
+        response = await client.get(request)
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == N_USERS
+
+    # Filter with 3 existing user_ids
+    selected_ids = user_ids[:3]
+    with mock_munge_auth(app, uid=0):
+        request = endpoint + "?start_datetime=1999-01-01&limit=10"
+        for user_id in selected_ids:
+            request += "&user_ids=" + user_id
+        response = await client.get(request)
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == 3
+    for row in response.json()["data"]:
+        assert row["user_id"] in selected_ids
+
+    # Filter with a non-existent user_id
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            endpoint
+            + "?start_datetime=1999-01-01&limit=10"
+            + "&user_ids=9999999999999999999999999"
+        )
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", ACCT_ENDPOINTS)
+async def test_acct_datetime_filter(client, app, endpoint):
+    """Assert that the accounting data query correctly filters sessions according to start/end datetime."""
 
     N_USERS = 10
     FIRST_SESSION_START = datetime(2026, 1, 1, 0, 0, 0)
@@ -95,12 +185,13 @@ async def test_acct_datetime_filter(client, app):
         n_users=N_USERS,
         session_duration=SESSION_DURATION,
         user_time_offset=USER_TIME_OFFSET,
+        job_statuses=("DONE",),
     )
 
     # Test default get all
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            ACCT_ENDPOINT + "?start_datetime=" + FIRST_SESSION_START.isoformat()
+            endpoint + "?start_datetime=" + FIRST_SESSION_START.isoformat()
         )
     assert response.status_code == 200
     assert len(response.json()["data"]) == N_USERS
@@ -127,7 +218,7 @@ async def test_acct_datetime_filter(client, app):
     assert second_session.revoked_at is not None
     with mock_munge_auth(app, uid=0):
         response_before = await client.get(
-            ACCT_ENDPOINT
+            endpoint
             + "?start_datetime="
             + FIRST_SESSION_START.isoformat()
             + "&end_datetime="
@@ -135,7 +226,7 @@ async def test_acct_datetime_filter(client, app):
             + "&limit=100"
         )
         response_after = await client.get(
-            ACCT_ENDPOINT
+            endpoint
             + "?start_datetime="
             + second_session.revoked_at.isoformat()
             + "&limit=100"
@@ -147,33 +238,11 @@ async def test_acct_datetime_filter(client, app):
     assert len(response_after.json()["data"]) == 9
 
 
-# def test_acct_request_normalizes_datetimes_to_naive_utc():
-#     """The `start_datetime`/`end_datetime` validator must produce naive UTC
-#     values regardless of the offset supplied by the caller, since not every
-#     supported DB backend preserves timezone info on stored columns."""
-
-#     naive_utc = datetime(2026, 1, 1, 12, 0, 0)
-#     aware_non_utc = naive_utc.replace(tzinfo=timezone(timedelta(hours=2))) + timedelta(
-#         hours=2
-#     )
-
-#     req = AcctRequest(start_datetime=aware_non_utc, end_datetime=aware_non_utc)
-#     assert req.start_datetime == naive_utc
-#     assert req.start_datetime.tzinfo is None
-#     assert req.end_datetime == naive_utc
-#     assert req.end_datetime.tzinfo is None
-
-#     # Naive input is assumed to already be UTC and passed through unchanged.
-#     req_naive = AcctRequest(start_datetime=naive_utc)
-#     assert req_naive.start_datetime == naive_utc
-#     assert req_naive.start_datetime.tzinfo is None
-
-#     # end_datetime is optional; None must pass through untouched.
-#     assert req_naive.end_datetime is None
-
-
 @pytest.mark.asyncio
-async def test_acct_datetime_filter_accepts_timezone_aware_query_params(client, app):
+@pytest.mark.parametrize("endpoint", ACCT_ENDPOINTS)
+async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
+    client, app, endpoint
+):
     """Assert that a start_datetime with a non-UTC offset selects the same
     rows as its naive-UTC equivalent, i.e. the request-level normalization
     is actually applied to query params, not just direct model usage."""
@@ -201,13 +270,13 @@ async def test_acct_datetime_filter_accepts_timezone_aware_query_params(client, 
 
     with mock_munge_auth(app, uid=0):
         response_naive = await client.get(
-            ACCT_ENDPOINT
+            endpoint
             + "?start_datetime="
             + second_session.revoked_at.isoformat()
             + "&limit=100"
         )
         response_aware = await client.get(
-            ACCT_ENDPOINT
+            endpoint
             + "?start_datetime="
             # `+` is form-encoding shorthand for a space in query strings, so
             # a raw `+HH:MM` offset must be percent-encoded, same as any real
@@ -220,6 +289,11 @@ async def test_acct_datetime_filter_accepts_timezone_aware_query_params(client, 
     assert response_naive.json()["data"] == response_aware.json()["data"]
 
 
+###############################################################################
+############################ /accounting ROUTE TESTS ##########################
+###############################################################################
+
+
 @pytest.mark.asyncio
 async def test_acct_reported_durations(client, app):
     """Assert that reported session and job durations are the real elapsed seconds.
@@ -228,14 +302,21 @@ async def test_acct_reported_durations(client, app):
     meaning on PostgreSQL. This pins the value on every supported backend.
     """
     N_USERS = 3
-    SESSION_DURATION = timedelta(hours=1)
-    EXPECTED_SECONDS = int(SESSION_DURATION.total_seconds())
+    SESSION_DURATION = timedelta(seconds=60)
 
+    JOB_WAIT = timedelta(seconds=15)
+    JOB_EXECUTION = timedelta(seconds=45)
     await acct_populate_db(
         app,
         n_users=N_USERS,
         session_duration=SESSION_DURATION,
+        job_wait_time=JOB_WAIT,
+        job_execution_time=JOB_EXECUTION,
     )
+
+    SESSION_DURATION = int(SESSION_DURATION.total_seconds())
+    JOB_WAIT_TIME = int(JOB_WAIT.total_seconds())
+    JOB_EXECUTION_TIME = int(JOB_EXECUTION.total_seconds())
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
@@ -249,17 +330,18 @@ async def test_acct_reported_durations(client, app):
     for user_data in data:
         # One session of SESSION_DURATION per user.
         assert user_data["sessions"]["count"] == 1
-        assert user_data["sessions"]["total_duration"] == EXPECTED_SECONDS
+        assert user_data["sessions"]["total_duration"] == SESSION_DURATION
 
         # One job, spanning the whole session.
         assert user_data["jobs"]["count"] == 1
         assert len(user_data["jobs"]["stats"]) == 1
-        assert user_data["jobs"]["stats"][0]["execution_time"] == EXPECTED_SECONDS
-        assert user_data["jobs"]["stats"][0]["wait_time"] == 0
+        assert user_data["jobs"]["stats"][0]["execution_time"] == JOB_EXECUTION_TIME
+        assert user_data["jobs"]["stats"][0]["wait_time"] == JOB_WAIT_TIME
 
 
 @pytest.mark.asyncio
-async def test_acct_jobs_are_aligned_with_paginated_users(client, app):
+@pytest.mark.parametrize("endpoint", (ACCT_ENDPOINT,))
+async def test_acct_jobs_are_aligned_with_paginated_users(client, app, endpoint):
     """Assert that job stats belong to the users on the returned page.
 
     The sessions aggregation groups by user, the jobs aggregation groups by
@@ -280,7 +362,7 @@ async def test_acct_jobs_are_aligned_with_paginated_users(client, app):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            ACCT_ENDPOINT
+            endpoint
             + f"?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
             + f"&offset={PAGINATION_OFFSET}"
         )
@@ -305,112 +387,9 @@ async def test_acct_jobs_are_aligned_with_paginated_users(client, app):
             assert stat["count"] == 1
 
 
-@pytest.mark.asyncio
-async def test_acct_user_filtering(client, app):
-    """Assert that accounting data can be filtered by user"""
-
-    N_USERS = 10
-    JOB_STATUSES = ("DONE", "ERROR", "CANCELED")
-
-    user_uids, _, _ = await acct_populate_db(
-        app,
-        n_users=N_USERS,
-        job_statuses=JOB_STATUSES,
-    )
-
-    # Filter with a single user
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            ACCT_ENDPOINT
-            + "?start_datetime=2020-01-01T00:00:00"
-            + f"&user_ids={user_uids[0]}"
-        )
-    assert response.status_code == 200
-
-    data = response.json()["data"]
-    assert len(data) == 1
-    assert data[0]["user_id"] == user_uids[0]
-
-    # Filter with several users
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            ACCT_ENDPOINT
-            + "?start_datetime=2020-01-01T00:00:00"
-            + f"&user_ids={user_uids[0]}"
-            + f"&user_ids={user_uids[1]}"
-            + f"&user_ids={user_uids[2]}"
-            + f"&user_ids={user_uids[3]}"
-        )
-    assert response.status_code == 200
-
-    data = response.json()["data"]
-    assert len(data) == 4
-    assert data[0]["user_id"] == user_uids[0]
-    assert data[1]["user_id"] == user_uids[1]
-    assert data[2]["user_id"] == user_uids[2]
-    assert data[3]["user_id"] == user_uids[3]
-
-    # Filter with non-existing user
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            ACCT_ENDPOINT + "?start_datetime=2020-01-01T00:00:00" + "&user_ids=9999999"
-        )
-    assert response.status_code == 200
-
-    data = response.json()["data"]
-    assert len(data) == 0
-
-
-@pytest.mark.asyncio
-async def test_acct_jobs_user_filtering(client, app):
-    """Assert that /accounting/jobs filters by user and reports the right count."""
-    N_USERS = 3
-    JOB_STATUSES = ("DONE", "ERROR")
-
-    user_uids, _, _ = await acct_populate_db(
-        app,
-        n_users=N_USERS,
-        job_statuses=JOB_STATUSES,
-    )
-
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            ACCT_JOBS_ENDPOINT
-            + "?start_datetime=2020-01-01T00:00:00"
-            + f"&user_ids={user_uids[0]}"
-        )
-    assert response.status_code == 200
-
-    body = response.json()
-    assert body["pagination"]["total"] == len(JOB_STATUSES)
-    assert len(body["data"]) == len(JOB_STATUSES)
-    assert all(job["user_id"] == user_uids[0] for job in body["data"])
-
-
-@pytest.mark.asyncio
-async def test_acct_jobs_session_id_filtering(client, app):
-    """Assert that /accounting/jobs can be filtered by session_id."""
-    N_USERS = 2
-    JOB_STATUSES = ("DONE", "ERROR")
-
-    _, _, sessions = await acct_populate_db(
-        app,
-        n_users=N_USERS,
-        job_statuses=JOB_STATUSES,
-    )
-
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            ACCT_JOBS_ENDPOINT
-            + "?start_datetime=2020-01-01T00:00:00"
-            + f"&session_id={sessions[0].id}"
-        )
-    assert response.status_code == 200
-
-    body = response.json()
-    assert body["pagination"]["total"] == len(JOB_STATUSES)
-    assert len(body["data"]) == len(JOB_STATUSES)
-    assert all(job["session_id"] == str(sessions[0].id) for job in body["data"])
+###############################################################################
+####################### /accounting/sessions ROUTE TESTS ######################
+###############################################################################
 
 
 @pytest.mark.asyncio
@@ -446,22 +425,58 @@ async def test_acct_sessions_nominal(client, app):
         assert session_data["jobs_count"] == len(JOB_STATUSES)
 
 
-@pytest.mark.asyncio
-async def test_acct_jobs_nominal(client, app):
-    """Assert that /accounting/jobs lists one row per job with its own
-    status and durations."""
-    N_USERS = 2
-    SESSION_DURATION = timedelta(minutes=20)
+###############################################################################
+######################### /accounting/jobs ROUTE TESTS ########################
+###############################################################################
 
-    user_uids, jobs, _ = await acct_populate_db(
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+async def test_acct_jobs_session_id_filtering(client, app, endpoint):
+    """Assert that /accounting/jobs can be filtered by session_id."""
+    N_USERS = 2
+    JOB_STATUSES = ("DONE", "ERROR")
+
+    _, _, sessions = await acct_populate_db(
         app,
         n_users=N_USERS,
-        session_duration=SESSION_DURATION,
+        job_statuses=JOB_STATUSES,
     )
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            ACCT_JOBS_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint
+            + "?start_datetime=2020-01-01T00:00:00"
+            + f"&session_id={sessions[0].id}"
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == len(JOB_STATUSES)
+    assert len(body["data"]) == len(JOB_STATUSES)
+    assert all(job["session_id"] == str(sessions[0].id) for job in body["data"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+async def test_acct_jobs_nominal(client, app, endpoint):
+    """Assert that /accounting/jobs lists one row per job with its own
+    status and durations."""
+    N_USERS = 2
+
+    JOB_WAIT = timedelta(seconds=30)
+    JOB_EXECUTION = timedelta(seconds=60)
+
+    EXPECTED_WAIT_TIME = int(JOB_WAIT.total_seconds())
+    EXPECTED_EXECUTION_TIME = int(JOB_EXECUTION.total_seconds())
+
+    user_uids, jobs, _ = await acct_populate_db(
+        app, n_users=N_USERS, job_wait_time=JOB_WAIT, job_execution_time=JOB_EXECUTION
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -469,10 +484,9 @@ async def test_acct_jobs_nominal(client, app):
     assert body["pagination"]["total"] == N_USERS
     assert len(body["data"]) == N_USERS
 
-    expected_execution_time = int(SESSION_DURATION.total_seconds())
     for i, job_data in enumerate(body["data"]):
         assert job_data["id"] == jobs[i].id
         assert job_data["user_id"] == user_uids[i]
         assert job_data["status"] == "DONE"
-        assert job_data["execution_time"] == expected_execution_time
-        assert job_data["wait_time"] == 0
+        assert job_data["execution_time"] == EXPECTED_EXECUTION_TIME
+        assert job_data["wait_time"] == EXPECTED_WAIT_TIME
