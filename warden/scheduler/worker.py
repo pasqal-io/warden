@@ -12,6 +12,7 @@ from warden.lib.qpu_client import (
     QPUClient,
     QPUClientRequestError,
     QPUJobInfo,
+    UTCDatetime,
 )
 from warden.scheduler.errors import QPUDownError
 from warden.scheduler.types import JobUpdate, JobUpdateQueue
@@ -47,7 +48,11 @@ class JobExecutionTracker:
     def is_in_terminal_state(self) -> bool:
         return self.status in ("DONE", "CANCELED", "ERROR")
 
-    async def update_job(
+    @property
+    def created_datetime(self) -> UTCDatetime:
+        return self.job.created_datetime
+
+      async def update_job(
         self, qpu_job_info: QPUJobInfo, enforce_end_datetime: bool = False
     ):
         self._qpu_job_info = qpu_job_info
@@ -136,16 +141,17 @@ class LocalQPUWorker:
         return self.operational_status == "UP"
 
     @staticmethod
-    def is_timed_out(timeout_s: int | float, start: datetime) -> bool:
+    def is_timed_out(timeout_s: int | float, start: UTCDatetime) -> bool:
         if timeout_s < 0:
             return False
-        return (datetime.now() - start).total_seconds() > timeout_s
+        return (datetime.now(tz=timezone.utc) - start).total_seconds() > timeout_s
 
     async def execute_job(
         self,
         queue: JobUpdateQueue,
         nb_run: int,
         sequence: str,
+        backend_id: str | None = None,
         batch_id: str | None = None,
     ) -> None:
         """Execute job on the QPU"""
@@ -161,11 +167,11 @@ class LocalQPUWorker:
                 job_tracker=job_tracker,
                 nb_run=nb_run,
                 sequence=sequence,
+                backend_id=backend_id,
                 batch_id=batch_id,
             )
             if job_tracker.is_error:
                 return
-            logger.info("Job created on QPU")
 
             await self.await_job_execution(job_tracker)
             logger.info("Job execution ended with status '%s'", job_tracker.status)
@@ -176,7 +182,7 @@ class LocalQPUWorker:
     async def poll_qpu(self, job_tracker: JobExecutionTracker) -> None:
         """Check the QPU status"""
         try:
-            polling_start = datetime.now()
+            polling_start = datetime.now(tz=timezone.utc)
             while not self.is_operational:
                 if self.is_timed_out(
                     self.conf_sched.qpu_polling_timeout_s, polling_start
@@ -203,9 +209,28 @@ class LocalQPUWorker:
         job_tracker: JobExecutionTracker,
         nb_run: int,
         sequence: str,
+        backend_id: str | None,
         batch_id: str | None,
     ) -> None:
         """Create the job on the QPU"""
+
+        # Try to re-fetch the job status on the QPU
+        if backend_id and backend_id.isdigit():
+            logger.info(
+                "Job already has a backend_id '%s'. Trying to fetch status from QPU.",
+                backend_id,
+            )
+            try:
+                qpu_job_info = self.qpu_client.get_job(job_uid=int(backend_id))
+                await job_tracker.update_job(qpu_job_info)
+                logger.info("Job status fetched from QPU: %s", job_tracker.status)
+                return
+            except QPUClientRequestError as e:
+                logger.warning(
+                    "Failed fetching job status: %s. Re-starting corresponding job on the QPU",
+                    e,
+                )
+
         try:
             qpu_job_info = self.qpu_client.create_job(
                 nb_run=nb_run,
@@ -214,13 +239,15 @@ class LocalQPUWorker:
             )
 
             await job_tracker.update_job(qpu_job_info)
+            logger.info("Job created on QPU")
         except QPUClientRequestError as e:
             logger.error(f"Failed creating job: {e}")
             await job_tracker.to_error()
 
     async def await_job_execution(self, job_tracker: JobExecutionTracker) -> None:
         """Polling the job status until completion, error, or cancellation"""
-        polling_start = datetime.now()
+
+        polling_start = job_tracker.created_datetime
         await self._get_job_poll(job_tracker)
         while not job_tracker.is_in_terminal_state:
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
