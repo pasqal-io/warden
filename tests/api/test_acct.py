@@ -393,7 +393,38 @@ async def test_acct_jobs_are_aligned_with_paginated_users(client, app, endpoint)
 
 
 @pytest.mark.asyncio
-async def test_acct_sessions_nominal(client, app):
+@pytest.mark.parametrize("endpoint", (ACCT_SESSIONS_ENDPOINT,))
+@pytest.mark.parametrize(
+    "query,expected", (("&slurm_job_id=9999", 0), ("&slurm_job_id=1", 1))
+)
+async def test_acct_session_slurm_job_id_filtering(
+    client, app, endpoint, query, expected
+):
+    """Assert that /accounting/sessions can be filtered by slurm_job_id."""
+    N_USERS = 10
+    JOB_STATUSES = ("DONE", "ERROR")
+
+    await acct_populate_db(
+        app,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            endpoint + "?start_datetime=2020-01-01T00:00:00" + query
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == expected
+    assert len(body["data"]) == expected
+    # TODO: check content of data ?
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_SESSIONS_ENDPOINT,))
+async def test_acct_sessions_nominal(client, app, endpoint):
     """Assert that /accounting/sessions lists one row per session with its
     own duration and job count."""
     N_USERS = 4
@@ -409,7 +440,7 @@ async def test_acct_sessions_nominal(client, app):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            ACCT_SESSIONS_ENDPOINT + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -455,6 +486,34 @@ async def test_acct_jobs_session_id_filtering(client, app, endpoint):
     assert body["pagination"]["total"] == len(JOB_STATUSES)
     assert len(body["data"]) == len(JOB_STATUSES)
     assert all(job["session_id"] == str(sessions[0].id) for job in body["data"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+@pytest.mark.parametrize(
+    "query,expected", (("", 30), ("&status=NOTASTATUS", 0), ("&status=DONE", 10))
+)
+async def test_acct_jobs_status_filtering(client, app, endpoint, query, expected):
+    """Assert that /accounting/jobs can be filtered by Job status."""
+    N_USERS = 10
+    JOB_STATUSES = ("DONE", "CANCELED", "ERROR")
+
+    await acct_populate_db(
+        app,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(
+            endpoint + "?start_datetime=2020-01-01T00:00:00" + query
+        )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == expected
+    assert len(body["data"]) == expected
+    # TODO: check content of data ?
 
 
 @pytest.mark.asyncio
