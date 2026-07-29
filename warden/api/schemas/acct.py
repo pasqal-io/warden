@@ -86,13 +86,15 @@ class AcctRequest(BaseModel):
     user_ids: list[UserID] | None = Field(
         default=None,
         description="Restrict the report to these user IDs. Unset returns all users.",
+        examples=[["1000", "1001"]],
     )
     # Time filtering on the sessions end
     start_datetime: datetime = Field(
         description=(
             "Only include sessions revoked at or after this datetime. "
             "Naive datetimes are assumed to be UTC."
-        )
+        ),
+        examples=["2026-07-01T00:00:00Z"],
     )
     end_datetime: datetime | None = Field(
         default=None,
@@ -100,13 +102,21 @@ class AcctRequest(BaseModel):
             "Only include sessions revoked strictly before this datetime. "
             "Unset means no upper bound. Naive datetimes are assumed to be UTC."
         ),
+        examples=["2026-07-29T00:00:00Z"],
     )
     # Pagination
     limit: int = Field(
-        default=100, gt=0, le=100, description="Maximum number of rows to return."
+        default=100,
+        gt=0,
+        le=100,
+        description="Maximum number of rows to return.",
+        examples=[50],
     )
     offset: int = Field(
-        default=0, ge=0, description="Number of rows to skip, for pagination."
+        default=0,
+        ge=0,
+        description="Number of rows to skip, for pagination.",
+        examples=[0],
     )
 
     @field_validator("start_datetime", "end_datetime")
@@ -159,7 +169,9 @@ GetAcctRequestQueryParams = Annotated[AcctRequest, Query()]
 # GET /accounting/sessions
 class GetAcctSessionsRequest(AcctRequest):
     slurm_job_id: str | None = Field(
-        default=None, description="Restrict the report to this Slurm job ID."
+        default=None,
+        description="Restrict the report to this Slurm job ID.",
+        examples=["123456"],
     )
 
     def build_db_query_filters(self) -> list:
@@ -183,10 +195,14 @@ GetAcctSessionsRequestQueryParams = Annotated[GetAcctSessionsRequest, Query()]
 # GET /accounting/jobs
 class GetAcctJobsRequest(AcctRequest):
     session_id: SessionID | None = Field(
-        default=None, description="Restrict the report to this session ID."
+        default=None,
+        description="Restrict the report to this session ID.",
+        examples=["b3f1c2d4-5678-90ab-cdef-1234567890ab"],
     )
     status: str | None = Field(
-        default=None, description="Restrict the report to jobs with this status."
+        default=None,
+        description="Restrict the report to jobs with this status.",
+        examples=["ERROR"],
     )
 
     def build_db_query_filters(self) -> list:
