@@ -106,10 +106,11 @@ class Job(Base):
 
     @hybrid_property
     def execution_time(self):
-        """Seconds from started_at to effective_end, or None if either is unset."""
+        """Seconds from started_at to effective_end (rounded to the nearest
+        second to match duration_seconds), or None if either is unset."""
         if self.started_at is None or self.effective_end is None:
             return None
-        return int((self.effective_end - self.started_at).total_seconds())
+        return round((self.effective_end - self.started_at).total_seconds())
 
     @execution_time.inplace.expression
     @classmethod
@@ -119,10 +120,11 @@ class Job(Base):
 
     @hybrid_property
     def wait_time(self):
-        """Seconds from created_at to started_at, or None if not started yet."""
+        """Seconds from created_at to started_at (rounded to the nearest second
+        to match duration_seconds), or None if not started yet."""
         if self.started_at is None:
             return None
-        return int((self.started_at - self.created_at).total_seconds())
+        return round((self.started_at - self.created_at).total_seconds())
 
     @wait_time.inplace.expression
     @classmethod

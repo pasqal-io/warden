@@ -117,11 +117,11 @@ Warden is unusable with it.
 Warden exposes usage-reporting endpoints under `/accounting`, restricted to
 `api.admin_users`:
 
-| Route                | Description                                          |
-|-----------------------|-------------------------------------------------------|
-| `GET /accounting`          | Per-user summary of sessions and jobs             |
-| `GET /accounting/sessions` | Per-session detail 
-| `GET /accounting/jobs`     | Per-job detail
+| Route                      | Description                              |
+|----------------------------|------------------------------------------|
+| `GET /accounting`          | Per-user summary of sessions and jobs    |
+| `GET /accounting/sessions` | Per-session detail                       |
+| `GET /accounting/jobs`     | Per-job detail                           |
 
 All three accept `start_datetime` (required), `end_datetime`, `user_ids` and
 pagination (`limit`, `offset`) as query parameters, and filter on session

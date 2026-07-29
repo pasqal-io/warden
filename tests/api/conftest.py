@@ -8,6 +8,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, MockTransport, Request, Response
 from pulser.devices import DigitalAnalogDevice
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
@@ -29,6 +30,11 @@ async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None
     yield app
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture
+async def db_session_factory(app) -> async_sessionmaker:
+    return app.state.db_session_factory
 
 
 @pytest_asyncio.fixture

@@ -38,9 +38,11 @@ class Session(Base):
 
     @hybrid_property
     def duration(self):
+        """Seconds between created_at and revoked_at (rounded to the nearest
+        second to match duration_seconds), or None while the session is active."""
         if self.revoked_at is None:
             return None
-        return int((self.revoked_at - self.created_at).total_seconds())
+        return round((self.revoked_at - self.created_at).total_seconds())
 
     @duration.inplace.expression
     @classmethod
