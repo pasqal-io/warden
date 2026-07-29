@@ -112,6 +112,25 @@ The default value `[]` for `api.authorized_users` allows all users to create new
 included in `api.admin_users`; otherwise the plugin cannot acquire a session and
 Warden is unusable with it.
 
+### Accounting API
+
+Warden exposes usage-reporting endpoints under `/accounting`, restricted to
+`api.admin_users`:
+
+| Route                | Description                                          |
+|-----------------------|-------------------------------------------------------|
+| `GET /accounting`          | Per-user summary of sessions and jobs             |
+| `GET /accounting/sessions` | Per-session detail 
+| `GET /accounting/jobs`     | Per-job detail
+
+All three accept `start_datetime` (required), `end_datetime`, `user_ids` and
+pagination (`limit`, `offset`) as query parameters, and filter on session
+`revoked_at`. `GET /accounting/sessions` additionally accepts `slurm_job_id` filtering,
+and `GET /accounting/jobs` accepts `session_id` and `status` filtering.
+
+See FastAPI's `/docs` page for the full request/response schema of each
+route.
+
 ### Database
 
 Warden supports the following databases:

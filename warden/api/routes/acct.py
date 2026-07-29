@@ -36,7 +36,12 @@ async def get_accounting_snapshot(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
 ) -> GetAcctResponse:
-    """High-level accounting report"""
+    """Per-user accounting summary.
+
+    Aggregates session counts/duration and job counts/execution/wait time
+    and status per user, for sessions revoked within the requested time window.
+    One row per user paginated over the distinct set of users.
+    """
 
     # Base session filter
     db_query_filters = params.build_db_query_filters()
@@ -153,7 +158,12 @@ async def get_sessions_accounting(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
 ) -> GetAcctSessionsResponse:
-    """Session-based accounting report"""
+    """Per-session accounting report.
+
+    Returns one row per session revoked within the requested time window,
+    with its duration and job count. Can additionally be filtered by
+    `slurm_job_id`.
+    """
 
     # Base session filter
     db_query_filters = params.build_db_query_filters()
@@ -209,11 +219,12 @@ async def get_jobs_accounting(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
 ) -> GetAcctJobsResponse:
-    """Jobs-based accounting report.
+    """Per-job accounting report.
 
-    We use the same session-based time filtering as the other routes
-    for filtering consistency accross the routes. We then get jobs belonging to
-    the sessions filtered by the start/end datetimes query parameters
+    Returns one row per job **belonging to a session revoked within the
+    requested time window** (same session-based time filtering as the other
+    accounting routes, for consistency). Can additionally be filtered by
+    `session_id` and job `status`.
     """
 
     # Base session filter

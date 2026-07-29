@@ -83,13 +83,31 @@ class JobData(BaseModel):
 # Common parameters for request and response
 class AcctRequest(BaseModel):
     # User filtering
-    user_ids: list[UserID] | None = Field(default=None)
+    user_ids: list[UserID] | None = Field(
+        default=None,
+        description="Restrict the report to these user IDs. Unset returns all users.",
+    )
     # Time filtering on the sessions end
-    start_datetime: datetime
-    end_datetime: datetime | None = Field(default=None)
+    start_datetime: datetime = Field(
+        description=(
+            "Only include sessions revoked at or after this datetime. "
+            "Naive datetimes are assumed to be UTC."
+        )
+    )
+    end_datetime: datetime | None = Field(
+        default=None,
+        description=(
+            "Only include sessions revoked strictly before this datetime. "
+            "Unset means no upper bound. Naive datetimes are assumed to be UTC."
+        ),
+    )
     # Pagination
-    limit: int = Field(default=100, gt=0, le=100)
-    offset: int = Field(default=0, ge=0)
+    limit: int = Field(
+        default=100, gt=0, le=100, description="Maximum number of rows to return."
+    )
+    offset: int = Field(
+        default=0, ge=0, description="Number of rows to skip, for pagination."
+    )
 
     @field_validator("start_datetime", "end_datetime")
     @classmethod
@@ -140,7 +158,9 @@ GetAcctRequestQueryParams = Annotated[AcctRequest, Query()]
 
 # GET /accounting/sessions
 class GetAcctSessionsRequest(AcctRequest):
-    slurm_job_id: str | None = Field(default=None)
+    slurm_job_id: str | None = Field(
+        default=None, description="Restrict the report to this Slurm job ID."
+    )
 
     def build_db_query_filters(self) -> list:
         """Build DB query filters from request query parameters"""
@@ -162,8 +182,12 @@ GetAcctSessionsRequestQueryParams = Annotated[GetAcctSessionsRequest, Query()]
 
 # GET /accounting/jobs
 class GetAcctJobsRequest(AcctRequest):
-    session_id: SessionID | None = Field(default=None)
-    status: str | None = Field(default=None)
+    session_id: SessionID | None = Field(
+        default=None, description="Restrict the report to this session ID."
+    )
+    status: str | None = Field(
+        default=None, description="Restrict the report to jobs with this status."
+    )
 
     def build_db_query_filters(self) -> list:
         """Build DB query filters from request query parameters"""
