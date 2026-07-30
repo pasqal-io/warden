@@ -18,6 +18,7 @@ from utils import build_conf
 from warden.lib.config import Config, SchedulerStrategy
 from warden.lib.models import Job
 from warden.scheduler.main import run_scheduler
+from warden.scheduler.worker import LocalQPUWorker
 
 NOW = datetime.now()
 
@@ -1481,3 +1482,68 @@ async def test_run_cancel_does_not_leak_db_commit_task(
         if task is not asyncio.current_task() and not task.done()
     ]
     assert not leaked, f"Scheduler leaked tasks: {[t.get_name() for t in leaked]}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
+async def test_run_worker_crash_commits_pending_update(
+    strategy: SchedulerStrategy,
+    db_engine: AsyncEngine,
+    db_session_maker: async_sessionmaker,
+    httpx_mock: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog,
+):
+    """A crashing worker must not take its pending DB update down with it.
+
+    The queue is unbounded, so `put` never yields: the update queued by
+    `create_job` is still waiting when the worker raises right after it. If the
+    scheduler cancels its DB commit task before draining the queue, that update
+    is lost - along with the `backend_id` that resuming the job relies on, which
+    would make a later run re-submit the same sequence to the QPU.
+    """
+
+    caplog.set_level(logging.INFO, logger="warden")
+
+    conf: Config = build_conf(strategy, QPU_URI)
+
+    httpx_mock.add_response(
+        method="GET",
+        url=SYSTEM_OPERATIONAL_API,
+        json={"data": {"operational_status": "UP"}},
+        is_reusable=True,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        status_code=200,
+        url=JOB_API,
+        json={
+            "data": {
+                "uid": 0,
+                "batch_id": SLURM_USER_ID,
+                "status": "RUNNING",
+                "result": None,
+                "program_id": QPU_PROGRAM_UID,
+                "created_datetime": NOW.isoformat(),
+                "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+                "end_datetime": None,
+            }
+        },
+    )
+
+    # Crash the worker right after job creation, before it can yield to the
+    # event loop and let the DB commit task pick the queued update up
+    async def crash(*args, **kwargs):
+        raise RuntimeError("QPU client exploded")
+
+    monkeypatch.setattr(LocalQPUWorker, "await_job_execution", crash)
+
+    await utils.create_n_jobs(db_session_maker, 1)
+
+    with pytest.raises(RuntimeError, match="QPU client exploded"):
+        await run_scheduler(db_engine, conf)
+
+    async with db_session_maker() as session:
+        job = (await session.execute(select(Job))).scalar_one()
+        assert job.backend_id == "0"
+        assert job.status == "RUNNING"

@@ -23,6 +23,9 @@ from warden.scheduler.worker import LocalQPUWorker
 
 QUEUE_MAXSIZE = 0
 
+# Fixed bound, make it configurable if a slow DB ever trips it
+DB_FLUSH_TIMEOUT_S = 10
+
 logger = logging.getLogger("warden.scheduler")
 
 
@@ -85,9 +88,15 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
 
             # Await end of job execution
             await worker_task
-            # Await that all updates are commited to DB
-            await queue.join()
         finally:
+            # Await that all updates are commited to DB. In a 'finally' because
+            # a worker that raises, or a scheduler cancelled mid-job, otherwise
+            # leaves its last update sitting in the queue forever - including
+            # the backend_id that resuming a job relies on. Bounded so that an
+            # unreachable DB cannot turn a SIGTERM into a hang.
+            with suppress(TimeoutError):
+                await asyncio.wait_for(queue.join(), timeout=DB_FLUSH_TIMEOUT_S)
+
             # Kill DB commit loop. In a 'finally' so that cancelling the
             # scheduler mid-job cannot leak a commiter that is inside an open
             # transaction, which would keep holding a write lock on the DB.
