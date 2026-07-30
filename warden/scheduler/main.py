@@ -3,6 +3,7 @@
 import asyncio
 import logging.config
 import signal
+from contextlib import suppress
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
@@ -69,24 +70,30 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
             name=f"Job {job.id} DB commit worker",
         )
 
-        # QPU job execution
-        worker_task = asyncio.create_task(
-            qpu_worker.execute_job(
-                queue=queue,
-                nb_run=job.shots,
-                sequence=job.sequence,
-                backend_id=job.backend_id,
-                batch_id=job.session.slurm_job_id,
-            ),
-            name=f"Job {job.id} execution worker",
-        )
+        try:
+            # QPU job execution
+            worker_task = asyncio.create_task(
+                qpu_worker.execute_job(
+                    queue=queue,
+                    nb_run=job.shots,
+                    sequence=job.sequence,
+                    backend_id=job.backend_id,
+                    batch_id=job.session.slurm_job_id,
+                ),
+                name=f"Job {job.id} execution worker",
+            )
 
-        # Await end of job execution
-        await worker_task
-        # Await that all updates are commited to DB
-        await queue.join()
-        # Kill DB commit loop
-        db_commit_task.cancel()
+            # Await end of job execution
+            await worker_task
+            # Await that all updates are commited to DB
+            await queue.join()
+        finally:
+            # Kill DB commit loop. In a 'finally' so that cancelling the
+            # scheduler mid-job cannot leak a commiter that is inside an open
+            # transaction, which would keep holding a write lock on the DB.
+            db_commit_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await db_commit_task
 
         async with session_factory() as session:
             stmt = select(Job.status).where(Job.id == job.id)

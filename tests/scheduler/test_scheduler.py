@@ -1,6 +1,7 @@
 """Testing warden.scheduler.main.py"""
 
 import asyncio
+import contextlib
 import json
 import logging
 import random
@@ -1405,3 +1406,78 @@ async def test_run_job_canceled_by_cancellation_worker(
         for job in jobs_done:
             assert job.results is None
             assert len(job.logs) > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
+async def test_run_cancel_does_not_leak_db_commit_task(
+    strategy: SchedulerStrategy,
+    db_engine: AsyncEngine,
+    db_session_maker: async_sessionmaker,
+    httpx_mock: HTTPXMock,
+    caplog,
+):
+    """Cancelling the scheduler mid-job must not leave its DB commit task alive.
+
+    A leaked commiter can sit inside an open transaction and keep holding a
+    write lock, which blocks any later access to the database.
+    """
+
+    caplog.set_level(logging.INFO, logger="warden")
+
+    conf: Config = build_conf(strategy, QPU_URI)
+
+    httpx_mock.add_response(
+        method="GET",
+        url=SYSTEM_OPERATIONAL_API,
+        json={"data": {"operational_status": "UP"}},
+        is_reusable=True,
+    )
+    job_json = {
+        "data": {
+            "uid": 0,
+            "batch_id": SLURM_USER_ID,
+            "status": "RUNNING",
+            "result": None,
+            "program_id": QPU_PROGRAM_UID,
+            "created_datetime": NOW.isoformat(),
+            "start_datetime": (NOW + timedelta(seconds=1)).isoformat(),
+            "end_datetime": None,
+        }
+    }
+    httpx_mock.add_response(
+        method="POST", status_code=200, url=JOB_API, json=job_json, is_reusable=True
+    )
+    # Job never leaves "RUNNING" so the scheduler is busy when we cancel it
+    httpx_mock.add_response(
+        method="GET",
+        status_code=200,
+        url=JOB_API + "/0",
+        json=job_json,
+        is_reusable=True,
+    )
+
+    await utils.create_n_jobs(db_session_maker, 1)
+
+    tasks_before = set(asyncio.all_tasks())
+    main_task = asyncio.create_task(run_scheduler(db_engine, conf))
+
+    # Let the scheduler pick the job up and start its DB commit task
+    async with db_session_maker() as session:
+        await utils.wait_until_scalar_equals(
+            session,
+            select(func.count(Job.id)).where(Job.status == "RUNNING"),
+            1,
+            interval=0.01,
+        )
+
+    main_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await main_task
+
+    leaked = [
+        task
+        for task in asyncio.all_tasks() - tasks_before
+        if task is not asyncio.current_task() and not task.done()
+    ]
+    assert not leaked, f"Scheduler leaked tasks: {[t.get_name() for t in leaked]}"
