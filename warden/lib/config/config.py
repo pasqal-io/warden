@@ -69,6 +69,8 @@ class SchedulerConfig(BaseSettings):
     job_polling_interval_s: float = 5
     job_polling_timeout_s: float = -1
 
+    session_idle_timeout_s: float = 3600
+
 
 class QPUConfig(BaseSettings):
     uri: str = "http://localhost:8000"

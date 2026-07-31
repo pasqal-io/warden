@@ -16,6 +16,7 @@ from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
 from warden.scheduler.cancellation_worker import cancellation_worker
 from warden.scheduler.db import job_update_commiter
+from warden.scheduler.session_watchdog import session_watchdog
 from warden.scheduler.strategy import schedulers
 from warden.scheduler.types import JobUpdateQueue
 from warden.scheduler.worker import LocalQPUWorker
@@ -107,6 +108,19 @@ async def run_cancellation_worker(engine: AsyncEngine, conf: Config):
     await cancellation_worker(conf=conf, session_factory=session_factory)
 
 
+async def run_session_watchdog(engine: AsyncEngine, conf: Config):
+    """Session watchdog main logic
+
+    Runs the session-idle watchdog in an infinite loop.
+    Gets canceled by `main_async` when stop signal is received.
+    """
+    logger.info("Session watchdog running.")
+
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+    await session_watchdog(conf=conf, session_factory=session_factory)
+
+
 async def shutdown(engine: AsyncEngine):
     """Cleanup tasks and close DB connections."""
 
@@ -137,25 +151,33 @@ async def main_async(conf: Config | None = None):
 
     try:
         logger.info(
-            "Starting scheduler and cancellation worker (Press Ctrl+C to exit)..."
+            "Starting scheduler, cancellation worker and session watchdog "
+            "(Press Ctrl+C to exit)..."
         )
 
-        # Start both scheduler and cancellation worker as separate tasks with same lifetime
+        # Start scheduler, cancellation worker and session watchdog as separate
+        # tasks with the same lifetime
         scheduler_task = loop.create_task(run_scheduler(engine, conf), name="Scheduler")
         cancellation_task = loop.create_task(
             run_cancellation_worker(engine, conf), name="Cancellation Worker"
+        )
+        watchdog_task = loop.create_task(
+            run_session_watchdog(engine, conf), name="Session Watchdog"
         )
 
         # Wait for stop signal
         await stop_event.wait()
 
-        # Cancel both tasks
-        logger.info("Stopping scheduler and cancellation worker...")
+        # Cancel all tasks
+        logger.info("Stopping scheduler, cancellation worker and session watchdog...")
         scheduler_task.cancel()
         cancellation_task.cancel()
+        watchdog_task.cancel()
 
         # Wait for graceful shutdown
-        await asyncio.gather(scheduler_task, cancellation_task, return_exceptions=True)
+        await asyncio.gather(
+            scheduler_task, cancellation_task, watchdog_task, return_exceptions=True
+        )
 
     finally:
         await shutdown(engine)
