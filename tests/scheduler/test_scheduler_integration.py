@@ -76,7 +76,12 @@ async def test_run_scheduler_integration(
 
     await utils.create_n_jobs(db_session_maker, N_JOBS)
 
-    stmt = select(func.count(Job.id)).where(Job.status == "DONE")
+    # The terminal status is committed before the closing "Job execution ended
+    # with status 'DONE'" log line is flushed, so waiting on the status alone
+    # races with the log assertions below. Wait for the logs too.
+    stmt = select(func.count(Job.id)).where(
+        Job.status == "DONE", Job.logs.contains("DONE")
+    )
 
     ##################
     ### TEST RUN   ###
@@ -182,7 +187,11 @@ async def test_run_scheduler_integration_cancellation_worker(
 
     JOB_TO_CANCEL_ID = job_to_cancel.id
 
-    stmt = select(func.count(Job.id)).where(Job.status.in_(("CANCELED", "DONE")))
+    # Same race as above: wait for the closing log line, not just the status
+    stmt = select(func.count(Job.id)).where(
+        Job.status.in_(("CANCELED", "DONE")),
+        Job.logs.contains("Job execution ended"),
+    )
 
     ##################
     ### TEST RUN   ###
