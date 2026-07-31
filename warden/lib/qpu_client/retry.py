@@ -6,7 +6,7 @@ import time
 from functools import wraps
 from typing import Callable
 
-from httpx import HTTPStatusError, NetworkError, TimeoutException
+from httpx2 import HTTPStatusError, NetworkError, TimeoutException
 
 RETRY_HTTP_EXIT_CODES = [500, 502, 503, 504, 429]
 

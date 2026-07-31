@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 
 import pytest
 import utils
-from httpx import ConnectError, NetworkError, TimeoutException
-from pytest_httpx import HTTPXMock
+from httpx2 import ConnectError, NetworkError, TimeoutException
+from pytest_httpx2 import HTTPXMock
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from utils import build_conf

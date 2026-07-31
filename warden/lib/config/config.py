@@ -6,7 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-import httpx
+import httpx2
 import yaml
 from pydantic import (
     AfterValidator,
@@ -99,7 +99,7 @@ class QPUConfig(WardenSettings):
     #   "<path/to.pem>" -> verify against a specific CA bundle / cert file
     tls_verify: bool | str = "system"
 
-    _client: httpx.Client | None = PrivateAttr(default=None)
+    _client: httpx2.Client | None = PrivateAttr(default=None)
 
     @property
     def verify(self) -> bool | str | ssl.SSLContext:
@@ -111,9 +111,9 @@ class QPUConfig(WardenSettings):
         return self.tls_verify
 
     @property
-    def client(self) -> httpx.Client:
+    def client(self) -> httpx2.Client:
         if self._client is None:
-            self._client = httpx.Client(verify=self.verify)
+            self._client = httpx2.Client(verify=self.verify)
         self._client.base_url = self.uri + API_PREFIX
         return self._client
 
