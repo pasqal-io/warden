@@ -143,6 +143,7 @@ class Config(BaseSettings):
         env_file=".env",
         env_prefix="WARDEN_",
         env_nested_delimiter="_",
+        env_nested_max_split=1,
     )
 
     @model_validator(mode="after")

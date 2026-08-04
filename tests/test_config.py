@@ -30,6 +30,19 @@ def test_config_env_vars_use_warden_prefix(monkeypatch, tmp_path):
     assert config.api.host == "127.0.0.1"
 
 
+def test_config_env_vars_nested_max_split(monkeypatch, tmp_path):
+    """
+    Test that we prevent the config from splitting ENV variables on nested
+    parameters like `scheduler.qpu_polling_interval_s`.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARDEN_SCHEDULER_QPU_POLLING_INTERVAL_S", "999")
+
+    config = Config()
+
+    assert config.scheduler.qpu_polling_interval_s == 999
+
+
 def test_unprefixed_env_vars_do_not_override_config(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("API_HOST", "127.0.0.1")
