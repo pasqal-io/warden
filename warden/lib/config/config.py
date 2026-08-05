@@ -30,7 +30,7 @@ def to_kebab(snake: str) -> str:
 
 
 class WardenSettings(BaseSettings):
-    # Give kebab-case aliases to all fields by still allow validating by field name
+    # Give kebab-case aliases to all fields but still allow validating by field name
     model_config = SettingsConfigDict(
         validate_by_name=True,
         alias_generator=AliasGenerator(validation_alias=to_kebab),
