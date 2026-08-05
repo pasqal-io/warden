@@ -65,6 +65,11 @@ Since it's best not to have secrets written on disk, we set it using an environm
 WARDEN_DATABASE_PASSWORD="secret"
 ```
 
+> [!NOTE]
+> If a key contains an underscore, you need to replace it by a `-` to set it using environment variables.
+> E.g. `qpu.retry_max` can be set with the `WARDEN_QPU_RETRY-MAX` environment variable.
+
+
 The following options are configurable:
 
 - API bind address and port
