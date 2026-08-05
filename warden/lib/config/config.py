@@ -10,6 +10,7 @@ import httpx
 import yaml
 from pydantic import (
     AfterValidator,
+    AliasGenerator,
     BeforeValidator,
     Field,
     PrivateAttr,
@@ -29,8 +30,10 @@ def to_kebab(snake: str) -> str:
 
 
 class WardenSettings(BaseSettings):
+    # Give kebab-case aliases to all fields by still allow validating by field name
     model_config = SettingsConfigDict(
-        validate_by_name=True, validate_by_alias=True, alias_generator=to_kebab
+        validate_by_name=True,
+        alias_generator=AliasGenerator(validation_alias=to_kebab),
     )
 
 
