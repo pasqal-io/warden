@@ -1,5 +1,6 @@
 """Yaml config definition"""
 
+import json
 import ssl
 from enum import StrEnum
 from pathlib import Path
@@ -23,13 +24,23 @@ from pydantic_settings import (
 API_PREFIX = "/api/v1"
 
 
-class SqliteConfig(BaseSettings):
+def to_kebab(snake: str) -> str:
+    return snake.replace("_", "-")
+
+
+class WardenSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        validate_by_name=True, validate_by_alias=True, alias_generator=to_kebab
+    )
+
+
+class SqliteConfig(WardenSettings):
     backend: Literal["sqlite"] = "sqlite"
     name: str = "warden.db"
     echo: bool = False
 
 
-class PostgresConfig(BaseSettings):
+class PostgresConfig(WardenSettings):
     backend: Literal["postgres"] = "postgres"
     host: str = "localhost"
     port: int = 5432
@@ -39,7 +50,7 @@ class PostgresConfig(BaseSettings):
     echo: bool = False
 
 
-class MariadbConfig(BaseSettings):
+class MariadbConfig(WardenSettings):
     backend: Literal["mariadb"] = "mariadb"
     host: str = "localhost"
     port: int = 3306
@@ -58,7 +69,7 @@ class SchedulerStrategy(StrEnum):
     FIFO = "FIFO"
 
 
-class SchedulerConfig(BaseSettings):
+class SchedulerConfig(WardenSettings):
     strategy: SchedulerStrategy = SchedulerStrategy.FIFO
 
     db_polling_interval_s: float = 1
@@ -70,7 +81,7 @@ class SchedulerConfig(BaseSettings):
     job_polling_timeout_s: float = -1
 
 
-class QPUConfig(BaseSettings):
+class QPUConfig(WardenSettings):
     uri: str = "http://localhost:8000"
 
     retry_max: int = 10
@@ -105,6 +116,15 @@ class QPUConfig(BaseSettings):
 
 
 def coerce_to_str(v):
+    if isinstance(v, str):
+        # env vars for nested list fields (e.g. WARDEN_API_AUTHORIZED-USERS)
+        # arrive as a raw JSON string instead of a parsed list, since
+        # pydantic-settings' nested-key resolver doesn't recognize aliased
+        # leaf fields as complex when env_prefix_target="all" is set.
+        try:
+            v = json.loads(v)
+        except ValueError:
+            pass
     if not isinstance(v, list):
         raise ValueError("User uids must be provided as a list")
     for item in v:
@@ -121,7 +141,7 @@ def ensure_non_empty(v: list[str]) -> list[str]:
     return v
 
 
-class APIConfig(BaseSettings):
+class APIConfig(WardenSettings):
     host: str = "0.0.0.0"
     port: int = Field(default=8006, ge=1, le=65535)
 
@@ -132,7 +152,7 @@ class APIConfig(BaseSettings):
     ] = ["0"]
 
 
-class Config(BaseSettings):
+class Config(WardenSettings):
     api: APIConfig = APIConfig()
     database: DatabaseConfig = SqliteConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
@@ -143,7 +163,7 @@ class Config(BaseSettings):
         env_file=".env",
         env_prefix="WARDEN_",
         env_nested_delimiter="_",
-        env_nested_max_split=1,
+        env_prefix_target="all",
     )
 
     @model_validator(mode="after")
