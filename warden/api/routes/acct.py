@@ -51,7 +51,7 @@ async def get_accounting_snapshot(
 
     # Get total data row count for pagination
     total_count_stmt = select(func.count(func.distinct(Session.user_id))).where(
-        and_(*db_query_filters)
+        and_(True, *db_query_filters)
     )
     total_result = await db_session.execute(total_count_stmt)
     total_count = total_result.scalar() or 0
@@ -63,7 +63,7 @@ async def get_accounting_snapshot(
             func.count(Session.id).label("session_count"),
             func.sum(Session.duration).label("total_session_duration"),
         )
-        .where(and_(*db_query_filters))
+        .where(and_(True, *db_query_filters))
         .group_by(Session.user_id)
         .order_by(Session.user_id)
         .offset(params.offset)
@@ -105,7 +105,11 @@ async def get_accounting_snapshot(
         )
         .join(Session, Session.id == Job.session_id)
         .where(
-            and_(*db_query_filters, Session.user_id.in_(user_sessions_summary.keys()))
+            and_(
+                True,
+                *db_query_filters,
+                Session.user_id.in_(user_sessions_summary.keys()),
+            )
         )
         .group_by(Session.user_id, Job.status)
         .order_by(Session.user_id)
@@ -176,7 +180,9 @@ async def get_sessions_accounting(
     db_query_filters = _build_acct_sessions_db_query_filters(params)
 
     # Get total count for pagination
-    total_count_stmt = select(func.count(Session.id)).where(and_(*db_query_filters))
+    total_count_stmt = select(func.count(Session.id)).where(
+        and_(True, *db_query_filters)
+    )
     total_result = await db_session.execute(total_count_stmt)
     total_count = total_result.scalar() or 0
 
@@ -197,7 +203,7 @@ async def get_sessions_accounting(
         )
         .outerjoin(Job, Job.session_id == Session.id)
         .group_by(Session.id)
-        .where(and_(*db_query_filters))
+        .where(and_(True, *db_query_filters))
         .order_by(Session.created_at)
         .offset(params.offset)
         .limit(params.limit)
@@ -241,7 +247,7 @@ async def get_jobs_accounting(
     total_count_stmt = (
         select(func.count(Job.id))
         .join(Session, Session.id == Job.session_id)
-        .where(and_(*db_query_filters))
+        .where(and_(True, *db_query_filters))
     )
 
     total_result = await db_session.execute(total_count_stmt)
@@ -262,7 +268,7 @@ async def get_jobs_accounting(
             Job.wait_time,
         )
         .join(Session, Session.id == Job.session_id)
-        .where(and_(*db_query_filters))
+        .where(and_(True, *db_query_filters))
         .order_by(Job.created_at)
         .offset(params.offset)
         .limit(params.limit)
