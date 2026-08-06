@@ -22,7 +22,9 @@ async def test_acct_nominal(client, app, endpoint: Literal["/accounting"]):
     SESSION_DURATION = timedelta(minutes=30)
     JOB_WAIT = timedelta(seconds=15)
     JOB_EXECUTION = timedelta(seconds=45)
+    JOB_SHOTS = 100
 
+    # 2 jobs per user/session, one DONE and one ERROR
     user_uids, _, _ = await acct_populate_db(
         app,
         n_users=N_USERS,
@@ -30,12 +32,11 @@ async def test_acct_nominal(client, app, endpoint: Literal["/accounting"]):
         job_statuses=JOB_STATUSES,
         job_wait_time=JOB_WAIT,
         job_execution_time=JOB_EXECUTION,
+        job_shots=JOB_SHOTS,
     )
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
-        )
+        response = await client.get(endpoint + "?limit=100")
     assert response.status_code == 200
 
     body = response.json()
@@ -57,6 +58,7 @@ async def test_acct_nominal(client, app, endpoint: Literal["/accounting"]):
         assert user_data["jobs"]["count"] == len(JOB_STATUSES)
         assert user_data["jobs"]["execution_time"] == expected_jobs_execution_time
         assert user_data["jobs"]["wait_time"] == expected_jobs_wait_time
+        assert user_data["jobs"]["shots"] == JOB_SHOTS * len(JOB_STATUSES)
         assert {stat["status"] for stat in user_data["jobs"]["stats"]} == set(
             JOB_STATUSES
         )
@@ -64,6 +66,7 @@ async def test_acct_nominal(client, app, endpoint: Literal["/accounting"]):
             assert stat["count"] == 1
             assert stat["execution_time"] == expected_execution_time
             assert stat["wait_time"] == expected_wait_time
+            assert stat["shots"] == JOB_SHOTS
 
 
 @pytest.mark.asyncio

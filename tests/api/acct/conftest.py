@@ -20,6 +20,7 @@ async def acct_populate_db(
     job_statuses: Sequence[str] = ("DONE",),
     job_wait_time: timedelta = timedelta(seconds=15),
     job_execution_time: timedelta = timedelta(seconds=45),
+    job_shots: int = 100,
 ) -> tuple[list[str], list[Job], list[Session]]:
     """Creates mock data for accounting testing in DB
 
@@ -55,7 +56,7 @@ async def acct_populate_db(
                 Job(
                     status=status,
                     logs="",
-                    shots=100,
+                    shots=job_shots,
                     sequence="",
                     created_at=job_created,
                     scheduled_at=job_started,

@@ -35,12 +35,14 @@ class JobSummaryStats(BaseModel):
     count: int
     execution_time: int
     wait_time: int
+    shots: int
 
 
 class JobsSummary(BaseModel):
     count: int = Field(default=0, ge=0)
     execution_time: int = Field(default=0, ge=0)
     wait_time: int = Field(default=0, ge=0)
+    shots: int = Field(default=0, ge=0)
     stats: list[JobSummaryStats] = Field(default_factory=list)
 
 
