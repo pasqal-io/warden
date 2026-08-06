@@ -9,6 +9,7 @@ ACCT_ENDPOINT = "/accounting"
 ACCT_SESSIONS_ENDPOINT = "/accounting/sessions"
 ACCT_JOBS_ENDPOINT = "/accounting/jobs"
 ACCT_ENDPOINTS = [ACCT_ENDPOINT, ACCT_JOBS_ENDPOINT, ACCT_SESSIONS_ENDPOINT]
+ACCT_RECORDS_ENDPOINTS = [ACCT_JOBS_ENDPOINT, ACCT_SESSIONS_ENDPOINT]
 
 
 async def acct_populate_db(
@@ -18,7 +19,7 @@ async def acct_populate_db(
     session_duration: timedelta = timedelta(hours=1),
     user_time_offset: timedelta = timedelta(hours=1),
     job_statuses: Sequence[str] = ("DONE",),
-    job_wait_time: timedelta = timedelta(seconds=15),
+    job_wait_time: timedelta = timedelta(seconds=10),
     job_execution_time: timedelta = timedelta(seconds=45),
     job_shots: int = 100,
 ) -> tuple[list[str], list[Job], list[Session]]:
@@ -77,4 +78,9 @@ async def acct_populate_db(
 
 @pytest.fixture(scope="session", params=ACCT_ENDPOINTS)
 def accounting_endpoint(request):
+    return request.param
+
+@pytest.fixture(scope="session", params=ACCT_RECORDS_ENDPOINTS)
+def accounting_records_endpoint(request):
+    """Only /jobs and /session accounting routes"""
     return request.param

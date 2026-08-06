@@ -3,7 +3,7 @@
 from logging import getLogger
 
 from fastapi import APIRouter
-from sqlalchemy import and_, func, select
+from sqlalchemy import ColumnElement, and_, func, select
 
 from warden.api.routes.dependencies.auth import (
     AdminUserDep,
@@ -109,6 +109,7 @@ async def get_accounting_snapshot(
             and_(
                 True,
                 *db_query_filters,
+                Job.effective_end.is_not(None), # Remove non-ended jobs from ended sessions
                 Session.user_id.in_(user_sessions_summary.keys()),
             )
         )
@@ -266,6 +267,7 @@ async def get_jobs_accounting(
             Job,
             Job.execution_time,
             Job.wait_time,
+            Session.slurm_job_id,
         )
         .join(Session, Session.id == Job.session_id)
         .where(and_(True, *db_query_filters))
@@ -283,6 +285,7 @@ async def get_jobs_accounting(
             id=job_row.Job.id,
             user_id=job_row.Job.user_id,
             session_id=job_row.Job.session_id,
+            slurm_job_id=job_row.slurm_job_id,
             status=job_row.Job.status,
             shots=job_row.Job.shots,
             execution_time=int(job_row.execution_time or 0),
@@ -297,10 +300,10 @@ async def get_jobs_accounting(
     )
 
 
-def _build_db_query_filters(acct_query: AcctRequest) -> list:
+def _build_db_query_filters(acct_query: AcctRequest) -> list[ColumnElement]:
     """Build DB query filters from request query parameters for /acct"""
     # Base session filter
-    filters = []
+    filters: list[ColumnElement] = [Session.revoked_at.is_not(None)]
 
     if acct_query.ended_after:
         filters.append(Session.revoked_at >= acct_query.ended_after)
@@ -308,34 +311,51 @@ def _build_db_query_filters(acct_query: AcctRequest) -> list:
     if acct_query.ended_before:
         filters.append(Session.revoked_at < acct_query.ended_before)
 
-    if acct_query.user_ids:
-        filters.append(Session.user_id.in_(acct_query.user_ids))
-
-    return filters
-
-
-def _build_acct_jobs_db_query_filters(acct_jobs_query: GetAcctJobsRequest) -> list:
-    """Build DB query filters from request query parameters for /acct/sessions"""
-
-    filters = _build_db_query_filters(acct_jobs_query)
-
-    if acct_jobs_query.session_id:
-        filters.append(Session.id == acct_jobs_query.session_id)
-
-    if acct_jobs_query.status:
-        filters.append(Job.status == acct_jobs_query.status)
+    if acct_query.user_id:
+        filters.append(Session.user_id.in_(acct_query.user_id))
 
     return filters
 
 
 def _build_acct_sessions_db_query_filters(
     acct_sessions_query: GetAcctSessionsRequest,
-) -> list:
-    """Build DB query filters from request query parameters for /acct/jobs"""
+) -> list[ColumnElement]:
+    """Build DB query filters from request query parameters for /acct/sessions"""
 
     filters = _build_db_query_filters(acct_sessions_query)
 
+    if acct_sessions_query.session_id:
+        filters.append(Session.id.in_(acct_sessions_query.session_id))
+
     if acct_sessions_query.slurm_job_id:
-        filters.append(Session.slurm_job_id == acct_sessions_query.slurm_job_id)
+        filters.append(Session.slurm_job_id.in_(acct_sessions_query.slurm_job_id))
+
+    return filters
+
+
+def _build_acct_jobs_db_query_filters(
+    acct_jobs_query: GetAcctJobsRequest,
+) -> list[ColumnElement]:
+    """Build DB query filters from request query parameters for /acct/jobs"""
+
+    filters: list[ColumnElement] = [Job.effective_end.is_not(None)]
+
+    if acct_jobs_query.ended_after:
+        filters.append(Job.effective_end >= acct_jobs_query.ended_after)
+
+    if acct_jobs_query.ended_before:
+        filters.append(Job.effective_end < acct_jobs_query.ended_before)
+
+    if acct_jobs_query.user_id:
+        filters.append(Job.user_id.in_(acct_jobs_query.user_id))
+
+    if acct_jobs_query.session_id:
+        filters.append(Job.session_id.in_(acct_jobs_query.session_id))
+
+    if acct_jobs_query.slurm_job_id:
+        filters.append(Job.session.slurm_job_id.in_(acct_jobs_query.slurm_job_id))
+
+    if acct_jobs_query.status:
+        filters.append(Job.status.in_(acct_jobs_query.status))
 
     return filters

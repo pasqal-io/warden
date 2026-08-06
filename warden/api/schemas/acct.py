@@ -76,6 +76,7 @@ class JobData(BaseModel):
     id: JobID
     user_id: UserID
     session_id: SessionID
+    slurm_job_id: str
     status: str
     shots: int
     execution_time: int
@@ -85,7 +86,7 @@ class JobData(BaseModel):
 # Base models for accounting requests and responses
 class AcctRequest(BaseModel):
     # User filtering
-    user_ids: list[UserID] | None = Field(
+    user_id: list[UserID] | None = Field(
         default=None,
         description="Restrict the report to these user IDs. Unset returns all users.",
         examples=[["1000", "1001"]],
@@ -158,10 +159,16 @@ GetAcctRequestQueryParams = Annotated[AcctRequest, Query()]
 
 # GET /accounting/sessions
 class GetAcctSessionsRequest(AcctRequest):
-    slurm_job_id: str | None = Field(
+    slurm_job_id: list[str] | None = Field(
         default=None,
         description="Restrict the report to this Slurm job ID.",
         examples=["123456"],
+    )
+
+    session_id: list[SessionID] | None = Field(
+        default=None,
+        description="Restrict the report to this session ID.",
+        examples=["b3f1c2d4-5678-90ab-cdef-1234567890ab"],
     )
 
 
@@ -173,13 +180,8 @@ GetAcctSessionsRequestQueryParams = Annotated[GetAcctSessionsRequest, Query()]
 
 
 # GET /accounting/jobs
-class GetAcctJobsRequest(AcctRequest):
-    session_id: SessionID | None = Field(
-        default=None,
-        description="Restrict the report to this session ID.",
-        examples=["b3f1c2d4-5678-90ab-cdef-1234567890ab"],
-    )
-    status: str | None = Field(
+class GetAcctJobsRequest(GetAcctSessionsRequest):
+    status: list[str] | None = Field(
         default=None,
         description="Restrict the report to jobs with this status.",
         examples=["ERROR"],
