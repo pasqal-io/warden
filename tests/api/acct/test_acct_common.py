@@ -149,19 +149,24 @@ async def test_acct_user_id_filtering(client, app, accounting_endpoint: str):
 
 
 @pytest.mark.asyncio
-async def test_acct_datetime_filter(client, app, accounting_endpoint: str):
+@pytest.mark.parametrize(
+    "n_users,nth_user_split", ((10, 1), (10, 5), (10, 2), (10, 10))
+)
+async def test_acct_datetime_filter(
+    client, app, accounting_endpoint: str, n_users: int, nth_user_split: int
+):
     """Assert that the accounting data query correctly filters sessions according to start/end datetime."""
 
-    N_USERS = 10
     FIRST_SESSION_START = datetime(2026, 1, 1, 0, 0, 0)
 
     SESSION_DURATION = timedelta(minutes=45)
     USER_TIME_OFFSET = timedelta(hours=1)
 
+    # One session/job per user to have the test work on all routes
     user_ids, _, sessions = await acct_populate_db(
         app,
         first_session_start=FIRST_SESSION_START,
-        n_users=N_USERS,
+        n_users=n_users,
         session_duration=SESSION_DURATION,
         user_time_offset=USER_TIME_OFFSET,
         job_statuses=("DONE",),
@@ -173,7 +178,7 @@ async def test_acct_datetime_filter(client, app, accounting_endpoint: str):
             accounting_endpoint + "?ended_after=" + FIRST_SESSION_START.isoformat()
         )
     assert response.status_code == 200
-    assert len(response.json()["data"]) == N_USERS
+    assert len(response.json()["data"]) == n_users
     assert response.json()["data"][0]["user_id"] == user_ids[0]
 
     # Test filtering only first user session
@@ -192,29 +197,39 @@ async def test_acct_datetime_filter(client, app, accounting_endpoint: str):
     assert response.json()["data"][0]["user_id"] == user_ids[0]
 
     # Test time filtering is total partition of data
-    # We split the filtering exactly at the revocation time of the 2nd user's session
-    second_session = sessions[1]
-    assert second_session.revoked_at is not None
+    # We split the filtering exactly at the revocation time of the nth_user_split user's session
+    session_split = sessions[nth_user_split - 1]
+    assert session_split.revoked_at is not None
     with mock_munge_auth(app, uid=0):
         response_before = await client.get(
             accounting_endpoint
             + "?ended_after="
             + FIRST_SESSION_START.isoformat()
             + "&ended_before="
-            + second_session.revoked_at.isoformat()
+            + session_split.revoked_at.isoformat()
             + "&limit=100"
         )
         response_after = await client.get(
             accounting_endpoint
             + "?ended_after="
-            + second_session.revoked_at.isoformat()
+            + session_split.revoked_at.isoformat()
             + "&limit=100"
         )
-    assert response_after.status_code == 200
     assert response_before.status_code == 200
+    assert response_after.status_code == 200
 
-    assert len(response_before.json()["data"]) == 1
-    assert len(response_after.json()["data"]) == 9
+    if nth_user_split > 1:
+        assert response_before.json()["data"][0]["user_id"] == user_ids[0]
+    if nth_user_split < n_users:
+        assert (
+            response_after.json()["data"][0]["user_id"] == user_ids[nth_user_split - 1]
+        )
+
+    count_before = len(response_before.json()["data"])
+    count_after = len(response_after.json()["data"])
+    assert count_before == (nth_user_split - 1)
+    assert count_after == n_users - (nth_user_split - 1)
+    assert count_before + count_after == n_users
 
 
 @pytest.mark.asyncio
