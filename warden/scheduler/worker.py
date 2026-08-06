@@ -63,6 +63,8 @@ class JobExecutionTracker:
 
     async def to_error(self):
         self._status = "ERROR"
+        if self._qpu_job_info and self._qpu_job_info.end_datetime is None:
+            self._qpu_job_info.end_datetime = datetime.now(timezone.utc)
         await self.push_update()
 
     def log(self, msg: str) -> None:

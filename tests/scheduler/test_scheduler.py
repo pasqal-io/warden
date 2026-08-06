@@ -1149,6 +1149,8 @@ async def test_run_job_client_error_timeout(
         - All jobs have an "ERROR" status is DB
         - Test timeout after TEST_TIMEOUT_S
     - Check n (jobs with status "ERROR") = N_JOBS
+    - Check those jobs have `ended_at` set, even though the job was never
+      reported as ended by the QPU: `to_error` must backfill it.
     """
 
     ##################
@@ -1235,6 +1237,7 @@ async def test_run_job_client_error_timeout(
         for job in jobs:
             assert len(job.logs) > 0
             assert "ERROR" in job.logs
+            assert job.ended_at is not None
 
 
 @pytest.mark.asyncio
