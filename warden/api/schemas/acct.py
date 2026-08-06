@@ -5,7 +5,7 @@ from fastapi import Query
 from pydantic import BaseModel, Field, field_validator
 
 from warden.api.schemas.common import JobID, SessionID, UserID
-from warden.lib.models import Job, Session
+from warden.lib.models import Session
 
 
 class PaginationResponse(BaseModel):
@@ -137,19 +137,6 @@ class AcctRequest(BaseModel):
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
 
-    def build_db_query_filters(self) -> list:
-        """Build DB query filters from request query parameters"""
-        # Base session filter
-        filters = [Session.revoked_at >= self.ended_after]
-
-        if self.ended_before:
-            filters.append(Session.revoked_at < self.ended_before)
-
-        if self.user_ids:
-            filters.append(Session.user_id.in_(self.user_ids))
-
-        return filters
-
 
 class AcctResponse(BaseModel):
     data: Any
@@ -175,16 +162,6 @@ class GetAcctSessionsRequest(AcctRequest):
         examples=["123456"],
     )
 
-    def build_db_query_filters(self) -> list:
-        """Build DB query filters from request query parameters"""
-
-        filters = super().build_db_query_filters()
-
-        if self.slurm_job_id:
-            filters.append(Session.slurm_job_id == self.slurm_job_id)
-
-        return filters
-
 
 class GetAcctSessionsResponse(AcctResponse):
     data: list[SessionData]
@@ -205,19 +182,6 @@ class GetAcctJobsRequest(AcctRequest):
         description="Restrict the report to jobs with this status.",
         examples=["ERROR"],
     )
-
-    def build_db_query_filters(self) -> list:
-        """Build DB query filters from request query parameters"""
-
-        filters = super().build_db_query_filters()
-
-        if self.session_id:
-            filters.append(Session.id == self.session_id)
-
-        if self.status:
-            filters.append(Job.status == self.status)
-
-        return filters
 
 
 class GetAcctJobsResponse(AcctResponse):

@@ -11,10 +11,13 @@ from warden.api.routes.dependencies.auth import (
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.schemas.acct import (
     AcctData,
+    AcctRequest,
+    GetAcctJobsRequest,
     GetAcctJobsRequestQueryParams,
     GetAcctJobsResponse,
     GetAcctRequestQueryParams,
     GetAcctResponse,
+    GetAcctSessionsRequest,
     GetAcctSessionsRequestQueryParams,
     GetAcctSessionsResponse,
     JobData,
@@ -44,7 +47,7 @@ async def get_accounting_snapshot(
     """
 
     # Base session filter
-    db_query_filters = params.build_db_query_filters()
+    db_query_filters = _build_db_query_filters(params)
 
     # Get total data row count for pagination
     total_count_stmt = select(func.count(func.distinct(Session.user_id))).where(
@@ -166,7 +169,7 @@ async def get_sessions_accounting(
     """
 
     # Base session filter
-    db_query_filters = params.build_db_query_filters()
+    db_query_filters = _build_acct_sessions_db_query_filters(params)
 
     # Get total count for pagination
     total_count_stmt = select(func.count(Session.id)).where(and_(*db_query_filters))
@@ -228,7 +231,7 @@ async def get_jobs_accounting(
     """
 
     # Base session filter
-    db_query_filters = params.build_db_query_filters()
+    db_query_filters = _build_acct_jobs_db_query_filters(params)
 
     # Get total count for pagination
     total_count_stmt = (
@@ -282,3 +285,44 @@ async def get_jobs_accounting(
             offset=params.offset, count=len(return_data), total=total_count
         ),
     )
+
+
+def _build_db_query_filters(acct_query: AcctRequest) -> list:
+    """Build DB query filters from request query parameters for /acct"""
+    # Base session filter
+    filters = [Session.revoked_at >= acct_query.ended_after]
+
+    if acct_query.ended_before:
+        filters.append(Session.revoked_at < acct_query.ended_before)
+
+    if acct_query.user_ids:
+        filters.append(Session.user_id.in_(acct_query.user_ids))
+
+    return filters
+
+
+def _build_acct_jobs_db_query_filters(acct_jobs_query: GetAcctJobsRequest) -> list:
+    """Build DB query filters from request query parameters for /acct/sessions"""
+
+    filters = _build_db_query_filters(acct_jobs_query)
+
+    if acct_jobs_query.session_id:
+        filters.append(Session.id == acct_jobs_query.session_id)
+
+    if acct_jobs_query.status:
+        filters.append(Job.status == acct_jobs_query.status)
+
+    return filters
+
+
+def _build_acct_sessions_db_query_filters(
+    acct_sessions_query: GetAcctSessionsRequest,
+) -> list:
+    """Build DB query filters from request query parameters for /acct/jobs"""
+
+    filters = _build_db_query_filters(acct_sessions_query)
+
+    if acct_sessions_query.slurm_job_id:
+        filters.append(Session.slurm_job_id == acct_sessions_query.slurm_job_id)
+
+    return filters
