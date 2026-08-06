@@ -80,7 +80,7 @@ class JobData(BaseModel):
     wait_time: int
 
 
-# Common parameters for request and response
+# Base models for accounting requests and responses
 class AcctRequest(BaseModel):
     # User filtering
     user_ids: list[UserID] | None = Field(
@@ -88,18 +88,19 @@ class AcctRequest(BaseModel):
         description="Restrict the report to these user IDs. Unset returns all users.",
         examples=[["1000", "1001"]],
     )
-    # Time filtering on the sessions end
-    start_datetime: datetime = Field(
+    # Time filtering on the sessions revoked_at field
+    ended_after: datetime | None = Field(
+        default=None,
         description=(
-            "Only include sessions revoked at or after this datetime. "
+            "Only include data from sessions revoked at or after this datetime. "
             "Naive datetimes are assumed to be UTC."
         ),
         examples=["2026-07-01T00:00:00Z"],
     )
-    end_datetime: datetime | None = Field(
+    ended_before: datetime | None = Field(
         default=None,
         description=(
-            "Only include sessions revoked strictly before this datetime. "
+            "Only include data from sessions revoked strictly before this datetime. "
             "Unset means no upper bound. Naive datetimes are assumed to be UTC."
         ),
         examples=["2026-07-29T00:00:00Z"],
@@ -119,7 +120,7 @@ class AcctRequest(BaseModel):
         examples=[0],
     )
 
-    @field_validator("start_datetime", "end_datetime")
+    @field_validator("ended_after", "ended_before")
     @classmethod
     def _to_utc(cls, value: datetime | None) -> datetime | None:
         """Normalize to UTC, since not all supported DB backends
@@ -139,10 +140,10 @@ class AcctRequest(BaseModel):
     def build_db_query_filters(self) -> list:
         """Build DB query filters from request query parameters"""
         # Base session filter
-        filters = [Session.revoked_at >= self.start_datetime]
+        filters = [Session.revoked_at >= self.ended_after]
 
-        if self.end_datetime:
-            filters.append(Session.revoked_at < self.end_datetime)
+        if self.ended_before:
+            filters.append(Session.revoked_at < self.ended_before)
 
         if self.user_ids:
             filters.append(Session.user_id.in_(self.user_ids))

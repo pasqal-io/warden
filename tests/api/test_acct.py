@@ -17,7 +17,7 @@ ACCT_ENDPOINTS = [ACCT_ENDPOINT, ACCT_JOBS_ENDPOINT, ACCT_SESSIONS_ENDPOINT]
 
 
 def test_acct_request_normalizes_datetimes_to_utc():
-    """The `start_datetime`/`end_datetime` validator must produce UTC-aware
+    """The `ended_after`/`ended_before` validator must produce UTC-aware
     values regardless of the offset supplied by the caller, since not every
     supported DB backend preserves timezone info on stored columns."""
 
@@ -27,40 +27,23 @@ def test_acct_request_normalizes_datetimes_to_utc():
         hours=2
     )
 
-    req = AcctRequest(start_datetime=aware_non_utc, end_datetime=aware_non_utc)
-    assert req.start_datetime == aware_utc
-    assert req.end_datetime == aware_utc
+    req = AcctRequest(ended_after=aware_non_utc, ended_before=aware_non_utc)
+    assert req.ended_after == aware_utc
+    assert req.ended_before == aware_utc
 
     # Naive input is assumed to already be UTC and passed through unchanged.
-    req_naive = AcctRequest(start_datetime=naive_utc)
-    assert req_naive.start_datetime == aware_utc
-    assert req_naive.start_datetime.tzinfo is timezone.utc
+    req_naive = AcctRequest(ended_after=naive_utc)
+    assert req_naive.ended_after == aware_utc
+    assert req_naive.ended_after is not None
+    assert req_naive.ended_after.tzinfo is timezone.utc
 
-    # end_datetime is optional; None must pass through untouched.
-    assert req_naive.end_datetime is None
+    # ended_before is optional; None must pass through untouched.
+    assert req_naive.ended_before is None
 
 
 ###############################################################################
 ############################## COMMON ROUTE TESTS #############################
 ###############################################################################
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint", ACCT_ENDPOINTS)
-async def test_acct_required_start(client, app, endpoint):
-    """Assert that 'start_datetime' is required in the accounting data query."""
-
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(endpoint)
-    assert response.status_code == 422
-
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(endpoint + "?end_datetime=2022-01-01T00:00:00")
-    assert response.status_code == 422
-
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(endpoint + "?start_datetime=2022-01-01T00:00:00")
-    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -102,7 +85,7 @@ async def test_acct_pagination(
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + f"?start_datetime=2020-01-01T00:00:00&{query}"
+            endpoint + f"?ended_after=2020-01-01T00:00:00&{query}"
         )
     assert response.status_code == 200
     assert response.json()["pagination"]["total"] == N_USERS
@@ -132,13 +115,13 @@ async def test_acct_user_id_filtering(client, app, endpoint):
 
     # No filter
     with mock_munge_auth(app, uid=0):
-        response = await client.get(endpoint + "?start_datetime=1999-01-01&limit=10")
+        response = await client.get(endpoint + "?ended_after=1999-01-01&limit=10")
     assert response.status_code == 200
     assert len(response.json()["data"]) == N_USERS
 
     # Filter with all user_ids
     with mock_munge_auth(app, uid=0):
-        request = endpoint + "?start_datetime=1999-01-01&limit=10"
+        request = endpoint + "?ended_after=1999-01-01&limit=10"
         for user_id in user_ids:
             request += "&user_ids=" + user_id
         response = await client.get(request)
@@ -148,7 +131,7 @@ async def test_acct_user_id_filtering(client, app, endpoint):
     # Filter with 3 existing user_ids
     selected_ids = user_ids[:3]
     with mock_munge_auth(app, uid=0):
-        request = endpoint + "?start_datetime=1999-01-01&limit=10"
+        request = endpoint + "?ended_after=1999-01-01&limit=10"
         for user_id in selected_ids:
             request += "&user_ids=" + user_id
         response = await client.get(request)
@@ -161,7 +144,7 @@ async def test_acct_user_id_filtering(client, app, endpoint):
     with mock_munge_auth(app, uid=0):
         response = await client.get(
             endpoint
-            + "?start_datetime=1999-01-01&limit=10"
+            + "?ended_after=1999-01-01&limit=10"
             + "&user_ids=9999999999999999999999999"
         )
     assert response.status_code == 200
@@ -191,7 +174,7 @@ async def test_acct_datetime_filter(client, app, endpoint):
     # Test default get all
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=" + FIRST_SESSION_START.isoformat()
+            endpoint + "?ended_after=" + FIRST_SESSION_START.isoformat()
         )
     assert response.status_code == 200
     assert len(response.json()["data"]) == N_USERS
@@ -203,9 +186,9 @@ async def test_acct_datetime_filter(client, app, endpoint):
     with mock_munge_auth(app, uid=0):
         response = await client.get(
             ACCT_ENDPOINT
-            + "?start_datetime="
+            + "?ended_after="
             + FIRST_SESSION_START.isoformat()
-            + "&end_datetime="
+            + "&ended_before="
             + (first_session.revoked_at + timedelta(seconds=1)).isoformat()
         )
     assert response.status_code == 200
@@ -219,15 +202,15 @@ async def test_acct_datetime_filter(client, app, endpoint):
     with mock_munge_auth(app, uid=0):
         response_before = await client.get(
             endpoint
-            + "?start_datetime="
+            + "?ended_after="
             + FIRST_SESSION_START.isoformat()
-            + "&end_datetime="
+            + "&ended_before="
             + second_session.revoked_at.isoformat()
             + "&limit=100"
         )
         response_after = await client.get(
             endpoint
-            + "?start_datetime="
+            + "?ended_after="
             + second_session.revoked_at.isoformat()
             + "&limit=100"
         )
@@ -243,7 +226,7 @@ async def test_acct_datetime_filter(client, app, endpoint):
 async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
     client, app, endpoint
 ):
-    """Assert that a start_datetime with a non-UTC offset selects the same
+    """Assert that a ended_after with a non-UTC offset selects the same
     rows as its naive-UTC equivalent, i.e. the request-level normalization
     is actually applied to query params, not just direct model usage."""
 
@@ -271,13 +254,13 @@ async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
     with mock_munge_auth(app, uid=0):
         response_naive = await client.get(
             endpoint
-            + "?start_datetime="
+            + "?ended_after="
             + second_session.revoked_at.isoformat()
             + "&limit=100"
         )
         response_aware = await client.get(
             endpoint
-            + "?start_datetime="
+            + "?ended_after="
             # `+` is form-encoding shorthand for a space in query strings, so
             # a raw `+HH:MM` offset must be percent-encoded, same as any real
             # HTTP client does automatically (e.g. httpx's `params=` kwarg).
@@ -316,7 +299,7 @@ async def test_acct_nominal(client, app, endpoint):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -365,7 +348,7 @@ async def test_acct_session_without_jobs(client, app, endpoint):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -411,7 +394,7 @@ async def test_acct_reported_durations(client, app, endpoint):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -454,7 +437,7 @@ async def test_acct_jobs_are_aligned_with_paginated_users(client, app, endpoint)
     with mock_munge_auth(app, uid=0):
         response = await client.get(
             endpoint
-            + f"?start_datetime=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
+            + f"?ended_after=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
             + f"&offset={PAGINATION_OFFSET}"
         )
     assert response.status_code == 200
@@ -503,7 +486,7 @@ async def test_acct_session_slurm_job_id_filtering(
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00" + query
+            endpoint + "?ended_after=2020-01-01T00:00:00" + query
         )
     assert response.status_code == 200
 
@@ -531,7 +514,7 @@ async def test_acct_sessions_nominal(client, app, endpoint):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
@@ -569,7 +552,7 @@ async def test_acct_jobs_session_id_filtering(client, app, endpoint):
     with mock_munge_auth(app, uid=0):
         response = await client.get(
             endpoint
-            + "?start_datetime=2020-01-01T00:00:00"
+            + "?ended_after=2020-01-01T00:00:00"
             + f"&session_id={sessions[0].id}"
         )
     assert response.status_code == 200
@@ -598,7 +581,7 @@ async def test_acct_jobs_status_filtering(client, app, endpoint, query, expected
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00" + query
+            endpoint + "?ended_after=2020-01-01T00:00:00" + query
         )
     assert response.status_code == 200
 
@@ -631,7 +614,7 @@ async def test_acct_jobs_nominal(client, app, endpoint):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?start_datetime=2020-01-01T00:00:00&limit=100"
+            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
         )
     assert response.status_code == 200
 
