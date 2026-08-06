@@ -85,9 +85,7 @@ async def test_acct_session_without_jobs(client, app, endpoint: Literal["/accoun
     )
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
-        )
+        response = await client.get(endpoint + "?limit=100")
     assert response.status_code == 200
 
     body = response.json()
@@ -108,11 +106,7 @@ async def test_acct_session_without_jobs(client, app, endpoint: Literal["/accoun
 @pytest.mark.asyncio
 @pytest.mark.parametrize("endpoint", (ACCT_ENDPOINT,))
 async def test_acct_reported_durations(client, app, endpoint: Literal["/accounting"]):
-    """Assert that reported session and job durations are the real elapsed seconds.
-
-    The aggregation uses ``extract('epoch', ...)``, which only has the intended
-    meaning on PostgreSQL. This pins the value on every supported backend.
-    """
+    """Assert that reported session and job durations are the real elapsed seconds."""
     N_USERS = 3
     SESSION_DURATION = timedelta(seconds=60)
 
@@ -131,9 +125,7 @@ async def test_acct_reported_durations(client, app, endpoint: Literal["/accounti
     JOB_EXECUTION_TIME = int(JOB_EXECUTION.total_seconds())
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
-        )
+        response = await client.get(endpoint + "?limit=100")
     assert response.status_code == 200
 
     data = response.json()["data"]
@@ -176,9 +168,7 @@ async def test_acct_jobs_are_aligned_with_paginated_users(
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint
-            + f"?ended_after=2020-01-01T00:00:00&limit={PAGINATION_LIMIT}"
-            + f"&offset={PAGINATION_OFFSET}"
+            endpoint + f"?limit={PAGINATION_LIMIT}" + f"&offset={PAGINATION_OFFSET}"
         )
     assert response.status_code == 200
 
