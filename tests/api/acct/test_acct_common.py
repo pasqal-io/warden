@@ -44,6 +44,22 @@ def test_acct_request_normalizes_datetimes_to_utc():
 
 
 @pytest.mark.asyncio
+async def test_acct_nominal_get_all(client, app, accounting_endpoint):
+    """Test that accounting endpoints accept requests without any query parameter set"""
+
+    N_USERS = 10
+    assert N_USERS < AcctRequest.model_fields["limit"].default
+
+    # One session/jobs per user to make test pass on all routes
+    await acct_populate_db(app, N_USERS, job_statuses=("DONE",))
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(accounting_endpoint)
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == N_USERS
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "query, expected_start, expected_end, expected_len, expected_first_index",
     [
@@ -103,6 +119,7 @@ async def test_acct_user_id_filtering(client, app, accounting_endpoint: str):
 
     N_USERS = 10
 
+    # One session/job per user to have the test work on all routes
     user_ids, _, _ = await acct_populate_db(
         app,
         N_USERS,
@@ -110,15 +127,13 @@ async def test_acct_user_id_filtering(client, app, accounting_endpoint: str):
 
     # No filter
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            accounting_endpoint + "?ended_after=1999-01-01&limit=10"
-        )
+        response = await client.get(accounting_endpoint)
     assert response.status_code == 200
     assert len(response.json()["data"]) == N_USERS
 
     # Filter with all user_ids
     with mock_munge_auth(app, uid=0):
-        request = accounting_endpoint + "?ended_after=1999-01-01&limit=10"
+        request = accounting_endpoint + "?limit=10"
         for user_id in user_ids:
             request += "&user_ids=" + user_id
         response = await client.get(request)
@@ -128,7 +143,7 @@ async def test_acct_user_id_filtering(client, app, accounting_endpoint: str):
     # Filter with 3 existing user_ids
     selected_ids = user_ids[:3]
     with mock_munge_auth(app, uid=0):
-        request = accounting_endpoint + "?ended_after=1999-01-01&limit=10"
+        request = accounting_endpoint + "?limit=10"
         for user_id in selected_ids:
             request += "&user_ids=" + user_id
         response = await client.get(request)
@@ -140,9 +155,7 @@ async def test_acct_user_id_filtering(client, app, accounting_endpoint: str):
     # Filter with a non-existent user_id
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            accounting_endpoint
-            + "?ended_after=1999-01-01&limit=10"
-            + "&user_ids=9999999999999999999999999"
+            accounting_endpoint + "?limit=10" + "&user_ids=9999999999999999999999999"
         )
     assert response.status_code == 200
     assert len(response.json()["data"]) == 0
@@ -174,9 +187,7 @@ async def test_acct_datetime_filter(
 
     # Test default get all
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            accounting_endpoint + "?ended_after=" + FIRST_SESSION_START.isoformat()
-        )
+        response = await client.get(accounting_endpoint)
     assert response.status_code == 200
     assert len(response.json()["data"]) == n_users
     assert response.json()["data"][0]["user_id"] == user_ids[0]
@@ -245,6 +256,7 @@ async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
     SESSION_DURATION = timedelta(minutes=45)
     USER_TIME_OFFSET = timedelta(hours=1)
 
+    # One session/job per user to have the test work on all routes
     _, _, sessions = await acct_populate_db(
         app,
         first_session_start=FIRST_SESSION_START,
@@ -279,4 +291,6 @@ async def test_acct_datetime_filter_accepts_timezone_aware_query_params(
         )
     assert response_naive.status_code == 200
     assert response_aware.status_code == 200
+    assert len(response_aware.json()["data"]) == 9
+    assert len(response_naive.json()["data"]) == 9
     assert response_naive.json()["data"] == response_aware.json()["data"]

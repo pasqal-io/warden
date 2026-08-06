@@ -290,7 +290,10 @@ async def get_jobs_accounting(
 def _build_db_query_filters(acct_query: AcctRequest) -> list:
     """Build DB query filters from request query parameters for /acct"""
     # Base session filter
-    filters = [Session.revoked_at >= acct_query.ended_after]
+    filters = []
+
+    if acct_query.ended_after:
+        filters.append(Session.revoked_at >= acct_query.ended_after)
 
     if acct_query.ended_before:
         filters.append(Session.revoked_at < acct_query.ended_before)
