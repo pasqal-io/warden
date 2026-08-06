@@ -109,7 +109,9 @@ async def get_accounting_snapshot(
             and_(
                 True,
                 *db_query_filters,
-                Job.effective_end.is_not(None), # Remove non-ended jobs from ended sessions
+                Job.effective_end.is_not(
+                    None
+                ),  # Remove non-ended jobs from ended sessions
                 Session.user_id.in_(user_sessions_summary.keys()),
             )
         )
@@ -353,7 +355,7 @@ def _build_acct_jobs_db_query_filters(
         filters.append(Job.session_id.in_(acct_jobs_query.session_id))
 
     if acct_jobs_query.slurm_job_id:
-        filters.append(Job.session.slurm_job_id.in_(acct_jobs_query.slurm_job_id))
+        filters.append(Session.slurm_job_id.in_(acct_jobs_query.slurm_job_id))
 
     if acct_jobs_query.status:
         filters.append(Job.status.in_(acct_jobs_query.status))

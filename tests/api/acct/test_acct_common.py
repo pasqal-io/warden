@@ -332,14 +332,22 @@ async def test_acct_start_end_filter_accepts_timezone_aware_query_params(
     assert len(response_naive.json()["data"]) == 9
     assert response_naive.json()["data"] == response_aware.json()["data"]
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("n_sessions, session_index", ((10, [5]), (10, []), (4, [0, 1, 2, 3])))
-async def test_acct_records_session_id_filtering(client, app, accounting_records_endpoint, n_sessions: int, session_index: list[int]):
+@pytest.mark.parametrize(
+    "n_sessions, session_index", ((10, [5]), (10, []), (4, [0, 1, 2, 3]))
+)
+async def test_acct_records_session_id_filtering(
+    client, app, accounting_records_endpoint, n_sessions: int, session_index: list[int]
+):
+    """Test that /accounting/jobs and /accounting/sessions filter correclty over session_id"""
 
     STATUSES = ("DONE", "ERROR", "CANCELED")
 
     # 1 session per user, 3 jobs per session
-    _, _, sessions = await acct_populate_db(app, n_users=n_sessions, job_statuses=STATUSES)
+    _, _, sessions = await acct_populate_db(
+        app, n_users=n_sessions, job_statuses=STATUSES
+    )
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(accounting_records_endpoint)
@@ -347,7 +355,9 @@ async def test_acct_records_session_id_filtering(client, app, accounting_records
     requested_sessions = [str(sessions[i].id) for i in session_index]
     query = accounting_records_endpoint
     if requested_sessions:
-        query += "?" + "&".join(list(map(lambda x: f"session_id={x}", requested_sessions)))
+        query += "?" + "&".join(
+            list(map(lambda x: f"session_id={x}", requested_sessions))
+        )
     else:
         # If request session_id is None, request a non-existent user_id
         query += "?session_id=12345678-1234-1234-1234-123456789abc"
@@ -365,14 +375,22 @@ async def test_acct_records_session_id_filtering(client, app, accounting_records
         for row in data:
             assert row["id"] in requested_sessions
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("n_sessions, session_index", ((10, [5]), (10, []), (4, [0, 1, 2, 3])))
-async def test_acct_records_slurm_job_id_filtering(client, app, accounting_records_endpoint, n_sessions: int, session_index: list[int]):
+@pytest.mark.parametrize(
+    "n_sessions, session_index", ((10, [5]), (10, []), (4, [0, 1, 2, 3]))
+)
+async def test_acct_records_slurm_job_id_filtering(
+    client, app, accounting_records_endpoint, n_sessions: int, session_index: list[int]
+):
+    """Test that /accounting/jobs and /accounting/sessions filter correclty over slurm_job_id"""
 
     STATUSES = ("DONE", "ERROR", "CANCELED")
 
     # 1 session per user, 3 jobs per session
-    _, _, sessions = await acct_populate_db(app, n_users=n_sessions, job_statuses=STATUSES)
+    _, _, sessions = await acct_populate_db(
+        app, n_users=n_sessions, job_statuses=STATUSES
+    )
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(accounting_records_endpoint)
@@ -380,7 +398,9 @@ async def test_acct_records_slurm_job_id_filtering(client, app, accounting_recor
     requested_slurm_job_id = [str(sessions[i].slurm_job_id) for i in session_index]
     query = accounting_records_endpoint
     if requested_slurm_job_id:
-        query += "?" + "&".join(list(map(lambda x: f"slurm_job_id={x}", requested_slurm_job_id)))
+        query += "?" + "&".join(
+            list(map(lambda x: f"slurm_job_id={x}", requested_slurm_job_id))
+        )
     else:
         # If request session_id is None, request a non-existent user_id
         query += "?slurm_job_id=00000000000000000000000000000"

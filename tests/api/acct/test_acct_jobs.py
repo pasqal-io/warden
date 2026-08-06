@@ -12,33 +12,6 @@ from tests.api.conftest import mock_munge_auth
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
-async def test_acct_jobs_session_id_filtering(client, app, endpoint):
-    """Assert that /accounting/jobs can be filtered by session_id."""
-    N_USERS = 2
-    JOB_STATUSES = ("DONE", "ERROR")
-
-    _, _, sessions = await acct_populate_db(
-        app,
-        n_users=N_USERS,
-        job_statuses=JOB_STATUSES,
-    )
-
-    with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            endpoint
-            + "?ended_after=2020-01-01T00:00:00"
-            + f"&session_id={sessions[0].id}"
-        )
-    assert response.status_code == 200
-
-    body = response.json()
-    assert body["pagination"]["total"] == len(JOB_STATUSES)
-    assert len(body["data"]) == len(JOB_STATUSES)
-    assert all(job["session_id"] == str(sessions[0].id) for job in body["data"])
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
 async def test_acct_jobs_nominal(client, app, endpoint):
     """Assert that /accounting/jobs lists one row per job with its own
     status and durations."""
@@ -60,7 +33,7 @@ async def test_acct_jobs_nominal(client, app, endpoint):
 
     with mock_munge_auth(app, uid=0):
         response = await client.get(
-            endpoint + "?ended_after=2020-01-01T00:00:00&limit=100"
+            endpoint
         )
     assert response.status_code == 200
 
@@ -80,23 +53,30 @@ async def test_acct_jobs_nominal(client, app, endpoint):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
 @pytest.mark.parametrize(
-    "query,expected", (("", 30), ("&status=NOTASTATUS", 0), ("&status=DONE", 10))
+    "statuses,expected",
+    (((), 30), (("NOTASTATUS",), 0), (("DONE",), 10), (("DONE", "ERROR"), 20)),
 )
-async def test_acct_jobs_status_filtering(client, app, endpoint, query, expected):
+async def test_acct_jobs_status_filtering(
+    client, app, endpoint, statuses: tuple[str], expected: int
+):
     """Assert that /accounting/jobs can be filtered by Job status."""
+
     N_USERS = 10
     JOB_STATUSES = ("DONE", "CANCELED", "ERROR")
 
+    # 1 job per user per status
     await acct_populate_db(
         app,
         n_users=N_USERS,
         job_statuses=JOB_STATUSES,
     )
 
+    query = endpoint
+    if statuses:
+        query += "?" + "&".join(list(map(lambda x: f"status={x}", statuses)))
+
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            endpoint + "?ended_after=2020-01-01T00:00:00" + query
-        )
+        response = await client.get(query)
     assert response.status_code == 200
 
     body = response.json()

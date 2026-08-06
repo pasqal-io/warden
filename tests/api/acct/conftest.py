@@ -80,6 +80,7 @@ async def acct_populate_db(
 def accounting_endpoint(request):
     return request.param
 
+
 @pytest.fixture(scope="session", params=ACCT_RECORDS_ENDPOINTS)
 def accounting_records_endpoint(request):
     """Only /jobs and /session accounting routes"""
