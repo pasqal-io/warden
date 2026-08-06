@@ -42,7 +42,8 @@ async def get_accounting_snapshot(
     """Per-user accounting summary.
 
     Aggregates session counts/duration and job counts/execution/wait time
-    and status per user, for sessions revoked within the requested time window.
+    and status per user, for sessions ended within the requested time window.
+    Data from sessions that are not over yet is not included.
     One row per user paginated over the distinct set of users.
     """
 
@@ -131,7 +132,7 @@ async def get_accounting_snapshot(
         user_jobs_summaries[user_id].execution_time += row_execution_time
         user_jobs_summaries[user_id].wait_time += row_wait_time
         user_jobs_summaries[user_id].shots += row_shots_total
-        user_jobs_summaries[user_id].stats.append(
+        user_jobs_summaries[user_id].per_status.append(
             JobSummaryStats(
                 status=job_row.status,
                 count=job_row.job_count,

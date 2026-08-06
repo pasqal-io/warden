@@ -43,7 +43,7 @@ class JobsSummary(BaseModel):
     execution_time: int = Field(default=0, ge=0)
     wait_time: int = Field(default=0, ge=0)
     shots: int = Field(default=0, ge=0)
-    stats: list[JobSummaryStats] = Field(default_factory=list)
+    per_status: list[JobSummaryStats] = Field(default_factory=list)
 
 
 class AcctData(BaseModel):
