@@ -142,7 +142,6 @@ async def get_accounting_snapshot(
             )
         )
 
-    # For each user, get job statistics
     acct_data_list = []
 
     for user_id in user_sessions_summary.keys():

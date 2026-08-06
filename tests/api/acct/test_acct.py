@@ -139,5 +139,7 @@ async def test_acct_reported_durations(client, app, endpoint: Literal["/accounti
         # One job, spanning the whole session.
         assert user_data["jobs"]["count"] == 1
         assert len(user_data["jobs"]["per_status"]) == 1
-        assert user_data["jobs"]["per_status"][0]["execution_time"] == JOB_EXECUTION_TIME
+        assert (
+            user_data["jobs"]["per_status"][0]["execution_time"] == JOB_EXECUTION_TIME
+        )
         assert user_data["jobs"]["per_status"][0]["wait_time"] == JOB_WAIT_TIME
