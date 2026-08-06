@@ -187,6 +187,12 @@ class GetAcctJobsRequest(GetAcctSessionsRequest):
         examples=["ERROR"],
     )
 
+    job_id: list[JobID] | None = Field(
+        default=None,
+        description="Restrict the repost to jobs with corresponding ids.",
+        examples=[34, 42, 67],
+    )
+
 
 class GetAcctJobsResponse(AcctResponse):
     data: list[JobData]

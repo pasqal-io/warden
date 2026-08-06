@@ -360,4 +360,7 @@ def _build_acct_jobs_db_query_filters(
     if acct_jobs_query.status:
         filters.append(Job.status.in_(acct_jobs_query.status))
 
+    if acct_jobs_query.job_id:
+        filters.append(Job.id.in_(acct_jobs_query.job_id))
+
     return filters

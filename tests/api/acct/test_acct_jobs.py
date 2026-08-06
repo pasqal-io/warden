@@ -32,9 +32,7 @@ async def test_acct_jobs_nominal(client, app, endpoint):
     )
 
     with mock_munge_auth(app, uid=0):
-        response = await client.get(
-            endpoint
-        )
+        response = await client.get(endpoint)
     assert response.status_code == 200
 
     body = response.json()
@@ -56,7 +54,7 @@ async def test_acct_jobs_nominal(client, app, endpoint):
     "statuses,expected",
     (((), 30), (("NOTASTATUS",), 0), (("DONE",), 10), (("DONE", "ERROR"), 20)),
 )
-async def test_acct_jobs_status_filtering(
+async def test_acct_jobs_id_filtering(
     client, app, endpoint, statuses: tuple[str], expected: int
 ):
     """Assert that /accounting/jobs can be filtered by Job status."""
@@ -82,3 +80,38 @@ async def test_acct_jobs_status_filtering(
     body = response.json()
     assert body["pagination"]["total"] == expected
     assert len(body["data"]) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+@pytest.mark.parametrize("n_jobs,job_indexes", ((10, [2, 5, 6]), (10, []), (10, [5])))
+async def test_acct_jobs_status_filtering(
+    client, app, endpoint, n_jobs: int, job_indexes: list[int]
+):
+    """Assert that /accounting/jobs can be filtered by Job ID."""
+
+    # 1 job per user per status
+    _, jobs, _ = await acct_populate_db(
+        app,
+        n_users=n_jobs,
+    )
+
+    requested_ids = [jobs[i].id for i in job_indexes]
+
+    query = endpoint
+    if requested_ids:
+        query += "?" + "&".join(list(map(lambda x: f"job_id={x}", requested_ids)))
+    else:
+        # If no requested job indexes request a non-existent job id
+        query += "?job_id=99999"
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(query)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == len(job_indexes)
+    assert len(body["data"]) == len(job_indexes)
+    data = body["data"]
+    for job in data:
+        assert job["id"] in requested_ids
