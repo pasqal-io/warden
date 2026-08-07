@@ -32,7 +32,6 @@ class SessionsSummary(BaseModel):
 
 
 class JobSummaryStats(BaseModel):
-    status: str
     count: int
     execution_time: int
     wait_time: int
@@ -44,7 +43,7 @@ class JobsSummary(BaseModel):
     execution_time: int = Field(default=0, ge=0)
     wait_time: int = Field(default=0, ge=0)
     shots: int = Field(default=0, ge=0)
-    per_status: list[JobSummaryStats] = Field(default_factory=list)
+    per_status: dict[JobStatus, JobSummaryStats] = Field(default_factory=dict)
 
 
 class AcctData(BaseModel):

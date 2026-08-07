@@ -135,14 +135,11 @@ async def get_accounting_snapshot(
         user_jobs_summaries[user_id].execution_time += row_execution_time
         user_jobs_summaries[user_id].wait_time += row_wait_time
         user_jobs_summaries[user_id].shots += row_shots_total
-        user_jobs_summaries[user_id].per_status.append(
-            JobSummaryStats(
-                status=job_row.status,
-                count=job_row.job_count,
-                execution_time=row_execution_time,
-                wait_time=row_wait_time,
-                shots=row_shots_total,
-            )
+        user_jobs_summaries[user_id].per_status[job_row.status] = JobSummaryStats(
+            count=job_row.job_count,
+            execution_time=row_execution_time,
+            wait_time=row_wait_time,
+            shots=row_shots_total,
         )
 
     acct_data_list = []

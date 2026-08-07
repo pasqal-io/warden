@@ -18,7 +18,7 @@ async def test_acct_nominal(client, app, endpoint: Literal["/accounting"]):
     """Assert that /accounting lists one row per user with its session and
     job summaries (counts and durations) correctly aggregated."""
     N_USERS = 3
-    JOB_STATUSES = ("DONE", "ERROR")
+    JOB_STATUSES = ("DONE", "ERROR", "CANCELED")
     SESSION_DURATION = timedelta(minutes=30)
     JOB_WAIT = timedelta(seconds=15)
     JOB_EXECUTION = timedelta(seconds=45)
@@ -59,10 +59,9 @@ async def test_acct_nominal(client, app, endpoint: Literal["/accounting"]):
         assert user_data["jobs"]["execution_time"] == expected_jobs_execution_time
         assert user_data["jobs"]["wait_time"] == expected_jobs_wait_time
         assert user_data["jobs"]["shots"] == JOB_SHOTS * len(JOB_STATUSES)
-        assert {stat["status"] for stat in user_data["jobs"]["per_status"]} == set(
-            JOB_STATUSES
-        )
-        for stat in user_data["jobs"]["per_status"]:
+        assert isinstance(user_data["jobs"]["per_status"], dict)
+        assert set(user_data["jobs"]["per_status"].keys()) == set(JOB_STATUSES)
+        for stat in user_data["jobs"]["per_status"].values():
             assert stat["count"] == 1
             assert stat["execution_time"] == expected_execution_time
             assert stat["wait_time"] == expected_wait_time
@@ -100,7 +99,7 @@ async def test_acct_session_without_jobs(client, app, endpoint: Literal["/accoun
         assert user_data["jobs"]["count"] == 0
         assert user_data["jobs"]["execution_time"] == 0
         assert user_data["jobs"]["wait_time"] == 0
-        assert user_data["jobs"]["per_status"] == []
+        assert user_data["jobs"]["per_status"] == {}
 
 
 @pytest.mark.asyncio
@@ -117,6 +116,7 @@ async def test_acct_reported_durations(client, app, endpoint: Literal["/accounti
         n_users=N_USERS,
         session_duration=SESSION_DURATION,
         job_wait_time=JOB_WAIT,
+        job_statuses=("DONE",),
         job_execution_time=JOB_EXECUTION,
     )
 
@@ -140,6 +140,7 @@ async def test_acct_reported_durations(client, app, endpoint: Literal["/accounti
         assert user_data["jobs"]["count"] == 1
         assert len(user_data["jobs"]["per_status"]) == 1
         assert (
-            user_data["jobs"]["per_status"][0]["execution_time"] == JOB_EXECUTION_TIME
+            user_data["jobs"]["per_status"]["DONE"]["execution_time"]
+            == JOB_EXECUTION_TIME
         )
-        assert user_data["jobs"]["per_status"][0]["wait_time"] == JOB_WAIT_TIME
+        assert user_data["jobs"]["per_status"]["DONE"]["wait_time"] == JOB_WAIT_TIME
