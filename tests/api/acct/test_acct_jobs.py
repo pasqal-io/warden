@@ -52,7 +52,7 @@ async def test_acct_jobs_nominal(client, app, endpoint):
 @pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
 @pytest.mark.parametrize(
     "statuses,expected",
-    (((), 30), (("NOTASTATUS",), 0), (("DONE",), 10), (("DONE", "ERROR"), 20)),
+    (((), 30), (("DONE",), 10), (("DONE", "ERROR"), 20)),
 )
 async def test_acct_jobs_id_filtering(
     client, app, endpoint, statuses: tuple[str], expected: int
@@ -80,6 +80,17 @@ async def test_acct_jobs_id_filtering(
     body = response.json()
     assert body["pagination"]["total"] == expected
     assert len(body["data"]) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query", ("status=NOTASTATUS",))
+async def test_acct_jobs_rejects_bad_query_params(client, app, query: str):
+    """Assert that unknown status values and unknown query parameters are
+    rejected rather than silently ignored."""
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(f"{ACCT_JOBS_ENDPOINT}?{query}")
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

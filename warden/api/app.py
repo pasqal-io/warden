@@ -11,16 +11,17 @@ from warden.lib.config import Config
 TAGS_METADATA = [
     {
         "name": "accounting",
-        "description": "Accounting endpoints for Warden usage report generation."
+        "description": "Accounting endpoints for Warden usage report generation.",
     }
 ]
+
 
 def create_app(config: Config):
     app = FastAPI(
         title="Warden API",
         description="Receives, validates, and stores jobs for execution",
         version="0.2.0",
-        openapi_tags=TAGS_METADATA
+        openapi_tags=TAGS_METADATA,
     )
     init_db(app, config.database)
     init_qpu_client(app, config.qpu)

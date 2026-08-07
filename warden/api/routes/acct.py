@@ -175,7 +175,7 @@ async def get_sessions_accounting(
     """Per-session accounting report.
 
     Returns one row per session.
-    Time-based query parameters filter according to the session's end datetime. 
+    Time-based query parameters filter according to the session's end datetime.
     Data from sessions that are still running is not included.
     """
 
@@ -238,7 +238,7 @@ async def get_jobs_accounting(
     """Per-job accounting report.
 
     Returns one row per job.
-    Time-based query parameters filter according to the job's end datetime. 
+    Time-based query parameters filter according to the job's end datetime.
     Data from jobs that are still running is not included.
     """
 
