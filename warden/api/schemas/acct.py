@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from fastapi import Query
 from pydantic import BaseModel, Field, field_validator

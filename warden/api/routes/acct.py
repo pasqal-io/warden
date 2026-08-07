@@ -30,7 +30,7 @@ from warden.api.schemas.acct import (
 from warden.lib.models import Job, Session
 
 logger = getLogger(__name__)
-router = APIRouter(prefix="/accounting")
+router = APIRouter(prefix="/accounting", tags=["accounting"])
 
 
 @router.get("")
@@ -43,7 +43,7 @@ async def get_accounting_snapshot(
 
     Aggregates session counts/duration and job counts/execution/wait time
     and status per user, for sessions ended within the requested time window.
-    Data from sessions that are not over yet is not included.
+    Data from sessions/job that are still running is not included.
     One row per user paginated over the distinct set of users.
     """
 
@@ -174,9 +174,9 @@ async def get_sessions_accounting(
 ) -> GetAcctSessionsResponse:
     """Per-session accounting report.
 
-    Returns one row per session revoked within the requested time window,
-    with its duration and job count. Can additionally be filtered by
-    `slurm_job_id`.
+    Returns one row per session.
+    Time-based query parameters filter according to the session's end datetime. 
+    Data from sessions that are still running is not included.
     """
 
     # Base session filter
@@ -237,10 +237,9 @@ async def get_jobs_accounting(
 ) -> GetAcctJobsResponse:
     """Per-job accounting report.
 
-    Returns one row per job **belonging to a session revoked within the
-    requested time window** (same session-based time filtering as the other
-    accounting routes, for consistency). Can additionally be filtered by
-    `session_id` and job `status`.
+    Returns one row per job.
+    Time-based query parameters filter according to the job's end datetime. 
+    Data from jobs that are still running is not included.
     """
 
     # Base session filter
