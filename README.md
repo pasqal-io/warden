@@ -103,7 +103,6 @@ Warden's access to the PASQAL QPU can be configured through the YAML config or e
 - `false`: disable verification entirely. **Insecure**, dev/local testing only.
 - a path (e.g. `/etc/warden/backend-ca.pem`) — verify against a specific CA bundle / certificate file.
 
-
 The API server can also be configured to only accept new jobs from configured user IDs:
 
 | Path       | Description             | Default   | Required | Example Value |
@@ -172,3 +171,32 @@ Configure Warden to accept jobs again by configuring:
 ```bash
 make set-accessible IS_ACCESSIBLE=true MESSAGE="Maintenance done"
 ```
+
+### External Resource-Manager Polling
+
+External schedulers can poll `GET /accessible` to decide whether to offer a QPU
+resource for early scheduling. The response is:
+
+```json
+{"is_accessible": true, "message": "QPU accessible"}
+```
+
+`is_accessible=false` means the resource should be treated as unavailable by
+that external scheduler. Polling this endpoint is only a readiness hint; Warden
+still performs its normal session and job handling.
+
+If `qpu.qpu_slots_total` is set, sessions may include `qpu_slots` and Warden
+rejects new sessions when active sessions would exceed that total. In that
+case, `GET /accessible` also returns `qpu_slots_total`, `qpu_slots_used`, and
+`qpu_slots_available` for external polling.
+
+Capacity admission is serialized in the database, so concurrent session
+requests cannot oversubscribe the configured total. Warden derives session
+idempotency from `(user_id, slurm_job_id)`: repeating an active request for
+the same scheduler job returns the existing session, while changing its slot
+count returns `409`.
+
+`qpu_slots` is also the weight for Warden's job-level scheduler. A five-slot
+session receives approximately five scheduling turns for every turn received
+by a one-slot session, while jobs remain FIFO within a session. Running QPU jobs
+are not preempted.

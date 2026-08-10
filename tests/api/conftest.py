@@ -13,6 +13,7 @@ from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.lib.config.config import APIConfig, Config, DatabaseConfig, QPUConfig
 from warden.lib.db.database import Base
+from warden.lib.models import QPUCapacityLock
 from warden.lib.qpu_client.client import AsyncQPUClient
 
 
@@ -24,6 +25,9 @@ async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None
     # create tables in the test database
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    async with app.state.db_session_factory() as session:
+        await session.merge(QPUCapacityLock(id=1))
+        await session.commit()
     yield app
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
