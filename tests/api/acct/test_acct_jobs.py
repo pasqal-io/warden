@@ -1,0 +1,128 @@
+from datetime import timedelta
+
+import pytest
+
+from tests.api.acct.conftest import ACCT_JOBS_ENDPOINT, acct_populate_db
+from tests.api.conftest import mock_munge_auth
+
+###############################################################################
+######################### /accounting/jobs ROUTE TESTS ########################
+###############################################################################
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+async def test_acct_jobs_nominal(client, app, endpoint):
+    """Assert that /accounting/jobs lists one row per job with its own
+    status and durations."""
+    N_USERS = 2
+
+    JOB_WAIT = timedelta(seconds=30)
+    JOB_EXECUTION = timedelta(seconds=60)
+
+    EXPECTED_WAIT_TIME = int(JOB_WAIT.total_seconds())
+    EXPECTED_EXECUTION_TIME = int(JOB_EXECUTION.total_seconds())
+
+    user_uids, jobs, _ = await acct_populate_db(
+        app,
+        n_users=N_USERS,
+        job_wait_time=JOB_WAIT,
+        job_execution_time=JOB_EXECUTION,
+        job_statuses=("DONE",),
+    )
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(endpoint)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == N_USERS
+    assert len(body["data"]) == N_USERS
+
+    for i, job_data in enumerate(body["data"]):
+        assert job_data["id"] == jobs[i].id
+        assert job_data["user_id"] == user_uids[i]
+        assert job_data["session_id"] == str(jobs[i].session_id)
+        assert job_data["status"] == "DONE"
+        assert job_data["execution_time"] == EXPECTED_EXECUTION_TIME
+        assert job_data["wait_time"] == EXPECTED_WAIT_TIME
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+@pytest.mark.parametrize(
+    "statuses,expected",
+    (((), 30), (("DONE",), 10), (("DONE", "ERROR"), 20)),
+)
+async def test_acct_jobs_id_filtering(
+    client, app, endpoint, statuses: tuple[str], expected: int
+):
+    """Assert that /accounting/jobs can be filtered by Job status."""
+
+    N_USERS = 10
+    JOB_STATUSES = ("DONE", "CANCELED", "ERROR")
+
+    # 1 job per user per status
+    await acct_populate_db(
+        app,
+        n_users=N_USERS,
+        job_statuses=JOB_STATUSES,
+    )
+
+    query = endpoint
+    if statuses:
+        query += "?" + "&".join(list(map(lambda x: f"status={x}", statuses)))
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(query)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == expected
+    assert len(body["data"]) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query", ("status=NOTASTATUS",))
+async def test_acct_jobs_rejects_bad_query_params(client, app, query: str):
+    """Assert that unknown status values and unknown query parameters are
+    rejected rather than silently ignored."""
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(f"{ACCT_JOBS_ENDPOINT}?{query}")
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", (ACCT_JOBS_ENDPOINT,))
+@pytest.mark.parametrize("n_jobs,job_indexes", ((10, [2, 5, 6]), (10, []), (10, [5])))
+async def test_acct_jobs_status_filtering(
+    client, app, endpoint, n_jobs: int, job_indexes: list[int]
+):
+    """Assert that /accounting/jobs can be filtered by Job ID."""
+
+    # 1 job per user per status
+    _, jobs, _ = await acct_populate_db(
+        app,
+        n_users=n_jobs,
+    )
+
+    requested_ids = [jobs[i].id for i in job_indexes]
+
+    query = endpoint
+    if requested_ids:
+        query += "?" + "&".join(list(map(lambda x: f"job_id={x}", requested_ids)))
+    else:
+        # If no requested job indexes request a non-existent job id
+        query += "?job_id=99999"
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.get(query)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["pagination"]["total"] == len(job_indexes)
+    assert len(body["data"]) == len(job_indexes)
+    data = body["data"]
+    for job in data:
+        assert job["id"] in requested_ids

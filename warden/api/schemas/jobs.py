@@ -4,6 +4,7 @@ from typing import Any, Literal, Union
 
 from pydantic import BaseModel, Field, ValidationError
 
+from warden.api.schemas.common import UserID
 from warden.lib.models.jobs import Job
 
 
@@ -23,7 +24,7 @@ class JobCreate(BaseModel):
 
 class JobResponse(BaseModel):
     id: int
-    user_id: str
+    user_id: UserID
     created_at: datetime
     status: str
     results: str | None
