@@ -30,15 +30,15 @@ def test_config_env_vars_use_warden_prefix(monkeypatch, tmp_path):
     assert config.api.host == "127.0.0.1"
 
 
-def test_config_env_vars_kebab_case(monkeypatch, tmp_path):
+def test_config_env_vars_nocase(monkeypatch, tmp_path):
     """
-    Test that the parameters with underscores can be set with the kebab-case
-    env-variable alternative
+    Test that the parameters with underscores can be set by removing underscores
+    in the env-variable alternative
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("WARDEN_SCHEDULER_QPU-POLLING-INTERVAL-S", "999")
-    monkeypatch.setenv("WARDEN_QPU_RETRY-MAX", "999")
-    monkeypatch.setenv("WARDEN_API_AUTHORIZED-USERS", '[1001, "9999"]')
+    monkeypatch.setenv("WARDEN_SCHEDULER_QPUPOLLINGINTERVALS", "999")
+    monkeypatch.setenv("WARDEN_QPU_RETRYMAX", "999")
+    monkeypatch.setenv("WARDEN_API_AUTHORIZEDUSERS", '[1001, "9999"]')
 
     config = Config()
 
@@ -49,8 +49,8 @@ def test_config_env_vars_kebab_case(monkeypatch, tmp_path):
 
 def test_config_parse_lists_from_env(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("WARDEN_API_AUTHORIZED-USERS", '[1001, "9999"]')
-    monkeypatch.setenv("WARDEN_API_ADMIN-USERS", '[1001, "9999"]')
+    monkeypatch.setenv("WARDEN_API_AUTHORIZEDUSERS", '[1001, "9999"]')
+    monkeypatch.setenv("WARDEN_API_ADMINUSERS", '[1001, "9999"]')
 
     config = Config()
 

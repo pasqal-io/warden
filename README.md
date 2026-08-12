@@ -66,8 +66,8 @@ WARDEN_DATABASE_PASSWORD="secret"
 ```
 
 > [!NOTE]
-> If a key contains an underscore, you need to replace it by a `-` to set it using environment variables.
-> E.g. `qpu.retry_max` can be set with the `WARDEN_QPU_RETRY-MAX` environment variable.
+> If a key contains an underscore, you need to remove any `_` in its name to set it using environment variables.
+> E.g. `qpu.retry_max` can be set with the `WARDEN_QPU_RETRYMAX` environment variable.
 
 
 The following options are configurable:
