@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 
-from httpx import AsyncClient, Response
+from httpx2 import AsyncClient, Response
 
 from warden.lib.config.config import QPUConfig
 from warden.lib.qpu_client.retry import NotRetriedHTTPStatus, retry

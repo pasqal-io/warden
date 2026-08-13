@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 import pytest
-from httpx import AsyncClient, Request, Response
+from httpx2 import AsyncClient, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 

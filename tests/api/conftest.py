@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Callable, Generator
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient, MockTransport, Request, Response
+from httpx2 import ASGITransport, AsyncClient, MockTransport, Request, Response
 from pulser.devices import DigitalAnalogDevice
 from sqlalchemy.ext.asyncio import async_sessionmaker
 

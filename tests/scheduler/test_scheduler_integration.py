@@ -67,7 +67,7 @@ async def test_run_scheduler_integration(
     app = mock_qpu_api_app
     # No need for timing of job execution in this test
     app.state.timed_config = TimedConfig(shot_duration_s=0)
-    conf.qpu._client = TestClient(app)  # type: ignore[assignment]  # TestClient is httpx2-based
+    conf.qpu._client = TestClient(app)
     #################################
 
     ##################
@@ -163,7 +163,7 @@ async def test_run_scheduler_integration_cancellation_worker(
     # the cancellation worker has time to observe and cancel jobs
     app.state.timed_config = TimedConfig(shot_duration_s=0.001)
     # Each job with 500 shots is expected to take 0.5 seconds to complete
-    conf.qpu._client = TestClient(app)  # type: ignore[assignment]  # TestClient is httpx2-based
+    conf.qpu._client = TestClient(app)
     #################################
 
     ##################

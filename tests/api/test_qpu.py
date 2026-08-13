@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from httpx import AsyncClient, Request, Response
+from httpx2 import AsyncClient, Request, Response
 
 from tests.api.conftest import MAX_RETRY, mock_qpu_client
 

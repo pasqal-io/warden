@@ -6,7 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-import httpx
+import httpx2
 import yaml
 from pydantic import (
     AfterValidator,
@@ -90,30 +90,26 @@ class QPUConfig(WardenSettings):
     retry_max: int = 10
     retry_sleep_s: float = 1
 
-    # TLS verification policy for requests to the QPU backend. Mirrors httpx's
-    # ``verify`` argument, with an extra "system" mode:
-    #   "system"        -> verify against the OS trust store, e.g.
-    #                      /etc/pki/ca-trust, /etc/ssl/certs (default)
-    #   true            -> verify against certifi's CA bundle (httpx default)
+    # TLS verification policy for requests to the QPU backend. Mirrors httpx2's
+    # ``verify`` argument:
+    #   true            -> verify against the OS trust store (httpx2 default)
     #   false           -> disable verification (INSECURE; dev/e2e only)
     #   "<path/to.pem>" -> verify against a specific CA bundle / cert file
-    tls_verify: bool | str = "system"
+    tls_verify: bool | str = True
 
-    _client: httpx.Client | None = PrivateAttr(default=None)
+    _client: httpx2.Client | None = PrivateAttr(default=None)
 
     @property
-    def verify(self) -> bool | str | ssl.SSLContext:
+    def verify(self) -> bool | ssl.SSLContext:
         """Translate ``tls_verify`` into an httpx ``verify`` argument."""
-        if self.tls_verify == "system":
-            # ssl.create_default_context() loads OpenSSL's default verify paths,
-            # which is where update-ca-trust publishes OS trust anchors.
-            return ssl.create_default_context()
+        if isinstance(self.tls_verify, str):
+            return ssl.create_default_context(cafile=self.tls_verify)
         return self.tls_verify
 
     @property
-    def client(self) -> httpx.Client:
+    def client(self) -> httpx2.Client:
         if self._client is None:
-            self._client = httpx.Client(verify=self.verify)
+            self._client = httpx2.Client(verify=self.verify)
         self._client.base_url = self.uri + API_PREFIX
         return self._client
 
