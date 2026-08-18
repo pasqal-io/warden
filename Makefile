@@ -1,7 +1,7 @@
 include config.mk dev.mk
 
 # install + run targets
-.PHONY: check-python install run
+.PHONY: check-python install run config.yaml
 
 # cluster admin commands to operate Warden
 .PHONY: set-accessible \
@@ -41,8 +41,14 @@ check-python:
 			;; \
 	esac
 
-config.yaml:
-	@new_config="warden/lib/config/config.sample.yaml"; \
+# Regenerates config.yaml from the defaults/descriptions declared in
+# warden/lib/config/config.py. Requires the venv's dependencies to already be
+# installed, so this runs as a post-install step (see `install`), not as part
+# of the initial bootstrap.
+config.yaml: $(VENV)/bin/python
+	@new_config="$$(mktemp)"; \
+	trap 'rm -f "$$new_config"' EXIT; \
+	$(VENV)/bin/python -m warden.lib.config.generate_config "$$new_config"; \
 	if [ ! -f config.yaml ]; then \
 		cp "$$new_config" config.yaml; \
 		exit 0; \
@@ -62,7 +68,7 @@ config.yaml:
 	cp "$$new_config" config.yaml
 
 # Note: the --copies flag is used to create a copy of the binaries, since a symlink may not always work
-$(VENV)/bin/python: config.yaml check-python
+$(VENV)/bin/python: check-python
 	@if [ -d ./venv ]; then \
 		echo "Removing legacy ./venv"; \
 		rm -rf ./venv; \
@@ -78,6 +84,7 @@ $(VENV)/bin/python: config.yaml check-python
 
 install: $(VENV)/bin/python
 	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
+	$(MAKE) config.yaml
 
 run: migrate
 	@bash -c '\

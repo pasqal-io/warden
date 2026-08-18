@@ -37,30 +37,69 @@ class WardenSettings(BaseSettings):
     )
 
 
+DATABASE_BACKEND_DESCRIPTION = (
+    "Database backend. Warden supports sqlite, postgres or mariadb."
+)
+DATABASE_HOST_DESCRIPTION = (
+    "Address to connect to the database. Only used for PostgreSQL and MariaDB."
+)
+DATABASE_USER_DESCRIPTION = (
+    "Database user used to connect to the database. "
+    "Mandatory for PostgreSQL and MariaDB."
+)
+DATABASE_PASSWORD_DESCRIPTION = (
+    "Database password used to connect to the database. Mandatory for PostgreSQL "
+    "and MariaDB. Should be set via the WARDEN_DATABASE_PASSWORD environment "
+    "variable rather than in the config file."
+)
+DATABASE_ECHO_DESCRIPTION = "Optional, SQLAlchemy echo (log all SQL statements)."
+
+
 class SqliteConfig(WardenSettings):
-    backend: Literal["sqlite"] = "sqlite"
-    name: str = "warden.db"
-    echo: bool = False
+    backend: Literal["sqlite"] = Field(
+        default="sqlite", description=DATABASE_BACKEND_DESCRIPTION
+    )
+    name: str = Field(
+        default="warden.db",
+        description="For SQLite, the database name is the filename of the database file.",
+    )
+    echo: bool = Field(default=False, description=DATABASE_ECHO_DESCRIPTION)
 
 
 class PostgresConfig(WardenSettings):
-    backend: Literal["postgres"] = "postgres"
-    host: str = "localhost"
-    port: int = 5432
-    name: str = "warden"
-    user: str
-    password: str
-    echo: bool = False
+    backend: Literal["postgres"] = Field(
+        default="postgres", description=DATABASE_BACKEND_DESCRIPTION
+    )
+    host: str = Field(default="localhost", description=DATABASE_HOST_DESCRIPTION)
+    port: int = Field(
+        default=5432,
+        description="Port to connect to the database. Default for PostgreSQL, 3306 for MariaDB.",
+    )
+    name: str = Field(
+        default="warden",
+        description="For PostgreSQL and MariaDB, the database name is the name of the database.",
+    )
+    user: str = Field(description=DATABASE_USER_DESCRIPTION)
+    password: str = Field(description=DATABASE_PASSWORD_DESCRIPTION)
+    echo: bool = Field(default=False, description=DATABASE_ECHO_DESCRIPTION)
 
 
 class MariadbConfig(WardenSettings):
-    backend: Literal["mariadb"] = "mariadb"
-    host: str = "localhost"
-    port: int = 3306
-    name: str = "warden"
-    user: str
-    password: str
-    echo: bool = False
+    backend: Literal["mariadb"] = Field(
+        default="mariadb", description=DATABASE_BACKEND_DESCRIPTION
+    )
+    host: str = Field(default="localhost", description=DATABASE_HOST_DESCRIPTION)
+    port: int = Field(
+        default=3306,
+        description="Port to connect to the database. Default for MariaDB, 5432 for PostgreSQL.",
+    )
+    name: str = Field(
+        default="warden",
+        description="For PostgreSQL and MariaDB, the database name is the name of the database.",
+    )
+    user: str = Field(description=DATABASE_USER_DESCRIPTION)
+    password: str = Field(description=DATABASE_PASSWORD_DESCRIPTION)
+    echo: bool = Field(default=False, description=DATABASE_ECHO_DESCRIPTION)
 
 
 DatabaseConfig = Annotated[
@@ -73,29 +112,80 @@ class SchedulerStrategy(StrEnum):
 
 
 class SchedulerConfig(WardenSettings):
-    strategy: SchedulerStrategy = SchedulerStrategy.FIFO
+    strategy: SchedulerStrategy = Field(
+        default=SchedulerStrategy.FIFO,
+        description=(
+            "Job scheduling strategy. Available strategies: "
+            "FIFO (priority to the oldest job pending in the database)."
+        ),
+    )
 
-    db_polling_interval_s: float = 1
+    db_polling_interval_s: float = Field(
+        default=1,
+        description=(
+            "Time interval in seconds between checks on the database "
+            "for a new job to schedule."
+        ),
+    )
 
-    qpu_polling_interval_s: float = 5
-    qpu_polling_timeout_s: float = -1
+    qpu_polling_interval_s: float = Field(
+        default=5,
+        description="Time interval in seconds between checks of the QPU status.",
+    )
+    qpu_polling_timeout_s: float = Field(
+        default=-1,
+        description=(
+            "Maximum time in seconds the scheduler will wait for the QPU to be "
+            "operational at the start of a job. If the QPU is not operational "
+            'after this time, the scheduled job will return with status "ERROR". '
+            "Set to -1 for no time limit."
+        ),
+    )
 
-    job_polling_interval_s: float = 5
-    job_polling_timeout_s: float = -1
+    job_polling_interval_s: float = Field(
+        default=5,
+        description=(
+            "Time interval in seconds between checks of the status of the "
+            "job running on the QPU."
+        ),
+    )
+    job_polling_timeout_s: float = Field(
+        default=-1,
+        description=(
+            "Maximum time in seconds the scheduler will wait for the job to "
+            "finish execution on the QPU. If the job is not done after this "
+            "time, the scheduler will cancel the job on the QPU and return "
+            'with status "CANCELED". Set to -1 for no time limit.'
+        ),
+    )
 
 
 class QPUConfig(WardenSettings):
-    uri: str = "http://localhost:8000"
+    uri: str = Field(
+        default="http://localhost:8000", description="Local Pasqal QPU API URI."
+    )
 
-    retry_max: int = 10
-    retry_sleep_s: float = 1
+    retry_max: int = Field(
+        default=10,
+        description=(
+            "Max number of retries to the QPU API in case of transient errors "
+            "during requests."
+        ),
+    )
+    retry_sleep_s: float = Field(
+        default=1, description="Time in seconds between request retries."
+    )
 
-    # TLS verification policy for requests to the QPU backend. Mirrors httpx2's
-    # ``verify`` argument:
-    #   true            -> verify against the OS trust store (httpx2 default)
-    #   false           -> disable verification (INSECURE; dev/e2e only)
-    #   "<path/to.pem>" -> verify against a specific CA bundle / cert file
-    tls_verify: bool | str = True
+    tls_verify: bool | str = Field(
+        default=True,
+        description=(
+            "TLS verification policy for requests to the QPU backend. Only "
+            "relevant when 'uri' uses https. Mirrors httpx2's `verify` argument: "
+            "true -> verify against the OS trust store (httpx2 default); "
+            "false -> disable verification (INSECURE; dev/e2e only); "
+            '"<path/to.pem>" -> verify against a specific CA bundle / certificate file.'
+        ),
+    )
 
     _client: httpx2.Client | None = PrivateAttr(default=None)
 
@@ -141,14 +231,29 @@ def ensure_non_empty(v: list[str]) -> list[str]:
 
 
 class APIConfig(WardenSettings):
-    host: str = "0.0.0.0"
-    port: int = Field(default=8006, ge=1, le=65535)
+    host: str = Field(default="0.0.0.0", description="API bind address.")
+    port: int = Field(default=8006, ge=1, le=65535, description="API bind port.")
 
     # processing authorized_users as strings but allowing users to input numbers
-    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
+    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = Field(
+        default=[],
+        description=(
+            "List of user ids authorized to create new jobs on the QPU by "
+            "creating a new session. All entries must be strings or integers. "
+            "If empty/unset, all users are authorized."
+        ),
+    )
     admin_users: Annotated[
         list[str], BeforeValidator(coerce_to_str), AfterValidator(ensure_non_empty)
-    ] = ["0"]
+    ] = Field(
+        default=["0"],
+        description=(
+            "List of admin uids authorized to set the availability of the QPU "
+            "and create sessions on behalf of users. All entries must be strings "
+            "or integers. Must not be empty, and must include the uid running "
+            "the spank plugin."
+        ),
+    )
 
 
 class Config(WardenSettings):
