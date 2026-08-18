@@ -202,7 +202,8 @@ class Config(WardenSettings):
             with path.open() as f:
                 data = yaml.safe_load(f) or {}
 
-            return data
+            # Parse empty YAML section as empty dict instead of Null
+            return {k: v for k, v in data.items() if v is not None}
 
         class YamlSettingsSource(PydanticBaseSettingsSource):
             def __init__(self, settings_cls: type[BaseSettings], path: Path):
@@ -220,7 +221,4 @@ class Config(WardenSettings):
             init_settings,  # from Config(...)
             dotenv_settings,  # from .env
             YamlSettingsSource(settings_cls, Path.cwd() / "config.yaml"),
-            YamlSettingsSource(
-                settings_cls, Path(__file__).parent / "config.sample.yaml"
-            ),
         )
