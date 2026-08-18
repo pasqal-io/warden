@@ -94,7 +94,7 @@ Warden's access to the PASQAL QPU can be configured through the YAML config or e
 | Path             | Variable                | Description                          | Default                 | Required | Example Value             |
 |------------------|-------------------------|--------------------------------------|-------------------------|----------|---------------------------|
 | `qpu.uri`        | `WARDEN_QPU_URI`        | PASQAL QPU API uri                   | `http://localhost:8005` | Yes      | `http://127.0.0.1:8005`   |
-| `qpu.tls_verify` | _(YAML only)_           | TLS verification for an https backend | `system`                | No       | `system`                  |
+| `qpu.tls_verify` | `WARDEN_QPU_TLSVERIFY`   | TLS verification for an https backend | `system`                | No       | `system`                  |
 
 `qpu.tls_verify` only applies when `qpu.uri` uses `https`. It accepts:
 
