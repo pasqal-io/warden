@@ -30,17 +30,14 @@ database:
   # backend: sqlite # sqlite, postgres or mariadb
 
   # For SQLite, the database name is the filename of the database.
-  # name: "warden.db" # Default for SQLite
+  # For PostgreSQL and MariaDB, the database name is the name of the database.
+  # name: "warden.db" # Default for SQLite, "warden" for PostgreSQL/MariaDB
 
   # For PostgreSQL and MariaDB:
-  # - the database name is the name of the database.
   # - the database user and password are the credentials to connect to the database.
   # - the database host and port are the address and port to connect to the database.
-
-  # For PostgreSQL and MariaDB:
   # host: "localhost"              # Default
   # port: 5432                     # Default for PostgreSQL, 3306 for MariaDB
-  # name: "warden"                 # Default
   # user: "wardenuser"             # Mandatory
 
   # For PostgreSQL and MariaDB, the password should be set as an environment variable.
