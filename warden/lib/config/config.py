@@ -22,6 +22,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+CONFIG_FILENAME = "config.yaml"
+
 API_PREFIX = "/api/v1"
 
 
@@ -331,5 +333,5 @@ class Config(WardenSettings):
             env_settings,  # Highest precedence: from env variables
             init_settings,  # from Config(...)
             dotenv_settings,  # from .env
-            YamlSettingsSource(settings_cls, Path.cwd() / "config.yaml"),
+            YamlSettingsSource(settings_cls, Path.cwd() / CONFIG_FILENAME),
         )

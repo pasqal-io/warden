@@ -1,13 +1,12 @@
 """Generate config.yaml from config.py's field defaults and descriptions."""
 
 import re
-import sys
 import textwrap
 from enum import Enum
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -18,13 +17,13 @@ from warden.lib.config.config import (
     QPUConfig,
     SchedulerConfig,
     SqliteConfig,
+    CONFIG_FILENAME,
 )
 
 HEADER = """\
 # Example configuration for Warden. Every key below is commented out and
-# shows the built-in default -- copy this file to config.yaml and uncomment
-# only the keys you want to override.
-# (except `logging:`, which has no in-code default and is always active)"""
+# shows the built-in default. Uncomment only the keys you want to override.
+# (except the logging section which has no in-code default and is always active)"""
 
 # `logging:` has no in-code default (it's free-form dictConfig), so this is
 # only the fallback used when there's no previous config.yaml to keep it from
@@ -125,6 +124,31 @@ def _nested_model(field: FieldInfo) -> type[BaseModel] | None:
     return None
 
 
+def _lookup_keys(name: str, field: FieldInfo) -> list[str]:
+    # Every field gets a kebab-case validation_alias (see to_kebab in
+    # config.py). A renamed field could also declare AliasChoices(new, old)
+    # to keep reading a previous name -- either way, a value already set
+    # under any of those keys should still be picked up here.
+    keys = [name]
+    alias = field.validation_alias
+    if isinstance(alias, str):
+        candidates = [alias]
+    elif isinstance(alias, AliasChoices):
+        candidates = [c for c in alias.choices if isinstance(c, str)]
+    else:
+        candidates = []  # AliasPath (nested lookup) doesn't apply here.
+    keys.extend(key for key in candidates if key not in keys)
+    return keys
+
+
+def _existing_value(existing: dict, name: str, field: FieldInfo):
+    for key in _lookup_keys(name, field):
+        value = existing.get(key)
+        if value is not None:
+            return value
+    return None
+
+
 def _render_field(name: str, field: FieldInfo, existing_value, depth: int) -> str:
     indent = INDENT_UNIT * depth
     lines = [
@@ -157,7 +181,7 @@ def _render_field(name: str, field: FieldInfo, existing_value, depth: int) -> st
 
 def _render_fields(fields: dict[str, FieldInfo], existing: dict, depth: int) -> str:
     return "\n\n".join(
-        _render_field(name, field, existing.get(name), depth)
+        _render_field(name, field, _existing_value(existing, name, field), depth)
         for name, field in fields.items()
     )
 
@@ -184,6 +208,7 @@ def _existing_logging_section(existing_text: str | None) -> str | None:
 def generate_config(
     existing: dict | None = None, existing_text: str | None = None
 ) -> str:
+    """Generate a new config from model definition and eventual previous fields set"""
     existing = existing or {}
 
     blocks = [HEADER]
@@ -226,9 +251,9 @@ def _backup(path: Path, content: str) -> None:
         path.with_name(f"{path.stem}.backup-{i}{path.suffix}").write_text(content)
 
 
-def main(argv: list[str] | None = None) -> None:
-    argv = sys.argv[1:] if argv is None else argv
-    output_path = Path(argv[0]) if argv else Path.cwd() / "config.yaml"
+def main() -> None:
+    """Call the script to generate a new config.yaml file"""
+    output_path = Path.cwd() / CONFIG_FILENAME
 
     existing_text = output_path.read_text() if output_path.exists() else None
     existing = yaml.safe_load(existing_text) if existing_text else None

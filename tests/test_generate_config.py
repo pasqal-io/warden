@@ -1,7 +1,7 @@
 """Testing lib/config/generate_config"""
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from warden.lib.config.config import (
     APIConfig,
@@ -14,6 +14,7 @@ from warden.lib.config.config import (
 )
 from warden.lib.config.generate_config import (
     SECTION_DESCRIPTIONS,
+    _existing_value,
     _render_fields,
     generate_config,
     main,
@@ -85,6 +86,30 @@ def test_generate_config_preserves_existing_overrides():
     assert "  # echo: false" in generated
 
 
+def test_existing_value_matches_field_alias():
+    """Test that a value set under a field's validation_alias is picked up
+    even when the config.yaml key doesn't match the field's Python name --
+    e.g. the automatic kebab-case alias, or AliasChoices on a renamed field"""
+
+    class KebabAliased(BaseModel):
+        db_polling_interval_s: int = Field(
+            default=1, validation_alias="db-polling-interval-s"
+        )
+
+    name, field = next(iter(KebabAliased.model_fields.items()))
+    assert _existing_value({"db-polling-interval-s": 42}, name, field) == 42
+
+    class Renamed(BaseModel):
+        new_name: str = Field(
+            default="x", validation_alias=AliasChoices("new_name", "old_name")
+        )
+
+    name, field = next(iter(Renamed.model_fields.items()))
+    assert _existing_value({"old_name": "legacy"}, name, field) == "legacy"
+    assert _existing_value({"new_name": "current"}, name, field) == "current"
+    assert _existing_value({}, name, field) is None
+
+
 def test_render_fields_indents_nested_models():
     """Test that a field whose type is itself a model is rendered as its own
     nested block, indented one level deeper, with overrides merged the same
@@ -112,19 +137,21 @@ def test_render_fields_indents_nested_models():
     }
 
 
-def test_main_writes_directly_when_no_previous_file(tmp_path):
+def test_main_writes_directly_when_no_previous_file(tmp_path, monkeypatch):
     """Test that main() writes the file without creating a backup on first run"""
+    monkeypatch.chdir(tmp_path)
     output_path = tmp_path / "config.yaml"
 
-    main([str(output_path)])
+    main()
 
     assert output_path.exists()
     assert not (tmp_path / "config.backup-1.yaml").exists()
 
 
-def test_main_keeps_previous_logging_section_verbatim(tmp_path):
+def test_main_keeps_previous_logging_section_verbatim(tmp_path, monkeypatch):
     """Test that a previously set-up logging: section is kept as-is, comments
     and all, instead of being replaced by the default LOGGING_SECTION"""
+    monkeypatch.chdir(tmp_path)
     custom_logging = (
         "logging:\n"
         "  version: 1\n"
@@ -135,17 +162,18 @@ def test_main_keeps_previous_logging_section_verbatim(tmp_path):
     output_path = tmp_path / "config.yaml"
     output_path.write_text(custom_logging)
 
-    main([str(output_path)])
+    main()
 
     assert output_path.read_text().endswith(custom_logging)
 
 
-def test_main_preserves_overrides_and_backs_up_previous_file(tmp_path):
+def test_main_preserves_overrides_and_backs_up_previous_file(tmp_path, monkeypatch):
     """Test that main() merges overrides from, and backs up, its target file"""
+    monkeypatch.chdir(tmp_path)
     output_path = tmp_path / "config.yaml"
     output_path.write_text("api:\n  host: 127.0.0.1\n")
 
-    main([str(output_path)])
+    main()
 
     assert "  host: 127.0.0.1" in output_path.read_text()
     assert (
@@ -153,13 +181,14 @@ def test_main_preserves_overrides_and_backs_up_previous_file(tmp_path):
     ).read_text() == "api:\n  host: 127.0.0.1\n"
 
 
-def test_main_is_a_noop_when_nothing_changed(tmp_path):
+def test_main_is_a_noop_when_nothing_changed(tmp_path, monkeypatch):
     """Test that re-running main() on an already up-to-date file creates no backup"""
+    monkeypatch.chdir(tmp_path)
     output_path = tmp_path / "config.yaml"
-    main([str(output_path)])
+    main()
     generated = output_path.read_text()
 
-    main([str(output_path)])
+    main()
 
     assert output_path.read_text() == generated
     assert not (tmp_path / "config.backup-1.yaml").exists()
