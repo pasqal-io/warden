@@ -112,6 +112,8 @@ class SchedulerStrategy(StrEnum):
 
 
 class SchedulerConfig(WardenSettings):
+    """Job scheduler configuration."""
+
     strategy: SchedulerStrategy = Field(
         default=SchedulerStrategy.FIFO,
         description=(
@@ -161,6 +163,8 @@ class SchedulerConfig(WardenSettings):
 
 
 class QPUConfig(WardenSettings):
+    """QPU backend configuration."""
+
     uri: str = Field(
         default="http://localhost:8000", description="Local Pasqal QPU API URI."
     )
@@ -231,6 +235,8 @@ def ensure_non_empty(v: list[str]) -> list[str]:
 
 
 class APIConfig(WardenSettings):
+    """HTTP API server configuration."""
+
     host: str = Field(default="0.0.0.0", description="API bind address.")
     port: int = Field(default=8006, ge=1, le=65535, description="API bind port.")
 

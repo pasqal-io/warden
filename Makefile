@@ -42,30 +42,12 @@ check-python:
 	esac
 
 # Regenerates config.yaml from the defaults/descriptions declared in
-# warden/lib/config/config.py. Requires the venv's dependencies to already be
-# installed, so this runs as a post-install step (see `install`), not as part
-# of the initial bootstrap.
+# warden/lib/config/config.py, preserving any values already set and backing
+# up the previous file if it changes (see generate_config.py's main()).
+# Requires the venv's dependencies to already be installed, so this runs as a
+# post-install step (see `install`), not as part of the initial bootstrap.
 config.yaml: $(VENV)/bin/python
-	@new_config="$$(mktemp)"; \
-	trap 'rm -f "$$new_config"' EXIT; \
-	$(VENV)/bin/python -m warden.lib.config.generate_config "$$new_config"; \
-	if [ ! -f config.yaml ]; then \
-		cp "$$new_config" config.yaml; \
-		exit 0; \
-	fi; \
-	if cmp -s "$$new_config" config.yaml; then \
-		exit 0; \
-	fi; \
-	last_i=0; \
-	i=1; \
-	while [ -e "config.backup-$$i.yaml" ]; do \
-		last_i=$$i; \
-		i=$$((i + 1)); \
-	done; \
-	if [ "$$last_i" -eq 0 ] || ! cmp -s config.yaml "config.backup-$$last_i.yaml"; then \
-		cp config.yaml "config.backup-$$i.yaml"; \
-	fi; \
-	cp "$$new_config" config.yaml
+	$(VENV)/bin/python -m warden.lib.config.generate_config
 
 # Note: the --copies flag is used to create a copy of the binaries, since a symlink may not always work
 $(VENV)/bin/python: check-python
