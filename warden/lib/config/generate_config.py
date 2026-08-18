@@ -7,6 +7,7 @@ from enum import Enum
 from pathlib import Path
 
 import yaml
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -25,8 +26,9 @@ HEADER = """\
 # only the keys you want to override.
 # (except `logging:`, which has no in-code default and is always active)"""
 
-# `logging:` has no in-code default (it's free-form dictConfig) and is always
-# active, so it's kept as a static template rather than derived from a schema.
+# `logging:` has no in-code default (it's free-form dictConfig), so this is
+# only the fallback used when there's no previous config.yaml to keep it from
+# (see _existing_logging_section).
 LOGGING_SECTION = """\
 logging:
   version: 1
@@ -96,7 +98,9 @@ SECTION_DESCRIPTIONS = {
 }
 
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+LOGGING_HEADER_RE = re.compile(r"^logging:\s*$", re.MULTILINE)
 COMMENT_WIDTH = 88
+INDENT_UNIT = "  "
 
 
 def _yaml_scalar(value) -> str:
@@ -107,34 +111,54 @@ def _yaml_scalar(value) -> str:
     return yaml.safe_dump(value, default_flow_style=True).splitlines()[0]
 
 
-def _wrap_comment(text: str) -> list[str]:
+def _wrap_comment(text: str, indent: str) -> list[str]:
+    prefix = f"{indent}# "
     return textwrap.wrap(
-        text, width=COMMENT_WIDTH, initial_indent="  # ", subsequent_indent="  # "
+        text, width=COMMENT_WIDTH, initial_indent=prefix, subsequent_indent=prefix
     )
 
 
-def _render_field(name: str, field: FieldInfo, existing_value=None) -> str:
+def _nested_model(field: FieldInfo) -> type[BaseModel] | None:
+    annotation = field.annotation
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    return None
+
+
+def _render_field(name: str, field: FieldInfo, existing_value, depth: int) -> str:
+    indent = INDENT_UNIT * depth
     lines = [
         wrapped
         for paragraph in (field.description or "").split("\n")
         if paragraph
         for sentence in SENTENCE_RE.split(paragraph)
         if sentence
-        for wrapped in _wrap_comment(sentence)
+        for wrapped in _wrap_comment(sentence, indent)
     ]
+
+    nested_model = _nested_model(field)
+    if nested_model is not None:
+        nested_existing = existing_value if isinstance(existing_value, dict) else {}
+        lines.append(f"{indent}{name}:")
+        lines.append(
+            _render_fields(nested_model.model_fields, nested_existing, depth + 1)
+        )
+        return "\n".join(lines)
+
     if field.default is PydanticUndefined:
-        lines.append(f"  # {name}: ...  # required, no default")
+        lines.append(f"{indent}# {name}: ...  # required, no default")
     else:
-        lines.append(f"  # {name}: {_yaml_scalar(field.default)}")
+        lines.append(f"{indent}# {name}: {_yaml_scalar(field.default)}")
     if existing_value is not None:
         # Keep the value the user already set, uncommented, below its default.
-        lines.append(f"  {name}: {_yaml_scalar(existing_value)}")
+        lines.append(f"{indent}{name}: {_yaml_scalar(existing_value)}")
     return "\n".join(lines)
 
 
-def _render_fields(fields: dict[str, FieldInfo], existing: dict) -> str:
+def _render_fields(fields: dict[str, FieldInfo], existing: dict, depth: int) -> str:
     return "\n\n".join(
-        _render_field(name, field, existing.get(name)) for name, field in fields.items()
+        _render_field(name, field, existing.get(name), depth)
+        for name, field in fields.items()
     )
 
 
@@ -146,26 +170,43 @@ def _database_fields() -> dict[str, FieldInfo]:
     return fields
 
 
-def generate_config(existing: dict | None = None) -> str:
+def _existing_logging_section(existing_text: str | None) -> str | None:
+    # logging has no in-code schema, so a previously set-up section is kept
+    # as-is (comments and all) rather than regenerated from LOGGING_SECTION.
+    if not existing_text:
+        return None
+    match = LOGGING_HEADER_RE.search(existing_text)
+    if not match:
+        return None
+    return existing_text[match.start() :].rstrip("\n") or None
+
+
+def generate_config(
+    existing: dict | None = None, existing_text: str | None = None
+) -> str:
     existing = existing or {}
 
     blocks = [HEADER]
     for section in SECTIONS:
         header = f"# {SECTION_DESCRIPTIONS[section]}\n"
         if section == "logging":
-            blocks.append(header + LOGGING_SECTION)
+            blocks.append(
+                header + (_existing_logging_section(existing_text) or LOGGING_SECTION)
+            )
         elif section == "database":
             blocks.append(
                 header
                 + "database:\n"
-                + _render_fields(_database_fields(), existing.get("database") or {})
+                + _render_fields(_database_fields(), existing.get("database") or {}, 1)
             )
         else:
             blocks.append(
                 header
                 + f"{section}:\n"
                 + _render_fields(
-                    SECTION_MODELS[section].model_fields, existing.get(section) or {}
+                    SECTION_MODELS[section].model_fields,
+                    existing.get(section) or {},
+                    1,
                 )
             )
 
@@ -192,7 +233,7 @@ def main(argv: list[str] | None = None) -> None:
     existing_text = output_path.read_text() if output_path.exists() else None
     existing = yaml.safe_load(existing_text) if existing_text else None
 
-    content = generate_config(existing)
+    content = generate_config(existing, existing_text)
     if content == existing_text:
         return
 

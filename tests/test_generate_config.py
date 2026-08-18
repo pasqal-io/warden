@@ -1,6 +1,7 @@
 """Testing lib/config/generate_config"""
 
 import yaml
+from pydantic import BaseModel, Field
 
 from warden.lib.config.config import (
     APIConfig,
@@ -13,6 +14,7 @@ from warden.lib.config.config import (
 )
 from warden.lib.config.generate_config import (
     SECTION_DESCRIPTIONS,
+    _render_fields,
     generate_config,
     main,
 )
@@ -83,6 +85,33 @@ def test_generate_config_preserves_existing_overrides():
     assert "  # echo: false" in generated
 
 
+def test_render_fields_indents_nested_models():
+    """Test that a field whose type is itself a model is rendered as its own
+    nested block, indented one level deeper, with overrides merged the same
+    way as flat fields"""
+
+    class Inner(BaseModel):
+        value: int = Field(default=1, description="An inner value.")
+
+    class Outer(BaseModel):
+        inner: Inner = Field(default=Inner(), description="Nested block.")
+        flat: str = Field(default="x", description="A flat field.")
+
+    generated = _render_fields(Outer.model_fields, {}, 1)
+
+    assert "  inner:\n    # An inner value.\n    # value: 1" in generated
+    assert "  # flat: x" in generated
+    # Both defaults are commented out, so nothing is actually set.
+    assert yaml.safe_load(f"outer:\n{generated}") == {"outer": {"inner": None}}
+
+    overridden = _render_fields(Outer.model_fields, {"inner": {"value": 42}}, 1)
+
+    assert "    value: 42" in overridden
+    assert yaml.safe_load(f"outer:\n{overridden}") == {
+        "outer": {"inner": {"value": 42}}
+    }
+
+
 def test_main_writes_directly_when_no_previous_file(tmp_path):
     """Test that main() writes the file without creating a backup on first run"""
     output_path = tmp_path / "config.yaml"
@@ -91,6 +120,24 @@ def test_main_writes_directly_when_no_previous_file(tmp_path):
 
     assert output_path.exists()
     assert not (tmp_path / "config.backup-1.yaml").exists()
+
+
+def test_main_keeps_previous_logging_section_verbatim(tmp_path):
+    """Test that a previously set-up logging: section is kept as-is, comments
+    and all, instead of being replaced by the default LOGGING_SECTION"""
+    custom_logging = (
+        "logging:\n"
+        "  version: 1\n"
+        "  loggers:\n"
+        "    warden:\n"
+        "      level: DEBUG  # noisier for local debugging\n"
+    )
+    output_path = tmp_path / "config.yaml"
+    output_path.write_text(custom_logging)
+
+    main([str(output_path)])
+
+    assert output_path.read_text().endswith(custom_logging)
 
 
 def test_main_preserves_overrides_and_backs_up_previous_file(tmp_path):
