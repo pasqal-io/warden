@@ -25,15 +25,15 @@ from pydantic_settings import (
 API_PREFIX = "/api/v1"
 
 
-def to_kebab(snake: str) -> str:
-    return snake.replace("_", "-")
+def to_nocase(snake: str) -> str:
+    return snake.replace("_", "")
 
 
 class WardenSettings(BaseSettings):
-    # Give kebab-case aliases to all fields but still allow validating by field name
+    # Give nocase aliases to all fields but still allow validating by field name
     model_config = SettingsConfigDict(
         validate_by_name=True,
-        alias_generator=AliasGenerator(validation_alias=to_kebab),
+        alias_generator=AliasGenerator(validation_alias=to_nocase),
     )
 
 
