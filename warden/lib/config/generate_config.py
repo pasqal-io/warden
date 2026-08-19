@@ -6,18 +6,19 @@ from enum import Enum
 from pathlib import Path
 
 import yaml
-from pydantic import AliasChoices, BaseModel
+from pydantic import AliasChoices, BaseModel, ValidationError
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from warden.lib.config.config import (
+    CONFIG_FILENAME,
     APIConfig,
+    Config,
     MariadbConfig,
     PostgresConfig,
     QPUConfig,
     SchedulerConfig,
     SqliteConfig,
-    CONFIG_FILENAME,
 )
 
 HEADER = """\
@@ -256,7 +257,14 @@ def main() -> None:
     output_path = Path.cwd() / CONFIG_FILENAME
 
     existing_text = output_path.read_text() if output_path.exists() else None
-    existing = yaml.safe_load(existing_text) if existing_text else None
+    existing = None
+    if existing_text:
+        try:
+            Config()
+            loaded = yaml.safe_load(existing_text)
+            existing = loaded
+        except (yaml.YAMLError, ValidationError):
+            print("Previous config.yaml is not valid YAML/Config: ignore it.")
 
     content = generate_config(existing, existing_text)
     if content == existing_text:

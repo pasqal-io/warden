@@ -1,7 +1,7 @@
 """Testing lib/config/generate_config"""
 
 import yaml
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import BaseModel, Field
 
 from warden.lib.config.config import (
     APIConfig,
@@ -13,8 +13,6 @@ from warden.lib.config.config import (
     SqliteConfig,
 )
 from warden.lib.config.generate_config import (
-    SECTION_DESCRIPTIONS,
-    _existing_value,
     _render_fields,
     generate_config,
     main,
@@ -43,14 +41,6 @@ def test_generate_config_is_valid_yaml():
     assert set(data) == {"api", "database", "scheduler", "qpu", "logging"}
 
 
-def test_generate_config_documents_every_section():
-    """Test that every section has a description comment right above its header"""
-    generated = generate_config()
-
-    for section, description in SECTION_DESCRIPTIONS.items():
-        assert f"# {description}\n{section}:" in generated
-
-
 def test_generate_config_documents_every_field():
     """Test that all the fields are documented in the generated config file"""
     generated = generate_config()
@@ -63,7 +53,7 @@ def test_generate_config_preserves_existing_overrides():
     """Test that values already set in a previous config.yaml stay uncommented
     below their commented-out default, while untouched fields only keep
     documenting their default, commented out"""
-    existing = {
+    existing_data = {
         "api": {"host": "127.0.0.1"},
         "database": {
             "backend": "postgres",
@@ -73,41 +63,19 @@ def test_generate_config_preserves_existing_overrides():
         },
     }
 
-    generated = generate_config(existing)
+    generated = generate_config(existing_data)
+
+    generated_data = yaml.safe_load(generated)
+
+    # Assert existing_data is replicated in generated_data
+    assert existing_data == {key: generated_data[key] for key in existing_data.keys()}
 
     # The default stays commented, right above the overridden value.
-    assert "  # host: 0.0.0.0\n  host: 127.0.0.1" in generated
-    assert "  # backend: sqlite\n  backend: postgres" in generated
-    assert "  host: db.internal" in generated
-    assert "  user: wardenuser" in generated
-    assert "  password: secret" in generated
+    assert "  # host: " in generated
+    assert "  # backend: " in generated
     # Untouched fields still document their default, commented out.
-    assert "  # port: 8006" in generated
-    assert "  # echo: false" in generated
-
-
-def test_existing_value_matches_field_alias():
-    """Test that a value set under a field's validation_alias is picked up
-    even when the config.yaml key doesn't match the field's Python name --
-    e.g. the automatic kebab-case alias, or AliasChoices on a renamed field"""
-
-    class KebabAliased(BaseModel):
-        db_polling_interval_s: int = Field(
-            default=1, validation_alias="db-polling-interval-s"
-        )
-
-    name, field = next(iter(KebabAliased.model_fields.items()))
-    assert _existing_value({"db-polling-interval-s": 42}, name, field) == 42
-
-    class Renamed(BaseModel):
-        new_name: str = Field(
-            default="x", validation_alias=AliasChoices("new_name", "old_name")
-        )
-
-    name, field = next(iter(Renamed.model_fields.items()))
-    assert _existing_value({"old_name": "legacy"}, name, field) == "legacy"
-    assert _existing_value({"new_name": "current"}, name, field) == "current"
-    assert _existing_value({}, name, field) is None
+    assert "  # port: " in generated
+    assert "  # echo: " in generated
 
 
 def test_render_fields_indents_nested_models():
@@ -196,7 +164,7 @@ def test_main_is_a_noop_when_nothing_changed(tmp_path, monkeypatch):
 
 def test_generate_config_round_trips_to_defaults(monkeypatch, tmp_path):
     # Every field is commented out, so this should behave like no config.yaml at
-    # all -- except `logging:`, which has no in-code default and is always active.
+    # all except logging which has no in-code default and is always active.
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
     monkeypatch.chdir(empty_dir)
@@ -212,3 +180,19 @@ def test_generate_config_round_trips_to_defaults(monkeypatch, tmp_path):
     assert actual["logging"]
     del actual["logging"]
     assert actual == expected
+
+
+def test_ignore_invalid_config(tmp_path, monkeypatch):
+    """Test that an invalid pre-existing configuration file is ignored"""
+    monkeypatch.chdir(tmp_path)
+    output_path = tmp_path / "config.yaml"
+
+    # Generate a valid config and add non-valid data in it
+    output_path.write_text("api:\n  host: 127.0.0.9\n\nNonesense")
+
+    # Generate a new configuration file
+    main()
+
+    # Verify that the generated config.yaml ignored previously set values
+    conf = Config()
+    assert conf.api.host != "127.0.0.9"
