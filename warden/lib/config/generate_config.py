@@ -1,6 +1,9 @@
-"""Generate config.yaml from config.py's field defaults and descriptions."""
+"""
+Utility script to generate config.yaml from config.py's field defaults and descriptions.
+"""
 
 import re
+import sys
 import textwrap
 from enum import Enum
 from pathlib import Path
@@ -12,6 +15,7 @@ from pydantic_core import PydanticUndefined
 
 from warden.lib.config.config import (
     CONFIG_FILENAME,
+    DEFAULT_LOGGING_CONFIG,
     APIConfig,
     Config,
     MariadbConfig,
@@ -24,55 +28,15 @@ from warden.lib.config.config import (
 HEADER = """\
 # Example configuration for Warden. Every key below is commented out and
 # shows the built-in default. Uncomment only the keys you want to override.
-# (except the logging section which has no in-code default and is always active)"""
+# (except the logging section, which is always active)"""
 
-# `logging:` has no in-code default (it's free-form dictConfig), so this is
-# only the fallback used when there's no previous config.yaml to keep it from
-# (see _existing_logging_section).
-LOGGING_SECTION = """\
-logging:
-  version: 1
-  disable_existing_loggers: false
-
-  root:
-    handlers:
-      - console
-      - file
-
-  loggers:
-    warden:
-      level: INFO
-      handlers: [console, file]
-      propagate: false
-    uvicorn:
-      level: INFO
-      handlers: [console, file]
-      propagate: false
-    uvicorn.error:
-      level: INFO
-      handlers: [console, file]
-      propagate: false
-    uvicorn.access:
-      level: INFO
-      handlers: [console, file]
-      propagate: false
-
-  handlers:
-    console:
-      class: logging.StreamHandler
-      stream: "ext://sys.stderr"
-      formatter: default
-    file:
-      class: logging.handlers.RotatingFileHandler
-      filename: "logs/warden.log"
-      maxBytes: 10485760 # 10MB
-      backupCount: 5
-      encoding: "utf-8"
-      formatter: default
-
-  formatters:
-    default:
-      format: "[%(asctime)s] %(levelname)s %(name)s: %(message)s\""""
+# logging is a free-form dict (not a modeled field per key), so it can't be
+# rendered field-by-field like the other sections: it's always dumped in
+# full, active (uncommented) form, either from the previous config.yaml
+# verbatim (see _existing_logging_section) or from the model's own default.
+LOGGING_SECTION = "logging:\n" + textwrap.indent(
+    yaml.safe_dump(DEFAULT_LOGGING_CONFIG, sort_keys=False), "  "
+).rstrip("\n")
 
 SECTION_MODELS = {
     "api": APIConfig,
@@ -94,7 +58,7 @@ SECTION_DESCRIPTIONS = {
     # description is declared here instead.
     **{section: model.__doc__ for section, model in SECTION_MODELS.items()},
     "database": "Database backend configuration. Warden supports SQLite, PostgreSQL and MariaDB.",
-    "logging": "Logging configuration (Python dictConfig format). Always active, has no in-code default.",
+    "logging": "Logging configuration (Python dictConfig format).",
 }
 
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
@@ -252,8 +216,25 @@ def _backup(path: Path, content: str) -> None:
         path.with_name(f"{path.stem}.backup-{i}{path.suffix}").write_text(content)
 
 
-def main() -> None:
-    """Call the script to generate a new config.yaml file"""
+def generate() -> None:
+    """Write a fresh config.yaml from the model defaults, discarding any
+    values set in a previous file but keeping a backup of it (use migrate()
+    to update an existing file while preserving its values instead)."""
+    output_path = Path.cwd() / CONFIG_FILENAME
+    content = generate_config()
+
+    existing_text = output_path.read_text() if output_path.exists() else None
+    if content == existing_text:
+        return
+
+    if existing_text is not None:
+        _backup(output_path, existing_text)
+    output_path.write_text(content)
+
+
+def migrate() -> None:
+    """Regenerate config.yaml, preserving values already set in the previous
+    file, and back it up if it changes."""
     output_path = Path.cwd() / CONFIG_FILENAME
 
     existing_text = output_path.read_text() if output_path.exists() else None
@@ -276,4 +257,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    migrate() if "--migrate" in sys.argv[1:] else generate()

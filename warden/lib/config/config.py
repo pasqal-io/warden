@@ -264,11 +264,40 @@ class APIConfig(WardenSettings):
     )
 
 
+DEFAULT_LOGGING_CONFIG: dict[str, Any] = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "root": {"handlers": ["console", "file"]},
+    "loggers": {
+        name: {"level": "INFO", "handlers": ["console", "file"], "propagate": False}
+        for name in ("warden", "uvicorn", "uvicorn.error", "uvicorn.access")
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "formatter": "default",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "logs/warden.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "encoding": "utf-8",
+            "formatter": "default",
+        },
+    },
+    "formatters": {
+        "default": {"format": "[%(asctime)s] %(levelname)s %(name)s: %(message)s"}
+    },
+}
+
+
 class Config(WardenSettings):
     api: APIConfig = APIConfig()
     database: DatabaseConfig = SqliteConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
-    logging: dict[str, Any] = {}
+    logging: dict[str, Any] = DEFAULT_LOGGING_CONFIG
     qpu: QPUConfig = QPUConfig()
 
     model_config = SettingsConfigDict(
