@@ -27,15 +27,14 @@ from warden.lib.config.config import (
 
 HEADER = """\
 # Example configuration for Warden. Every key below is commented out and
-# shows the built-in default. Uncomment only the keys you want to override.
-# (except the logging section, which is always active)"""
+# shows the built-in default. Uncomment only the keys you want to override."""
 
 # logging is a free-form dict (not a modeled field per key), so it can't be
 # rendered field-by-field like the other sections: it's always dumped in
 # full, active (uncommented) form, either from the previous config.yaml
 # verbatim (see _existing_logging_section) or from the model's own default.
-LOGGING_SECTION = "logging:\n" + textwrap.indent(
-    yaml.safe_dump(DEFAULT_LOGGING_CONFIG, sort_keys=False), "  "
+LOGGING_SECTION = yaml.safe_dump(
+    {"logging": DEFAULT_LOGGING_CONFIG}, sort_keys=False
 ).rstrip("\n")
 
 SECTION_MODELS = {
@@ -64,6 +63,7 @@ SECTION_DESCRIPTIONS = {
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 LOGGING_HEADER_RE = re.compile(r"^logging:\s*$", re.MULTILINE)
 COMMENT_WIDTH = 88
+# 2-space indent
 INDENT_UNIT = "  "
 
 
@@ -72,30 +72,30 @@ def _yaml_scalar(value) -> str:
         value = value.value
     # First line only: safe_dump appends a "...\n" document-end marker after
     # bare scalars (but not after flow-style collections).
+    # default_flow_style allows for a more compact json-like style
     return yaml.safe_dump(value, default_flow_style=True).splitlines()[0]
 
 
-def _wrap_comment(text: str, indent: str) -> list[str]:
+def _wrap_indented_text(text: str, indent: str) -> list[str]:
+    """Wrap text around the max COMMENT_WIDTH"""
     prefix = f"{indent}# "
     return textwrap.wrap(
         text, width=COMMENT_WIDTH, initial_indent=prefix, subsequent_indent=prefix
     )
 
 
-def _nested_model(field: FieldInfo) -> type[BaseModel] | None:
-    annotation = field.annotation
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return annotation
+def _get_nested_model(field: FieldInfo) -> type[BaseModel] | None:
+    """Returns if the field type is indeed a BaseModel subclass"""
+    field_annotation = field.annotation
+    if isinstance(field_annotation, type) and issubclass(field_annotation, BaseModel):
+        return field_annotation
     return None
 
 
-def _lookup_keys(name: str, field: FieldInfo) -> list[str]:
-    # Every field gets a kebab-case validation_alias (see to_kebab in
-    # config.py). A renamed field could also declare AliasChoices(new, old)
-    # to keep reading a previous name -- either way, a value already set
-    # under any of those keys should still be picked up here.
-    keys = [name]
-    alias = field.validation_alias
+def _potential_field_aliases(field_name: str, field_info: FieldInfo) -> list[str]:
+    """Look through the fields_info for potential aliases"""
+    keys = [field_name]
+    alias = field_info.validation_alias
     if isinstance(alias, str):
         candidates = [alias]
     elif isinstance(alias, AliasChoices):
@@ -106,48 +106,68 @@ def _lookup_keys(name: str, field: FieldInfo) -> list[str]:
     return keys
 
 
-def _existing_value(existing: dict, name: str, field: FieldInfo):
-    for key in _lookup_keys(name, field):
-        value = existing.get(key)
+def _existing_value(
+    previous_section_data: dict, field_name: str, field_info: FieldInfo
+):
+    """Get the preivously setup data for this field, looks through aliases also"""
+    for key in _potential_field_aliases(field_name, field_info):
+        value = previous_section_data.get(key)
         if value is not None:
             return value
     return None
 
 
-def _render_field(name: str, field: FieldInfo, existing_value, depth: int) -> str:
+def _render_field(
+    name: str, field_info: FieldInfo, previous_section_data: dict, depth: int
+) -> str:
+    """
+    Renders the pydantic field. Adds corresponding comments and keeps previously set value
+    """
+
     indent = INDENT_UNIT * depth
+
+    # Add comment lines
     lines = [
         wrapped
-        for paragraph in (field.description or "").split("\n")
+        for paragraph in (field_info.description or "").split("\n")
         if paragraph
         for sentence in SENTENCE_RE.split(paragraph)
         if sentence
-        for wrapped in _wrap_comment(sentence, indent)
+        for wrapped in _wrap_indented_text(sentence, indent)
     ]
 
-    nested_model = _nested_model(field)
+    # Get matching previously set data that we need to migrate to new config
+    data_to_migrate = _existing_value(previous_section_data, name, field_info)
+
+    # Check if contains a nested model and recursively renders it
+    nested_model = _get_nested_model(field_info)
     if nested_model is not None:
-        nested_existing = existing_value if isinstance(existing_value, dict) else {}
+        nested_existing = data_to_migrate if isinstance(data_to_migrate, dict) else {}
         lines.append(f"{indent}{name}:")
         lines.append(
-            _render_fields(nested_model.model_fields, nested_existing, depth + 1)
+            _render_section_fields(
+                nested_model.model_fields, nested_existing, depth + 1
+            )
         )
         return "\n".join(lines)
 
-    if field.default is PydanticUndefined:
+    # Add default value and previously set value to migrate
+    if field_info.default is PydanticUndefined:
         lines.append(f"{indent}# {name}: ...  # required, no default")
     else:
-        lines.append(f"{indent}# {name}: {_yaml_scalar(field.default)}")
-    if existing_value is not None:
+        lines.append(f"{indent}# {name}: {_yaml_scalar(field_info.default)}")
+    if data_to_migrate is not None:
         # Keep the value the user already set, uncommented, below its default.
-        lines.append(f"{indent}{name}: {_yaml_scalar(existing_value)}")
+        lines.append(f"{indent}{name}: {_yaml_scalar(data_to_migrate)}")
     return "\n".join(lines)
 
 
-def _render_fields(fields: dict[str, FieldInfo], existing: dict, depth: int) -> str:
+def _render_section_fields(
+    fields: dict[str, FieldInfo], previous_section_data: dict, depth: int
+) -> str:
     return "\n\n".join(
-        _render_field(name, field, _existing_value(existing, name, field), depth)
-        for name, field in fields.items()
+        _render_field(field_name, field_info, previous_section_data, depth)
+        for field_name, field_info in fields.items()
     )
 
 
@@ -171,31 +191,33 @@ def _existing_logging_section(existing_text: str | None) -> str | None:
 
 
 def generate_config(
-    existing: dict | None = None, existing_text: str | None = None
+    previous_data: dict | None = None, previous_text: str | None = None
 ) -> str:
     """Generate a new config from model definition and eventual previous fields set"""
-    existing = existing or {}
+    previous_data = previous_data or {}
 
     blocks = [HEADER]
     for section in SECTIONS:
         header = f"# {SECTION_DESCRIPTIONS[section]}\n"
         if section == "logging":
             blocks.append(
-                header + (_existing_logging_section(existing_text) or LOGGING_SECTION)
+                header + (_existing_logging_section(previous_text) or LOGGING_SECTION)
             )
         elif section == "database":
             blocks.append(
                 header
                 + "database:\n"
-                + _render_fields(_database_fields(), existing.get("database") or {}, 1)
+                + _render_section_fields(
+                    _database_fields(), previous_data.get("database") or {}, 1
+                )
             )
         else:
             blocks.append(
                 header
                 + f"{section}:\n"
-                + _render_fields(
+                + _render_section_fields(
                     SECTION_MODELS[section].model_fields,
-                    existing.get(section) or {},
+                    previous_data.get(section) or {},
                     1,
                 )
             )
@@ -223,12 +245,12 @@ def generate() -> None:
     output_path = Path.cwd() / CONFIG_FILENAME
     content = generate_config()
 
-    existing_text = output_path.read_text() if output_path.exists() else None
-    if content == existing_text:
+    previous_text = output_path.read_text() if output_path.exists() else None
+    if content == previous_text:
         return
 
-    if existing_text is not None:
-        _backup(output_path, existing_text)
+    if previous_text is not None:
+        _backup(output_path, previous_text)
     output_path.write_text(content)
 
 
@@ -237,22 +259,22 @@ def migrate() -> None:
     file, and back it up if it changes."""
     output_path = Path.cwd() / CONFIG_FILENAME
 
-    existing_text = output_path.read_text() if output_path.exists() else None
-    existing = None
-    if existing_text:
+    previous_text = output_path.read_text() if output_path.exists() else None
+    previous_data = None
+    if previous_text:
         try:
             Config()
-            loaded = yaml.safe_load(existing_text)
-            existing = loaded
+            loaded = yaml.safe_load(previous_text)
+            previous_data = loaded
         except (yaml.YAMLError, ValidationError):
             print("Previous config.yaml is not valid YAML/Config: ignore it.")
 
-    content = generate_config(existing, existing_text)
-    if content == existing_text:
+    content = generate_config(previous_data, previous_text)
+    if content == previous_text:
         return
 
-    if existing_text is not None:
-        _backup(output_path, existing_text)
+    if previous_text is not None:
+        _backup(output_path, previous_text)
     output_path.write_text(content)
 
 

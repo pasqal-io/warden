@@ -41,18 +41,12 @@ check-python:
 			;; \
 	esac
 
-# Generates a fresh config.yaml from the defaults declared in
-# warden/lib/config/config.py, discarding any values already set (use
-# migrate-config.yaml to update a file while keeping its values instead).
-# Backs up the previous file before overwriting it. Requires the venv's
-# dependencies to already be installed, so this runs as a post-install step
-# (see `install`), not as part of the initial bootstrap.
-config.yaml: $(VENV)/bin/python
+# Generates a fresh config.yaml 
+config.yaml: #$(VENV)/bin/python
 	$(VENV)/bin/python -m warden.lib.config.generate_config
 
 # Regenerates config.yaml from the current defaults/descriptions, preserving
 # any values already set in it and backing up the previous file if it changes
-# (see generate_config.py's migrate()).
 migrate-config.yaml: $(VENV)/bin/python
 	$(VENV)/bin/python -m warden.lib.config.generate_config --migrate
 

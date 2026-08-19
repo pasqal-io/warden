@@ -39,25 +39,18 @@ class WardenSettings(BaseSettings):
     )
 
 
+class _DatabaseConfigBase(WardenSettings):
+    echo: bool = Field(
+        default=False, description="Optional, SQLAlchemy echo (log all SQL statements)."
+    )
+
+
 DATABASE_BACKEND_DESCRIPTION = (
     "Database backend. Warden supports sqlite, postgres or mariadb."
 )
-DATABASE_HOST_DESCRIPTION = (
-    "Address to connect to the database. Only used for PostgreSQL and MariaDB."
-)
-DATABASE_USER_DESCRIPTION = (
-    "Database user used to connect to the database. "
-    "Mandatory for PostgreSQL and MariaDB."
-)
-DATABASE_PASSWORD_DESCRIPTION = (
-    "Database password used to connect to the database. Mandatory for PostgreSQL "
-    "and MariaDB. Should be set via the WARDEN_DATABASE_PASSWORD environment "
-    "variable rather than in the config file."
-)
-DATABASE_ECHO_DESCRIPTION = "Optional, SQLAlchemy echo (log all SQL statements)."
 
 
-class SqliteConfig(WardenSettings):
+class SqliteConfig(_DatabaseConfigBase):
     backend: Literal["sqlite"] = Field(
         default="sqlite", description=DATABASE_BACKEND_DESCRIPTION
     )
@@ -65,43 +58,52 @@ class SqliteConfig(WardenSettings):
         default="warden.db",
         description="For SQLite, the database name is the filename of the database file.",
     )
-    echo: bool = Field(default=False, description=DATABASE_ECHO_DESCRIPTION)
 
 
-class PostgresConfig(WardenSettings):
+class _ServerDatabaseConfig(_DatabaseConfigBase):
+    host: str = Field(
+        default="localhost",
+        description=(
+            "Address to connect to the database. Only used for PostgreSQL and MariaDB."
+        ),
+    )
+    name: str = Field(
+        default="warden",
+        description="For PostgreSQL and MariaDB, the database name is the name of the database.",
+    )
+    user: str = Field(
+        description=(
+            "Database user used to connect to the database. "
+            "Mandatory for PostgreSQL and MariaDB."
+        )
+    )
+    password: str = Field(
+        description=(
+            "Database password used to connect to the database. Mandatory for PostgreSQL "
+            "and MariaDB. Should be set via the WARDEN_DATABASE_PASSWORD environment "
+            "variable rather than in the config file."
+        )
+    )
+
+
+class PostgresConfig(_ServerDatabaseConfig):
     backend: Literal["postgres"] = Field(
         default="postgres", description=DATABASE_BACKEND_DESCRIPTION
     )
-    host: str = Field(default="localhost", description=DATABASE_HOST_DESCRIPTION)
     port: int = Field(
         default=5432,
         description="Port to connect to the database. Default for PostgreSQL, 3306 for MariaDB.",
     )
-    name: str = Field(
-        default="warden",
-        description="For PostgreSQL and MariaDB, the database name is the name of the database.",
-    )
-    user: str = Field(description=DATABASE_USER_DESCRIPTION)
-    password: str = Field(description=DATABASE_PASSWORD_DESCRIPTION)
-    echo: bool = Field(default=False, description=DATABASE_ECHO_DESCRIPTION)
 
 
-class MariadbConfig(WardenSettings):
+class MariadbConfig(_ServerDatabaseConfig):
     backend: Literal["mariadb"] = Field(
         default="mariadb", description=DATABASE_BACKEND_DESCRIPTION
     )
-    host: str = Field(default="localhost", description=DATABASE_HOST_DESCRIPTION)
     port: int = Field(
         default=3306,
         description="Port to connect to the database. Default for MariaDB, 5432 for PostgreSQL.",
     )
-    name: str = Field(
-        default="warden",
-        description="For PostgreSQL and MariaDB, the database name is the name of the database.",
-    )
-    user: str = Field(description=DATABASE_USER_DESCRIPTION)
-    password: str = Field(description=DATABASE_PASSWORD_DESCRIPTION)
-    echo: bool = Field(default=False, description=DATABASE_ECHO_DESCRIPTION)
 
 
 DatabaseConfig = Annotated[
@@ -120,7 +122,7 @@ class SchedulerConfig(WardenSettings):
         default=SchedulerStrategy.FIFO,
         description=(
             "Job scheduling strategy. Available strategies: "
-            "FIFO (priority to the oldest job pending in the database)."
+            "- FIFO (priority to the oldest job pending in the database)."
         ),
     )
 
@@ -165,7 +167,7 @@ class SchedulerConfig(WardenSettings):
 
 
 class QPUConfig(WardenSettings):
-    """QPU backend configuration."""
+    """QPU backend connection configuration."""
 
     uri: str = Field(
         default="http://localhost:8000", description="Local Pasqal QPU API URI."
@@ -185,11 +187,11 @@ class QPUConfig(WardenSettings):
     tls_verify: bool | str = Field(
         default=True,
         description=(
-            "TLS verification policy for requests to the QPU backend. Only "
-            "relevant when 'uri' uses https. Mirrors httpx2's `verify` argument: "
-            "true -> verify against the OS trust store (httpx2 default); "
-            "false -> disable verification (INSECURE; dev/e2e only); "
-            '"<path/to.pem>" -> verify against a specific CA bundle / certificate file.'
+            "TLS verification policy for requests to the QPU backend, mirrors httpx2's `verify` argument. "
+            "- true            -> verify against the OS trust store (httpx2 default). "
+            "- false           -> disable verification (INSECURE; dev/e2e only). "
+            '- "<path/to.pem>" -> verify against a specific CA bundle / certificate file. '
+            "(Only relevant when 'uri' field uses https)"
         ),
     )
 

@@ -13,7 +13,7 @@ from warden.lib.config.config import (
     SqliteConfig,
 )
 from warden.lib.config.generate_config import (
-    _render_fields,
+    _render_section_fields,
     generate,
     generate_config,
     migrate,
@@ -91,14 +91,14 @@ def test_render_fields_indents_nested_models():
         inner: Inner = Field(default=Inner(), description="Nested block.")
         flat: str = Field(default="x", description="A flat field.")
 
-    generated = _render_fields(Outer.model_fields, {}, 1)
+    generated = _render_section_fields(Outer.model_fields, {}, 1)
 
     assert "  inner:\n    # An inner value.\n    # value: 1" in generated
     assert "  # flat: x" in generated
     # Both defaults are commented out, so nothing is actually set.
     assert yaml.safe_load(f"outer:\n{generated}") == {"outer": {"inner": None}}
 
-    overridden = _render_fields(Outer.model_fields, {"inner": {"value": 42}}, 1)
+    overridden = _render_section_fields(Outer.model_fields, {"inner": {"value": 42}}, 1)
 
     assert "    value: 42" in overridden
     assert yaml.safe_load(f"outer:\n{overridden}") == {
@@ -173,7 +173,7 @@ def test_migrate_preserves_overrides_and_backs_up_previous_file(tmp_path, monkey
 
     migrate()
 
-    assert "  host: 127.0.0.1" in output_path.read_text()
+    assert Config().api.host == "127.0.0.1"
     assert (
         tmp_path / "config.backup-1.yaml"
     ).read_text() == "api:\n  host: 127.0.0.1\n"
