@@ -12,8 +12,10 @@ from pydantic import (
     AfterValidator,
     AliasGenerator,
     BeforeValidator,
+    Discriminator,
     Field,
     PrivateAttr,
+    Tag,
     model_validator,
 )
 from pydantic_settings import (
@@ -106,8 +108,21 @@ class MariadbConfig(_ServerDatabaseConfig):
     )
 
 
+# Allows to discriminate between models if we partially configure
+# `config.yaml` without specifying `backend`
+
+
+def _database_backend_tag(v: Any) -> str:
+    if isinstance(v, dict):
+        return v.get("backend", "sqlite")
+    return getattr(v, "backend", "sqlite")
+
+
 DatabaseConfig = Annotated[
-    SqliteConfig | PostgresConfig | MariadbConfig, Field(discriminator="backend")
+    Annotated[SqliteConfig, Tag("sqlite")]
+    | Annotated[PostgresConfig, Tag("postgres")]
+    | Annotated[MariadbConfig, Tag("mariadb")],
+    Discriminator(_database_backend_tag),
 ]
 
 

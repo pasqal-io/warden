@@ -10,6 +10,7 @@ from warden.lib.config.config import (
     Config,
     SchedulerConfig,
     SchedulerStrategy,
+    SqliteConfig,
 )
 
 
@@ -45,6 +46,21 @@ def test_config_env_vars_kebab_case(monkeypatch, tmp_path):
     assert config.scheduler.qpu_polling_interval_s == 999
     assert config.qpu.retry_max == 999
     assert config.api.authorized_users == ["1001", "9999"]
+
+
+def test_config_database_name_env_var_without_backend_defaults_to_sqlite(
+    monkeypatch, tmp_path
+):
+    """
+    Setting only WARDEN_DATABASE_NAME (no WARDEN_DATABASE_BACKEND), as done by
+    some warden.mk targets, must not break discriminated-union validation.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARDEN_DATABASE_NAME", "no_qpu.db")
+
+    config = Config()
+
+    assert config.database == SqliteConfig(name="no_qpu.db")
 
 
 def test_config_parse_lists_from_env(monkeypatch, tmp_path):
