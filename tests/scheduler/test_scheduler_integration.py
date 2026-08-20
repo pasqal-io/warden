@@ -7,7 +7,7 @@ from datetime import datetime
 import pytest
 import utils
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from httpx2 import ASGITransport, AsyncClient
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
@@ -18,6 +18,10 @@ from warden.lib.models import Job, Session
 from warden.scheduler.main import run_cancellation_worker, run_scheduler
 
 BASE_URI_MOCK = "http://test:4300"
+
+
+def mock_qpu_api_client(app: FastAPI) -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app))
 
 
 @pytest.mark.asyncio
@@ -67,7 +71,7 @@ async def test_run_scheduler_integration(
     app = mock_qpu_api_app
     # No need for timing of job execution in this test
     app.state.timed_config = TimedConfig(shot_duration_s=0)
-    conf.qpu._client = TestClient(app)
+    conf.qpu._client = mock_qpu_api_client(app)
     #################################
 
     ##################
@@ -163,7 +167,7 @@ async def test_run_scheduler_integration_cancellation_worker(
     # the cancellation worker has time to observe and cancel jobs
     app.state.timed_config = TimedConfig(shot_duration_s=0.001)
     # Each job with 500 shots is expected to take 0.5 seconds to complete
-    conf.qpu._client = TestClient(app)
+    conf.qpu._client = mock_qpu_api_client(app)
     #################################
 
     ##################

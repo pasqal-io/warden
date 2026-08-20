@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 
-from httpx2 import AsyncClient, Response
+from httpx2 import Response
 
 from warden.lib.config.config import QPUConfig
 from warden.lib.qpu_client.retry import NotRetriedHTTPStatus, retry
@@ -33,7 +33,7 @@ class HTTPClientWrapper:
         self.retry_max = qpu_conf.retry_max
         self.retry_sleep_s = qpu_conf.retry_sleep_s
 
-    def get(self, suffix: str, no_retry: bool = False) -> Response:
+    async def get(self, suffix: str, no_retry: bool = False) -> Response:
         """Sends a GET request to base_url + suffix.
 
         Arg:
@@ -43,12 +43,12 @@ class HTTPClientWrapper:
         Returns:
             The Response returned by the GET request.
         """
-        response = retry(
+        response = await retry(
             max=self.retry_max, sleep_s=self.retry_sleep_s, no_retry=no_retry
         )(self._get)(suffix)
         return response
 
-    def post(
+    async def post(
         self, suffix: str, json: dict | None = None, no_retry: bool = False
     ) -> Response:
         """Sends a POST request to base_url + suffix.
@@ -61,12 +61,12 @@ class HTTPClientWrapper:
         Returns:
             The Response returned by the POST request.
         """
-        response = retry(
+        response = await retry(
             max=self.retry_max, sleep_s=self.retry_sleep_s, no_retry=no_retry
         )(self._post)(suffix, json)
         return response
 
-    def delete(self, suffix: str, no_retry: bool = False) -> Response:
+    async def delete(self, suffix: str, no_retry: bool = False) -> Response:
         """Sends a DELETE request to base_url + suffix.
 
         Arg:
@@ -76,12 +76,12 @@ class HTTPClientWrapper:
         Returns:
             The Response returned by the DELETE request.
         """
-        response = retry(
+        response = await retry(
             max=self.retry_max, sleep_s=self.retry_sleep_s, no_retry=no_retry
         )(self._delete)(suffix)
         return response
 
-    def put(
+    async def put(
         self, suffix: str, json: dict | None = None, no_retry: bool = False
     ) -> Response:
         """Sends a PUT request to base_url + suffix.
@@ -94,28 +94,28 @@ class HTTPClientWrapper:
         Returns:
             The Response returned by the DELETE request.
         """
-        response = retry(
+        response = await retry(
             max=self.retry_max, sleep_s=self.retry_sleep_s, no_retry=no_retry
         )(self._put)(suffix, json)
         return response
 
-    def _get(self, suffix: str) -> Response:
-        response = self.client.get(suffix)
+    async def _get(self, suffix: str) -> Response:
+        response = await self.client.get(suffix)
         response.raise_for_status()
         return response
 
-    def _post(self, suffix: str, json: dict | None = None) -> Response:
-        response = self.client.post(suffix, json=json)
+    async def _post(self, suffix: str, json: dict | None = None) -> Response:
+        response = await self.client.post(suffix, json=json)
         response.raise_for_status()
         return response
 
-    def _delete(self, suffix: str) -> Response:
-        response = self.client.delete(suffix)
+    async def _delete(self, suffix: str) -> Response:
+        response = await self.client.delete(suffix)
         response.raise_for_status()
         return response
 
-    def _put(self, suffix: str, json: dict | None = None) -> Response:
-        response = self.client.put(suffix, json=json)
+    async def _put(self, suffix: str, json: dict | None = None) -> Response:
+        response = await self.client.put(suffix, json=json)
         response.raise_for_status()
         return response
 
@@ -130,9 +130,9 @@ class QPUClient:
     def __init__(self, qpu_conf: QPUConfig) -> None:
         self.client = HTTPClientWrapper(qpu_conf)
 
-    def get_operational_status(self) -> QPUStatus:
+    async def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
-        response = self.client.get("/system/operational")
+        response = await self.client.get("/system/operational")
         data = response.json()["data"]
         status = QPUOperationalStatus(**data).operational_status
         if status is None:
@@ -141,13 +141,13 @@ class QPUClient:
             )
         return status
 
-    def get_job(self, job_uid: int, no_retry: bool = False) -> QPUJobInfo:
+    async def get_job(self, job_uid: int, no_retry: bool = False) -> QPUJobInfo:
         """Gets information on a submitted job."""
-        response = self.client.get(f"/jobs/{job_uid}", no_retry)
+        response = await self.client.get(f"/jobs/{job_uid}", no_retry)
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
-    def create_job(
+    async def create_job(
         self, nb_run: int, abstract_sequence: str, batch_id: str | None = None
     ) -> QPUJobInfo:
         """Create job on the QPU to run an abstract Sequence nb_run times."""
@@ -163,14 +163,14 @@ class QPUClient:
             "pulser_sequence": abstract_sequence,
             "context": {"batch_id": batch_id, "pasqman_job_id": pasqman_job_id},
         }
-        response = self.client.post("/jobs", payload)
+        response = await self.client.post("/jobs", payload)
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
-    def cancel_job(self, job_uid: int) -> QPUJobInfo:
+    async def cancel_job(self, job_uid: int) -> QPUJobInfo:
         """Terminates the execution of a given job ID."""
         try:
-            response = self.client.put(f"/jobs/{job_uid}/cancel")
+            response = await self.client.put(f"/jobs/{job_uid}/cancel")
             data = response.json()["data"]
             return QPUJobInfo(**data)
         except NotRetriedHTTPStatus as e:
@@ -188,8 +188,14 @@ class QPUClient:
             logger.warning(
                 f"Job can't be cancelled, program is in '{data['status']}' state."
             )
-            job_info = self.get_job(job_uid)
+            job_info = await self.get_job(job_uid)
             return job_info
+
+    async def get_specs(self) -> str:
+        """Get QPU serialized device specs."""
+        response = await self.client.get("/system")
+        data = response.json()["data"]
+        return json.dumps(QPUInfo(**data).specs)
 
 
 class AsyncQPUClient:
@@ -197,9 +203,7 @@ class AsyncQPUClient:
 
     def __init__(self, qpu_conf: QPUConfig):
         self.conf = qpu_conf
-        self.client = AsyncClient(
-            base_url=qpu_conf.uri + "/api/v1", verify=qpu_conf.verify
-        )
+        self.client = qpu_conf.client
 
     async def get_specs(self) -> str:
         """Get QPU serialized device specs."""

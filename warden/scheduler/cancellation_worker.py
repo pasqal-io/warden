@@ -46,7 +46,7 @@ async def cancellation_worker(
                 if job.backend_id is None:
                     raise JobCancelationError("No backend ID foud in db")
 
-                client.cancel_job(int(job.backend_id))
+                await client.cancel_job(int(job.backend_id))
                 logger.debug(
                     "Sent cancel request to QPU for job '%s' with QPU id '%s'",
                     job.id,

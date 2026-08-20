@@ -134,13 +134,9 @@ class LocalQPUWorker:
         self.conf_sched = conf.scheduler
         self.qpu_client = QPUClient(qpu_conf=conf.qpu)
 
-    @property
-    def operational_status(self):
-        return self.qpu_client.get_operational_status()
-
-    @property
-    def is_operational(self):
-        return self.operational_status == "UP"
+    async def is_operational(self):
+        qpu_status = await self.qpu_client.get_operational_status()
+        return qpu_status == "UP"
 
     @staticmethod
     def is_timed_out(timeout_s: int | float, start: UTCDatetime) -> bool:
@@ -185,7 +181,7 @@ class LocalQPUWorker:
         """Check the QPU status"""
         try:
             polling_start = datetime.now(tz=timezone.utc)
-            while not self.is_operational:
+            while not (await self.is_operational()):
                 if self.is_timed_out(
                     self.conf_sched.qpu_polling_timeout_s, polling_start
                 ):
@@ -223,7 +219,7 @@ class LocalQPUWorker:
                 backend_id,
             )
             try:
-                qpu_job_info = self.qpu_client.get_job(job_uid=int(backend_id))
+                qpu_job_info = await self.qpu_client.get_job(job_uid=int(backend_id))
                 await job_tracker.update_job(qpu_job_info)
                 logger.info("Job status fetched from QPU: %s", job_tracker.status)
                 return
@@ -234,7 +230,7 @@ class LocalQPUWorker:
                 )
 
         try:
-            qpu_job_info = self.qpu_client.create_job(
+            qpu_job_info = await self.qpu_client.create_job(
                 nb_run=nb_run,
                 abstract_sequence=sequence,
                 batch_id=batch_id,
@@ -259,7 +255,7 @@ class LocalQPUWorker:
                     f"{job_tracker.job.uid}."
                 )
                 try:
-                    qpu_job_info = self.qpu_client.cancel_job(job_tracker.job.uid)
+                    qpu_job_info = await self.qpu_client.cancel_job(job_tracker.job.uid)
                     await job_tracker.update_job(
                         qpu_job_info, enforce_end_datetime=True
                     )
@@ -277,7 +273,9 @@ class LocalQPUWorker:
             # When polling the job status, we set no_retry=True as we are
             # in the job polling loop that will handle the retry of the requests
             # until an eventual timout of the job
-            qpu_job_info = self.qpu_client.get_job(job_tracker.job.uid, no_retry=True)
+            qpu_job_info = await self.qpu_client.get_job(
+                job_tracker.job.uid, no_retry=True
+            )
             await job_tracker.update_job(qpu_job_info)
             logger.info(f"Job status: {job_tracker.status}", extra={"to_db": False})
         except QPUClientRequestError as e:
