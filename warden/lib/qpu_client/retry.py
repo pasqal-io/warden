@@ -1,8 +1,6 @@
 """Retry decorator for qpu_client"""
 
 import asyncio
-import inspect
-import time
 from functools import wraps
 from typing import Callable
 
@@ -66,21 +64,6 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
                 raise UnhandledError(e) from e
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            attempt = 1
-            while True:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    if no_retry:
-                        raise QPUClientRequestError(e) from e
-                    if attempt >= max:
-                        raise MaxRetryError(e) from e
-                    _handle_exception(e)
-                time.sleep(sleep_s)
-                attempt += 1
-
-        @wraps(func)
         async def async_wrapper(*args, **kwargs):
             attempt = 1
             while True:
@@ -95,8 +78,6 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
                 await asyncio.sleep(sleep_s)
                 attempt += 1
 
-        if inspect.iscoroutinefunction(func):
-            return async_wrapper
-        return wrapper
+        return async_wrapper
 
     return decorator
