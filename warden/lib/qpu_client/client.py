@@ -29,7 +29,7 @@ class HTTPClientWrapper:
         self,
         qpu_conf: QPUConfig,
     ):
-        self.client = qpu_conf.client
+        self._client = qpu_conf.client
         self.retry_max = qpu_conf.retry_max
         self.retry_sleep_s = qpu_conf.retry_sleep_s
 
@@ -100,22 +100,22 @@ class HTTPClientWrapper:
         return response
 
     async def _get(self, suffix: str) -> Response:
-        response = await self.client.get(suffix)
+        response = await self._client.get(suffix)
         response.raise_for_status()
         return response
 
     async def _post(self, suffix: str, json: dict | None = None) -> Response:
-        response = await self.client.post(suffix, json=json)
+        response = await self._client.post(suffix, json=json)
         response.raise_for_status()
         return response
 
     async def _delete(self, suffix: str) -> Response:
-        response = await self.client.delete(suffix)
+        response = await self._client.delete(suffix)
         response.raise_for_status()
         return response
 
     async def _put(self, suffix: str, json: dict | None = None) -> Response:
-        response = await self.client.put(suffix, json=json)
+        response = await self._client.put(suffix, json=json)
         response.raise_for_status()
         return response
 
@@ -196,36 +196,3 @@ class QPUClient:
         response = await self.client.get("/system")
         data = response.json()["data"]
         return json.dumps(QPUInfo(**data).specs)
-
-
-class AsyncQPUClient:
-    """HTTP Client to interact with the QPU API."""
-
-    def __init__(self, qpu_conf: QPUConfig):
-        self.conf = qpu_conf
-        self.client = qpu_conf.client
-
-    async def get_specs(self) -> str:
-        """Get QPU serialized device specs."""
-        response = await self.get("/system")
-        data = response.json()["data"]
-        return json.dumps(QPUInfo(**data).specs)
-
-    async def get(self, suffix: str):
-        """Sends a GET request to base_url + suffix.
-
-        Arg:
-            suffix: The suffix to add after base_url for the request.
-
-        Returns:
-            The Response returned by the GET request.
-        """
-        response = await retry(
-            max=self.conf.retry_max, sleep_s=self.conf.retry_sleep_s
-        )(self._get)(suffix)
-        return response
-
-    async def _get(self, suffix: str):
-        response = await self.client.get(suffix)
-        response.raise_for_status()
-        return response

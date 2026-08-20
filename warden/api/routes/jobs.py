@@ -17,7 +17,7 @@ from warden.api.schemas.jobs import (
     try_parse_AHSSequence,
 )
 from warden.api.utils.cudaq import normalize_cudaq_sequence
-from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
+from warden.lib.qpu_client import QPUClient, QPUClientRequestError
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
@@ -28,7 +28,7 @@ async def create_job(
     job: JobCreate,
     db_session: DBSessionDep,
     session: SessionDep,
-    qpu_client: AsyncQPUClient = Depends(get_qpu_client),
+    qpu_client: QPUClient = Depends(get_qpu_client),
 ) -> JobResponse:
     """
     Create a new job

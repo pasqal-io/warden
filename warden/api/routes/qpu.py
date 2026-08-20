@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.qpu import QPUSpecsResponse
-from warden.lib.qpu_client import AsyncQPUClient, QPUClientRequestError
+from warden.lib.qpu_client import QPUClient, QPUClientRequestError
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/qpu")
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/qpu")
 
 @router.get("/specs")
 async def get_specs(
-    client: AsyncQPUClient = Depends(get_qpu_client),
+    client: QPUClient = Depends(get_qpu_client),
 ) -> QPUSpecsResponse:
     """Retrieve the serialized Pulser device specs of the QPU.
 

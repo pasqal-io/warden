@@ -14,7 +14,7 @@ from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.lib.config.config import APIConfig, Config, DatabaseConfig, QPUConfig
 from warden.lib.db.database import Base
-from warden.lib.qpu_client.client import AsyncQPUClient
+from warden.lib.qpu_client.client import QPUClient
 
 
 @pytest_asyncio.fixture
@@ -45,11 +45,11 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
 MAX_RETRY = 10
 
 
-def make_qpu_client(handler: Callable[[Request], Response]) -> AsyncQPUClient:
+def make_qpu_client(handler: Callable[[Request], Response]) -> QPUClient:
     """Create a QPUClient with a mocked HTTP transport."""
     config = QPUConfig(uri="http://mock-qpu", retry_sleep_s=0)
-    client = AsyncQPUClient(config)
-    client.client = AsyncClient(
+    client = QPUClient(config)
+    client.client._client = AsyncClient(
         base_url=config.uri + "/api/v1", transport=MockTransport(handler)
     )
     return client
