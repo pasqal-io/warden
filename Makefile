@@ -41,13 +41,8 @@ check-python:
 			;; \
 	esac
 
-# Generates a fresh config.yaml 
-config.yaml: #$(VENV)/bin/python
-	$(VENV)/bin/python -m warden.lib.config.generate_config
-
-# Regenerates config.yaml from the current defaults/descriptions, preserving
-# any values already set in it and backing up the previous file if it changes
-migrate-config.yaml: $(VENV)/bin/python
+# Generates a fresh config.yaml, migrates existing settings
+config.yaml:
 	$(VENV)/bin/python -m warden.lib.config.generate_config --migrate
 
 # Note: the --copies flag is used to create a copy of the binaries, since a symlink may not always work
