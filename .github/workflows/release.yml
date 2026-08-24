@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+      # ponytail: also catch v-less version tags so they fail loudly instead of silently not running
+      - "[0-9]*"
   workflow_dispatch:
     inputs:
       version:
@@ -31,11 +33,18 @@ jobs:
       - name: Resolve release metadata
         id: release-meta
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            version="${{ inputs.version }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
           else
             version="${GITHUB_REF_NAME}"
+            if [ "${version#v}" = "$version" ]; then
+              echo "::error::Tag '${version}' is missing the leading 'v'. Delete it and push 'v${version}' instead." >&2
+              exit 1
+            fi
           fi
 
           version="${version#v}"
@@ -43,6 +52,16 @@ jobs:
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag points at the commit being built
+        env:
+          TAG: ${{ steps.release-meta.outputs.tag }}
+        run: |
+          tag_sha="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}" || true)"
+          if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag ${TAG} points at ${tag_sha} but this run builds ${GITHUB_SHA}." >&2
+            exit 1
+          fi
 
       - name: Set up Python 3.11
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # 6.2.0
@@ -102,7 +121,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/release-assets"
           cp "$RUNNER_TEMP"/sbom/*.json "$RUNNER_TEMP/release-assets/"
 
-          for file in "$RUNNER_TEMP"/release-assets/*; do
+          cd "$RUNNER_TEMP/release-assets"
+          for file in *; do
             sha256sum "$file" > "$file.sha256"
           done
 

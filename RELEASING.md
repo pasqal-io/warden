@@ -26,8 +26,9 @@ enforces the same check strictly and will fail if the committed exports are stal
 There are three supported publish paths:
 
 - Create a new Github `Release` - preferred
-  - Create a new tag with version like `1.2.3`
+  - Create a new tag with a **leading `v`**, like `v1.2.3`
   - This will create a tag and the release workflow
+  - A tag without the `v` (like `1.2.3`) fails the workflow with an explicit error
   - Generate - and tweak - the release notes
 - Run the `Release` workflow manually with a version like `1.2.3`.
   - Run it from the merged release branch, usually `main`.
@@ -48,7 +49,7 @@ In all cases the workflow is idempotent:
 
 Each release uploads:
 
-- `warden-sbom-base.cdx.json`
+- `warden-sbom.cdx.json`
 - `warden-sbom-pg.cdx.json`
 - `warden-sbom-mariadb.cdx.json`
 - one `.sha256` file for each uploaded artifact
