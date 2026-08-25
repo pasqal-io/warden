@@ -136,6 +136,15 @@ and `GET /accounting/jobs` accepts `session_id` and `status` filtering.
 See FastAPI's `/docs` page for the full request/response schema of each
 route.
 
+### Status API
+
+`GET /status` returns a live snapshot of Warden's current activity, restricted
+to `api.admin_users`: 
+- the number of pending jobs
+- the job currently running
+- and the list of open sessions.
+Historical jobs/sessions are not included, see the Accounting API above for reporting.
+
 ### Database
 
 Warden supports the following databases:

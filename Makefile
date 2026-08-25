@@ -5,7 +5,7 @@ include config.mk dev.mk
 
 # cluster admin commands to operate Warden
 .PHONY: set-accessible \
- ping get-logs
+ ping get-logs get-status
 
 # Mock QPU when the actual QPU is not available
 .PHONY: start-mock-qpu start-qutip-qpu
@@ -135,6 +135,11 @@ set-accessible:
 get-logs:
 
 	curl -X GET $(URL)/jobs/$(ID)/logs \
+		-H "X-Munge-Cred: $$(munge -n)"
+
+get-status:
+
+	curl -s -X GET $(URL)/status\
 		-H "X-Munge-Cred: $$(munge -n)"
 
 ping:
