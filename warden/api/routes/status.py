@@ -18,7 +18,7 @@ async def get_status(
     Provide live snapshot of Warden's current activity:
     - count of pending jobs
     - the job currently executing
-    - open sessions.
+    - open sessions
     """
     pending_jobs_count = await db_session.scalar(
         select(func.count(Job.id)).where(Job.status == "PENDING")
@@ -38,7 +38,7 @@ async def get_status(
     )
 
     open_sessions_result = await db_session.execute(
-        select(Session).where(Session.revoked_at.is_(None))
+        select(Session).where(Session.revoked_at.is_(None)).order_by(Session.created_at)
     )
     open_sessions = [
         OpenSession(

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -9,16 +9,24 @@ from warden.lib.models import Job, Session
 async def _seed(app, *, serialized_sequence: str):
     async_session = app.state.db_session_factory
 
-    open_session = Session(user_id="1000", slurm_job_id="1")
+    open_session = Session(
+        user_id="1000", slurm_job_id="1", created_at=datetime.now(timezone.utc)
+    )
+    other_sessions = [
+        Session(
+            user_id="1000",
+            slurm_job_id="1",
+            created_at=(datetime.now(timezone.utc) - timedelta(minutes=i)),
+        )
+        for i in range(1, 6)
+    ]
     revoked_session = Session(
-        user_id="1000", slurm_job_id="2", revoked_at=datetime.now()
+        user_id="1000", slurm_job_id="2", revoked_at=datetime.now(timezone.utc)
     )
 
     async with async_session() as session:
-        session.add_all([open_session, revoked_session])
+        session.add_all([open_session, *other_sessions, revoked_session])
         await session.commit()
-        await session.refresh(open_session)
-        await session.refresh(revoked_session)
 
     pending_jobs = [
         Job(sequence=serialized_sequence, shots=100, session=open_session)
@@ -47,7 +55,7 @@ async def _seed(app, *, serialized_sequence: str):
         await session.commit()
         await session.refresh(running_job)
 
-    return open_session, running_job
+    return open_session, other_sessions, running_job
 
 
 @pytest.mark.asyncio
@@ -65,10 +73,11 @@ async def test_get_status_no_auth(client):
 
 @pytest.mark.asyncio
 async def test_get_status_admin(client, app, serialized_sequence: str):
-    """A PENDING, RUNNING and DONE job plus an open and revoked session are
-    seeded; the snapshot must count only the PENDING job, surface the RUNNING
-    job as current_job (ignoring DONE), and list only the open session."""
-    open_session, running_job = await _seed(
+    """A PENDING, RUNNING and DONE job plus several open sessions and a
+    revoked session are seeded; the snapshot must count only the PENDING job,
+    surface the RUNNING job as current_job (ignoring DONE), and list the open
+    sessions ordered by creation time, oldest first."""
+    open_session, other_sessions, running_job = await _seed(
         app, serialized_sequence=serialized_sequence
     )
 
@@ -80,7 +89,11 @@ async def test_get_status_admin(client, app, serialized_sequence: str):
     assert data["pending_jobs_count"] == 10
     assert data["current_job"]["id"] == running_job.id
     assert data["current_job"]["session_id"] == str(open_session.id)
-    assert [s["id"] for s in data["open_sessions"]] == [str(open_session.id)]
+
+    expected_order = [str(s.id) for s in reversed(other_sessions)] + [
+        str(open_session.id)
+    ]
+    assert [s["id"] for s in data["open_sessions"]] == expected_order
 
 
 @pytest.mark.asyncio
