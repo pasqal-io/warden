@@ -18,7 +18,7 @@ async def _seed(app, *, serialized_sequence: str):
             slurm_job_id="1",
             created_at=(datetime.now(timezone.utc) - timedelta(minutes=i)),
         )
-        for i in range(1, 6)
+        for i in range(5, 0, -1)
     ]
     revoked_session = Session(
         user_id="1000", slurm_job_id="2", revoked_at=datetime.now(timezone.utc)
@@ -90,9 +90,7 @@ async def test_get_status_admin(client, app, serialized_sequence: str):
     assert data["current_job"]["id"] == running_job.id
     assert data["current_job"]["session_id"] == str(open_session.id)
 
-    expected_order = [str(s.id) for s in reversed(other_sessions)] + [
-        str(open_session.id)
-    ]
+    expected_order = [str(s.id) for s in other_sessions] + [str(open_session.id)]
     assert [s["id"] for s in data["open_sessions"]] == expected_order
 
 
