@@ -48,10 +48,8 @@ MAX_RETRY = 10
 def make_qpu_client(handler: Callable[[Request], Response]) -> QPUClient:
     """Create a QPUClient with a mocked HTTP transport."""
     config = QPUConfig(uri="http://mock-qpu", retry_sleep_s=0)
+    config._client = AsyncClient(transport=MockTransport(handler))
     client = QPUClient(config)
-    client.client._client = AsyncClient(
-        base_url=config.uri + "/api/v1", transport=MockTransport(handler)
-    )
     return client
 
 

@@ -128,11 +128,11 @@ class QPUClient:
     """
 
     def __init__(self, qpu_conf: QPUConfig) -> None:
-        self.client = HTTPClientWrapper(qpu_conf)
+        self.http_client = HTTPClientWrapper(qpu_conf)
 
     async def get_operational_status(self) -> QPUStatus:
         """Gets QPU's operational status."""
-        response = await self.client.get("/system/operational")
+        response = await self.http_client.get("/system/operational")
         data = response.json()["data"]
         status = QPUOperationalStatus(**data).operational_status
         if status is None:
@@ -143,7 +143,7 @@ class QPUClient:
 
     async def get_job(self, job_uid: int, no_retry: bool = False) -> QPUJobInfo:
         """Gets information on a submitted job."""
-        response = await self.client.get(f"/jobs/{job_uid}", no_retry)
+        response = await self.http_client.get(f"/jobs/{job_uid}", no_retry)
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
@@ -163,14 +163,14 @@ class QPUClient:
             "pulser_sequence": abstract_sequence,
             "context": {"batch_id": batch_id, "pasqman_job_id": pasqman_job_id},
         }
-        response = await self.client.post("/jobs", payload)
+        response = await self.http_client.post("/jobs", payload)
         data = response.json()["data"]
         return QPUJobInfo(**data)
 
     async def cancel_job(self, job_uid: int) -> QPUJobInfo:
         """Terminates the execution of a given job ID."""
         try:
-            response = await self.client.put(f"/jobs/{job_uid}/cancel")
+            response = await self.http_client.put(f"/jobs/{job_uid}/cancel")
             data = response.json()["data"]
             return QPUJobInfo(**data)
         except NotRetriedHTTPStatus as e:
@@ -193,6 +193,6 @@ class QPUClient:
 
     async def get_specs(self) -> str:
         """Get QPU serialized device specs."""
-        response = await self.client.get("/system")
+        response = await self.http_client.get("/system")
         data = response.json()["data"]
         return json.dumps(QPUInfo(**data).specs)
