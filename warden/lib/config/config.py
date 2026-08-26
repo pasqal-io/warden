@@ -97,7 +97,7 @@ class QPUConfig(WardenSettings):
     #   "<path/to.pem>" -> verify against a specific CA bundle / cert file
     tls_verify: bool | str = True
 
-    _client: httpx2.Client | None = PrivateAttr(default=None)
+    _client: httpx2.AsyncClient | None = PrivateAttr(default=None)
 
     @property
     def verify(self) -> bool | ssl.SSLContext:
@@ -107,9 +107,9 @@ class QPUConfig(WardenSettings):
         return self.tls_verify
 
     @property
-    def client(self) -> httpx2.Client:
+    def client(self) -> httpx2.AsyncClient:
         if self._client is None:
-            self._client = httpx2.Client(verify=self.verify)
+            self._client = httpx2.AsyncClient(verify=self.verify)
         self._client.base_url = self.uri + API_PREFIX
         return self._client
 
