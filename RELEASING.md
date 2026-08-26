@@ -6,14 +6,15 @@ version, lockfile, and exported requirements files are all in sync.
 ## Prepare a release
 
 1. Update the version in `pyproject.toml`.
-2. Refresh the lockfile and exported requirements:
+2. Update the version in `install.sh`.
+3. Refresh the lockfile and exported requirements:
 
    ```bash
    make update-requirements
    ```
 
-3. Open and merge a PR with the version bump, `poetry.lock`, and the updated
-   `requirements*.txt` files.
+4. Open and merge a PR with the version bump, `poetry.lock`, `install.sh` and the
+   updated `requirements*.txt` files.
 
 Pull requests include a warning-only CI check when the committed
 `requirements*.txt` files drift from a fresh Poetry export. The release workflow
