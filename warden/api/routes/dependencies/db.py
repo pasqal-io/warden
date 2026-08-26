@@ -1,15 +1,15 @@
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, FastAPI, Request
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.config import DatabaseConfig
-from warden.lib.db.database import build_db_url
+from warden.lib.db.database import build_engine
 
 
 def init_db(app: FastAPI, db_config: DatabaseConfig):
     """Initialize the async engine and session factory with the given DB URL."""
-    engine = create_async_engine(build_db_url(db_config), echo=db_config.echo)
+    engine = build_engine(db_config)
 
     # TODO: ensure isolation between concurrent requests
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)

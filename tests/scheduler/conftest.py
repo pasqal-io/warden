@@ -1,24 +1,29 @@
 """Pytest fixture and configurations"""
 
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from warden.lib.db.database import Base, build_db_url
+from warden.lib.db.database import Base, build_engine
 
 
 @pytest_asyncio.fixture(scope="function")
 async def db_engine(config_db):
-    engine = create_async_engine(build_db_url(config_db.database))
+    engine = build_engine(config_db.database)
 
     async with engine.begin() as conn:
         # Create all tables once
         await conn.run_sync(Base.metadata.create_all)
-    yield engine
+    try:
+        yield engine
 
-    async with engine.begin() as conn:
-        # Delete tables
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+        async with engine.begin() as conn:
+            # Delete tables
+            await conn.run_sync(Base.metadata.drop_all)
+    finally:
+        # Always dispose: every backend shares one database across the test
+        # session, so an engine left open on a failing teardown leaks its
+        # connections - and their transactions - into every later test.
+        await engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")
