@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from warden.api.app import create_app
 from warden.api.routes.dependencies.auth import MungeIdentity, munge_identity
 from warden.api.routes.dependencies.qpu_client import get_qpu_client
-from warden.lib.config.config import APIConfig, Config, DatabaseConfig, QPUConfig
+from warden.lib.config.config import (
+    API_PREFIX,
+    APIConfig,
+    Config,
+    DatabaseConfig,
+    QPUConfig,
+)
 from warden.lib.db.database import Base
 from warden.lib.qpu_client.client import QPUClient
 
@@ -48,8 +54,10 @@ MAX_RETRY = 10
 def make_qpu_client(handler: Callable[[Request], Response]) -> QPUClient:
     """Create a QPUClient with a mocked HTTP transport."""
     config = QPUConfig(uri="http://mock-qpu", retry_sleep_s=0)
-    config._client = AsyncClient(transport=MockTransport(handler))
-    client = QPUClient(config)
+    http_client = AsyncClient(
+        base_url=config.uri + API_PREFIX, transport=MockTransport(handler)
+    )
+    client = QPUClient(config, _client=http_client)
     return client
 
 
