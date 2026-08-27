@@ -1,7 +1,7 @@
 include config.mk dev.mk
 
 # install + run targets
-.PHONY: check-python install run config.yaml migrate-config.yaml
+.PHONY: check-python install run config.yaml
 
 # cluster admin commands to operate Warden
 .PHONY: set-accessible \
@@ -42,7 +42,7 @@ check-python:
 	esac
 
 # Generates a fresh config.yaml, migrates existing settings
-config.yaml:
+config.yaml: $(VENV)/bin/python
 	$(VENV)/bin/python -m warden.lib.config.generate_config --migrate
 
 # Note: the --copies flag is used to create a copy of the binaries, since a symlink may not always work
