@@ -6,14 +6,15 @@ version, lockfile, and exported requirements files are all in sync.
 ## Prepare a release
 
 1. Update the version in `pyproject.toml`.
-2. Refresh the lockfile and exported requirements:
+2. Update the version in `install.sh`.
+3. Refresh the lockfile and exported requirements:
 
    ```bash
    make update-requirements
    ```
 
-3. Open and merge a PR with the version bump, `poetry.lock`, and the updated
-   `requirements*.txt` files.
+4. Open and merge a PR with the version bump, `poetry.lock`, `install.sh` and the
+   updated `requirements*.txt` files.
 
 Pull requests include a warning-only CI check when the committed
 `requirements*.txt` files drift from a fresh Poetry export. The release workflow
@@ -26,8 +27,9 @@ enforces the same check strictly and will fail if the committed exports are stal
 There are three supported publish paths:
 
 - Create a new Github `Release` - preferred
-  - Create a new tag with version like `1.2.3`
+  - Create a new tag with a **leading `v`**, like `v1.2.3`
   - This will create a tag and the release workflow
+  - A tag without the `v` (like `1.2.3`) fails the workflow with an explicit error
   - Generate - and tweak - the release notes
 - Run the `Release` workflow manually with a version like `1.2.3`.
   - Run it from the merged release branch, usually `main`.
@@ -48,7 +50,7 @@ In all cases the workflow is idempotent:
 
 Each release uploads:
 
-- `warden-sbom-base.cdx.json`
+- `warden-sbom.cdx.json`
 - `warden-sbom-pg.cdx.json`
 - `warden-sbom-mariadb.cdx.json`
 - one `.sha256` file for each uploaded artifact
