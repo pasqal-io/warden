@@ -12,8 +12,10 @@ from pydantic import (
     AfterValidator,
     AliasGenerator,
     BeforeValidator,
+    Discriminator,
     Field,
     PrivateAttr,
+    Tag,
     model_validator,
 )
 from pydantic_settings import (
@@ -21,6 +23,8 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+
+CONFIG_FILENAME = "config.yaml"
 
 API_PREFIX = "/api/v1"
 
@@ -37,34 +41,88 @@ class WardenSettings(BaseSettings):
     )
 
 
-class SqliteConfig(WardenSettings):
-    backend: Literal["sqlite"] = "sqlite"
-    name: str = "warden.db"
-    echo: bool = False
+class _DatabaseConfigBase(WardenSettings):
+    echo: bool = Field(
+        default=False, description="Optional, SQLAlchemy echo (log all SQL statements)."
+    )
 
 
-class PostgresConfig(WardenSettings):
-    backend: Literal["postgres"] = "postgres"
-    host: str = "localhost"
-    port: int = 5432
-    name: str = "warden"
-    user: str
-    password: str
-    echo: bool = False
+DATABASE_BACKEND_DESCRIPTION = (
+    "Database backend. Warden supports sqlite, postgres or mariadb."
+)
 
 
-class MariadbConfig(WardenSettings):
-    backend: Literal["mariadb"] = "mariadb"
-    host: str = "localhost"
-    port: int = 3306
-    name: str = "warden"
-    user: str
-    password: str
-    echo: bool = False
+class SqliteConfig(_DatabaseConfigBase):
+    backend: Literal["sqlite"] = Field(
+        default="sqlite", description=DATABASE_BACKEND_DESCRIPTION
+    )
+    name: str = Field(
+        default="warden.db",
+        description="For SQLite, the database name is the filename of the database file.",
+    )
+
+
+class _ServerDatabaseConfig(_DatabaseConfigBase):
+    host: str = Field(
+        default="localhost",
+        description=(
+            "Address to connect to the database. Only used for PostgreSQL and MariaDB."
+        ),
+    )
+    name: str = Field(
+        default="warden",
+        description="For PostgreSQL and MariaDB, the database name is the name of the database.",
+    )
+    user: str = Field(
+        description=(
+            "Database user used to connect to the database. "
+            "Mandatory for PostgreSQL and MariaDB."
+        )
+    )
+    password: str = Field(
+        description=(
+            "Database password used to connect to the database. Mandatory for PostgreSQL "
+            "and MariaDB. Should be set via the WARDEN_DATABASE_PASSWORD environment "
+            "variable rather than in the config file."
+        )
+    )
+
+
+class PostgresConfig(_ServerDatabaseConfig):
+    backend: Literal["postgres"] = Field(
+        default="postgres", description=DATABASE_BACKEND_DESCRIPTION
+    )
+    port: int = Field(
+        default=5432,
+        description="Port to connect to the database. Default for PostgreSQL, 3306 for MariaDB.",
+    )
+
+
+class MariadbConfig(_ServerDatabaseConfig):
+    backend: Literal["mariadb"] = Field(
+        default="mariadb", description=DATABASE_BACKEND_DESCRIPTION
+    )
+    port: int = Field(
+        default=3306,
+        description="Port to connect to the database. Default for MariaDB, 5432 for PostgreSQL.",
+    )
+
+
+# Allows to discriminate between models if we partially configure
+# `config.yaml` without specifying `backend`
+
+
+def _database_backend_tag(v: Any) -> str:
+    if isinstance(v, dict):
+        return v.get("backend", "sqlite")
+    return getattr(v, "backend", "sqlite")
 
 
 DatabaseConfig = Annotated[
-    SqliteConfig | PostgresConfig | MariadbConfig, Field(discriminator="backend")
+    Annotated[SqliteConfig, Tag("sqlite")]
+    | Annotated[PostgresConfig, Tag("postgres")]
+    | Annotated[MariadbConfig, Tag("mariadb")],
+    Discriminator(_database_backend_tag),
 ]
 
 
@@ -73,29 +131,84 @@ class SchedulerStrategy(StrEnum):
 
 
 class SchedulerConfig(WardenSettings):
-    strategy: SchedulerStrategy = SchedulerStrategy.FIFO
+    """Job scheduler configuration."""
 
-    db_polling_interval_s: float = 1
+    strategy: SchedulerStrategy = Field(
+        default=SchedulerStrategy.FIFO,
+        description=(
+            "Job scheduling strategy. Available strategies: "
+            "- FIFO (priority to the oldest job pending in the database)."
+        ),
+    )
 
-    qpu_polling_interval_s: float = 5
-    qpu_polling_timeout_s: float = -1
+    db_polling_interval_s: float = Field(
+        default=1,
+        description=(
+            "Time interval in seconds between checks on the database "
+            "for a new job to schedule."
+        ),
+    )
 
-    job_polling_interval_s: float = 5
-    job_polling_timeout_s: float = -1
+    qpu_polling_interval_s: float = Field(
+        default=5,
+        description="Time interval in seconds between checks of the QPU status.",
+    )
+    qpu_polling_timeout_s: float = Field(
+        default=-1,
+        description=(
+            "Maximum time in seconds the scheduler will wait for the QPU to be "
+            "operational at the start of a job. If the QPU is not operational "
+            'after this time, the scheduled job will return with status "ERROR". '
+            "Set to -1 for no time limit."
+        ),
+    )
+
+    job_polling_interval_s: float = Field(
+        default=5,
+        description=(
+            "Time interval in seconds between checks of the status of the "
+            "job running on the QPU."
+        ),
+    )
+    job_polling_timeout_s: float = Field(
+        default=-1,
+        description=(
+            "Maximum time in seconds the scheduler will wait for the job to "
+            "finish execution on the QPU. If the job is not done after this "
+            "time, the scheduler will cancel the job on the QPU and return "
+            'with status "CANCELED". Set to -1 for no time limit.'
+        ),
+    )
 
 
 class QPUConfig(WardenSettings):
-    uri: str = "http://localhost:8000"
+    """QPU backend connection configuration."""
 
-    retry_max: int = 10
-    retry_sleep_s: float = 1
+    uri: str = Field(
+        default="http://localhost:8000", description="Local Pasqal QPU API URI."
+    )
 
-    # TLS verification policy for requests to the QPU backend. Mirrors httpx2's
-    # ``verify`` argument:
-    #   true            -> verify against the OS trust store (httpx2 default)
-    #   false           -> disable verification (INSECURE; dev/e2e only)
-    #   "<path/to.pem>" -> verify against a specific CA bundle / cert file
-    tls_verify: bool | str = True
+    retry_max: int = Field(
+        default=10,
+        description=(
+            "Max number of retries to the QPU API in case of transient errors "
+            "during requests."
+        ),
+    )
+    retry_sleep_s: float = Field(
+        default=1, description="Time in seconds between request retries."
+    )
+
+    tls_verify: bool | str = Field(
+        default=True,
+        description=(
+            "TLS verification policy for requests to the QPU backend, mirrors httpx2's `verify` argument. "
+            "- true            -> verify against the OS trust store (httpx2 default). "
+            "- false           -> disable verification (INSECURE; dev/e2e only). "
+            '- "<path/to.pem>" -> verify against a specific CA bundle / certificate file. '
+            "(Only relevant when 'uri' field uses https)"
+        ),
+    )
 
     _client: httpx2.AsyncClient | None = PrivateAttr(default=None)
 
@@ -141,21 +254,67 @@ def ensure_non_empty(v: list[str]) -> list[str]:
 
 
 class APIConfig(WardenSettings):
-    host: str = "0.0.0.0"
-    port: int = Field(default=8006, ge=1, le=65535)
+    """HTTP API server configuration."""
+
+    host: str = Field(default="0.0.0.0", description="API bind address.")
+    port: int = Field(default=8006, ge=1, le=65535, description="API bind port.")
 
     # processing authorized_users as strings but allowing users to input numbers
-    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = []
+    authorized_users: Annotated[list[str], BeforeValidator(coerce_to_str)] = Field(
+        default=[],
+        description=(
+            "List of user ids authorized to create new jobs on the QPU by "
+            "creating a new session. All entries must be strings or integers. "
+            "If empty/unset, all users are authorized."
+        ),
+    )
     admin_users: Annotated[
         list[str], BeforeValidator(coerce_to_str), AfterValidator(ensure_non_empty)
-    ] = ["0"]
+    ] = Field(
+        default=["0"],
+        description=(
+            "List of admin uids authorized to set the availability of the QPU "
+            "and create sessions on behalf of users. All entries must be strings "
+            "or integers. Must not be empty, and must include the uid running "
+            "the spank plugin."
+        ),
+    )
+
+
+DEFAULT_LOGGING_CONFIG: dict[str, Any] = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "root": {"handlers": ["console", "file"]},
+    "loggers": {
+        name: {"level": "INFO", "handlers": ["console", "file"], "propagate": False}
+        for name in ("warden", "uvicorn", "uvicorn.error", "uvicorn.access")
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "formatter": "default",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "logs/warden.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "encoding": "utf-8",
+            "formatter": "default",
+        },
+    },
+    "formatters": {
+        "default": {"format": "[%(asctime)s] %(levelname)s %(name)s: %(message)s"}
+    },
+}
 
 
 class Config(WardenSettings):
     api: APIConfig = APIConfig()
     database: DatabaseConfig = SqliteConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
-    logging: dict[str, Any] = {}
+    logging: dict[str, Any] = DEFAULT_LOGGING_CONFIG
     qpu: QPUConfig = QPUConfig()
 
     model_config = SettingsConfigDict(
@@ -202,7 +361,8 @@ class Config(WardenSettings):
             with path.open() as f:
                 data = yaml.safe_load(f) or {}
 
-            return data
+            # Parse empty YAML section as empty dict instead of Null
+            return {k: v for k, v in data.items() if v is not None}
 
         class YamlSettingsSource(PydanticBaseSettingsSource):
             def __init__(self, settings_cls: type[BaseSettings], path: Path):
@@ -219,8 +379,5 @@ class Config(WardenSettings):
             env_settings,  # Highest precedence: from env variables
             init_settings,  # from Config(...)
             dotenv_settings,  # from .env
-            YamlSettingsSource(settings_cls, Path.cwd() / "config.yaml"),
-            YamlSettingsSource(
-                settings_cls, Path(__file__).parent / "config.sample.yaml"
-            ),
+            YamlSettingsSource(settings_cls, Path.cwd() / CONFIG_FILENAME),
         )
