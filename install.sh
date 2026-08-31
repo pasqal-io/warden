@@ -1,6 +1,7 @@
 #!/bin/bash
 
 DEFAULT_INSTALL_DIR="/opt/warden"
+WARDEN_VERSION="${WARDEN_VERSION:-v0.2.0}"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     COLOR_BOLD=$'\033[1m'
@@ -62,18 +63,6 @@ fi
 
 # Change to the cloned directory
 cd "$INSTALL_DIR"
-
-# Install the newest published tag unless a version was pinned explicitly.
-if [ -z "${WARDEN_VERSION:-}" ]; then
-    WARDEN_VERSION="$(git tag --sort=-v:refname | head -n1)"
-    if [ -z "$WARDEN_VERSION" ]; then
-        error "Error: no tags found in $INSTALL_DIR."
-        error "Set WARDEN_VERSION to the version you want to install."
-        exit 1
-    fi
-    info "No WARDEN_VERSION set, using the latest tag."
-fi
-
 info "Checking out Warden ${WARDEN_VERSION}..."
 git checkout "$WARDEN_VERSION"
 
