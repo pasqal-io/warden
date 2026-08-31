@@ -212,12 +212,13 @@ def test_short_lived_token_still_caches_with_warning(
     assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
-def test_client_sends_no_authorization_header_without_auth_config(
+@pytest.mark.asyncio
+async def test_client_sends_no_authorization_header_without_auth_config(
     httpx_mock: HTTPXMock,
 ):
     httpx_mock.add_response(url=QPU_URL, json={"data": {}})
 
-    response = QPUConfig(uri="http://qpu:4300").client.get(QPU_URL)
+    response = await QPUConfig(uri="http://qpu:4300").client.get(QPU_URL)
 
     assert "Authorization" not in response.request.headers
 
