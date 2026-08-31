@@ -56,6 +56,7 @@ install-dev: $(VENV)/bin/python
 		$(POETRY_EXTRA_PACKAGES)
 	$(POETRY_PYTHON) -m poetry env use $(VENV)/bin/python
 	$(POETRY_PYTHON) -m poetry install --with dev --all-extras
+	$(MAKE) config.yaml
 
 dev: migrate
 	@bash -c '\
