@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from warden.lib.config.config import (
     APIConfig,
     Config,
+    QPUAuthConfig,
     SchedulerConfig,
     SchedulerStrategy,
     SqliteConfig,
@@ -150,3 +151,49 @@ def test_admin_users_must_not_be_empty():
     """
     with pytest.raises(ValidationError):
         APIConfig(admin_users=[])
+
+
+def test_qpu_auth_absent_by_default():
+    assert Config().qpu.auth is None
+
+
+def test_qpu_auth_token_url_is_built_from_base_and_realm():
+    auth = QPUAuthConfig(
+        url="http://keycloak:8080", realm="pasqos", id="warden", secret="s"
+    )
+
+    assert (
+        auth.token_url
+        == "http://keycloak:8080/realms/pasqos/protocol/openid-connect/token"
+    )
+
+
+def test_qpu_auth_token_url_tolerates_trailing_slash():
+    auth = QPUAuthConfig(
+        url="http://keycloak:8080/", realm="pasqos", id="warden", secret="s"
+    )
+
+    assert (
+        auth.token_url
+        == "http://keycloak:8080/realms/pasqos/protocol/openid-connect/token"
+    )
+
+
+def test_qpu_auth_rejects_partial_configuration():
+    # A half-configured auth section must fail loudly rather than silently
+    # falling back to unauthenticated requests.
+    with pytest.raises(ValidationError):
+        QPUAuthConfig(url="http://keycloak:8080", id="warden")
+
+
+def test_qpu_auth_secret_read_from_env(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARDEN_QPU_AUTH_URL", "http://keycloak:8080")
+    monkeypatch.setenv("WARDEN_QPU_AUTH_ID", "warden")
+    monkeypatch.setenv("WARDEN_QPU_AUTH_SECRET", "from-env")
+
+    config = Config()
+
+    assert config.qpu.auth is not None
+    assert config.qpu.auth.id == "warden"
+    assert config.qpu.auth.secret == "from-env"

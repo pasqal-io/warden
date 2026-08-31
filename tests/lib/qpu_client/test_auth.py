@@ -1,0 +1,186 @@
+"""Testing lib/qpu_client/auth"""
+
+import httpx
+import pytest
+from pytest_httpx import HTTPXMock
+
+from warden.lib.config.config import QPUAuthConfig
+from warden.lib.qpu_client.auth import (
+    KeycloakClientCredentialsAuth,
+    TokenRequestError,
+)
+
+TOKEN_URL = "http://keycloak:8080/realms/pasqos/protocol/openid-connect/token"
+QPU_URL = "http://qpu:4300/api/v1/system"
+
+
+@pytest.fixture
+def auth_conf() -> QPUAuthConfig:
+    return QPUAuthConfig(
+        url="http://keycloak:8080", realm="pasqos", id="warden", secret="s3cret"
+    )
+
+
+def test_token_is_fetched_once_and_reused(httpx_mock: HTTPXMock, auth_conf):
+    httpx_mock.add_response(
+        url=TOKEN_URL,
+        json={"access_token": "tok-1", "expires_in": 300},
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        first = client.get(QPU_URL)
+        second = client.get(QPU_URL)
+
+    assert first.request.headers["Authorization"] == "Bearer tok-1"
+    assert second.request.headers["Authorization"] == "Bearer tok-1"
+    token_requests = [r for r in httpx_mock.get_requests() if str(r.url) == TOKEN_URL]
+    assert len(token_requests) == 1
+
+
+def test_token_request_uses_client_credentials_grant(httpx_mock: HTTPXMock, auth_conf):
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "tok-1", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        client.get(QPU_URL)
+
+    token_request = next(
+        r for r in httpx_mock.get_requests() if str(r.url) == TOKEN_URL
+    )
+    body = token_request.read().decode()
+    assert "grant_type=client_credentials" in body
+    assert "client_id=warden" in body
+    assert "client_secret=s3cret" in body
+
+
+def test_expired_token_is_refreshed(httpx_mock: HTTPXMock, auth_conf, monkeypatch):
+    # expires_in 300 with leeway 30 means the token is stale after 270s.
+    clock = {"now": 1_000.0}
+    monkeypatch.setattr("warden.lib.qpu_client.auth.monotonic", lambda: clock["now"])
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "tok-1", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "tok-2", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        first = client.get(QPU_URL)
+        clock["now"] += 271
+        second = client.get(QPU_URL)
+
+    assert first.request.headers["Authorization"] == "Bearer tok-1"
+    assert second.request.headers["Authorization"] == "Bearer tok-2"
+
+
+def test_401_triggers_one_refresh_and_one_retry(httpx_mock: HTTPXMock, auth_conf):
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "stale", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, status_code=401)
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "fresh", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        response = client.get(QPU_URL)
+
+    assert response.status_code == 200
+    assert response.request.headers["Authorization"] == "Bearer fresh"
+    qpu_requests = [r for r in httpx_mock.get_requests() if str(r.url) == QPU_URL]
+    assert len(qpu_requests) == 2
+
+
+def test_persistent_401_is_not_retried_forever(httpx_mock: HTTPXMock, auth_conf):
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "tok-1", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, status_code=401)
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "tok-2", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, status_code=401)
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        response = client.get(QPU_URL)
+
+    # The second 401 is surfaced, not retried again.
+    assert response.status_code == 401
+    qpu_requests = [r for r in httpx_mock.get_requests() if str(r.url) == QPU_URL]
+    assert len(qpu_requests) == 2
+
+
+@pytest.mark.parametrize("status_code", [400, 401])
+def test_bad_credentials_raise_token_request_error(
+    httpx_mock: HTTPXMock, auth_conf, status_code
+):
+    httpx_mock.add_response(
+        url=TOKEN_URL,
+        status_code=status_code,
+        json={"error": "invalid_client"},
+    )
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        with pytest.raises(TokenRequestError, match="invalid_client"):
+            client.get(QPU_URL)
+
+
+def test_keycloak_5xx_raises_retryable_http_status_error(
+    httpx_mock: HTTPXMock, auth_conf
+):
+    # 503 must stay an httpx.HTTPStatusError so the existing retry decorator
+    # recognises it as transient.
+    httpx_mock.add_response(url=TOKEN_URL, status_code=503)
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            client.get(QPU_URL)
+
+
+@pytest.mark.asyncio
+async def test_async_flow_attaches_token(httpx_mock: HTTPXMock, auth_conf):
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "tok-async", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    async with httpx.AsyncClient(auth=auth) as client:
+        response = await client.get(QPU_URL)
+
+    assert response.request.headers["Authorization"] == "Bearer tok-async"
+
+
+@pytest.mark.asyncio
+async def test_async_flow_reuses_token_cached_by_sync_flow(
+    httpx_mock: HTTPXMock, auth_conf
+):
+    httpx_mock.add_response(
+        url=TOKEN_URL, json={"access_token": "shared", "expires_in": 300}
+    )
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+    httpx_mock.add_response(url=QPU_URL, json={"data": {}})
+
+    auth = KeycloakClientCredentialsAuth(auth_conf)
+    with httpx.Client(auth=auth) as client:
+        client.get(QPU_URL)
+    async with httpx.AsyncClient(auth=auth) as client:
+        response = await client.get(QPU_URL)
+
+    assert response.request.headers["Authorization"] == "Bearer shared"
+    token_requests = [r for r in httpx_mock.get_requests() if str(r.url) == TOKEN_URL]
+    assert len(token_requests) == 1

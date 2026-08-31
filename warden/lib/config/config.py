@@ -181,12 +181,42 @@ class SchedulerConfig(WardenSettings):
     )
 
 
+class QPUAuthConfig(WardenSettings):
+    """Keycloak client_credentials configuration for outbound QPU API calls.
+
+    Presence of this section is what enables authentication. There is
+    deliberately no separate ``enabled`` flag: a second switch can drift out of
+    sync with the credentials it guards. ``url``, ``id`` and ``secret`` have no
+    defaults, so a partially configured section is a startup validation error
+    rather than a silent fallback to unauthenticated requests.
+    """
+
+    url: str = Field(description="Keycloak base URL, e.g. http://keycloak:8080")
+
+    realm: str = Field(default="pasqos")
+
+    id: str = Field(description="OIDC client_id")
+
+    secret: str = Field(description="OIDC client_secret. Provide via WARDEN_QPU_AUTH_SECRET, never in YAML.")
+
+    leeway_s: float = Field(default=30, description="Refresh this many seconds before the token actually expires.")
+
+    @property
+    def token_url(self) -> str:
+        """Keycloak's OIDC token endpoint for this realm."""
+        return (
+            f"{self.url.rstrip('/')}/realms/{self.realm}/protocol/openid-connect/token"
+        )
+
+
 class QPUConfig(WardenSettings):
     """QPU backend connection configuration."""
 
     uri: str = Field(
         default="http://localhost:8000", description="Local Pasqal QPU API URI."
     )
+
+    auth: QPUAuthConfig | None = None
 
     retry_max: int = Field(
         default=10,
