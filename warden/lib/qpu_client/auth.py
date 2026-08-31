@@ -1,9 +1,8 @@
 """Keycloak client_credentials authentication for outbound QPU API calls."""
 
 import logging
-import ssl
 from time import monotonic
-from typing import AsyncGenerator, Generator
+from typing import Generator
 
 import httpx2
 
@@ -31,57 +30,56 @@ class KeycloakClientCredentialsAuth(httpx2.Auth):
     as an immediate, non-retryable ``NotRetriedHTTPStatus``. Here it is just a
     refresh.
 
+    ``requires_response_body`` tells httpx to read the token response before
+    handing it back, since ``_store`` needs the JSON body.
+
     Args:
         conf: Keycloak credentials and endpoint.
-        verify: httpx TLS verification setting for the token request.
     """
 
-    def __init__(
-        self,
-        conf: QPUAuthConfig,
-        verify: bool | str | ssl.SSLContext = True,
-    ) -> None:
+    requires_response_body = True
+
+    def __init__(self, conf: QPUAuthConfig) -> None:
         self.conf = conf
-        self.verify = verify
         self._token: str | None = None
         # monotonic() deadline after which the cached token is considered stale.
         self._expires_at: float = 0.0
 
-    def sync_auth_flow(
+    # Note: unlocked check-then-fetch. Two concurrent requests can both miss
+    # and both fetch a token; one wins and the loser wasted a request. Add a
+    # lock only if token-endpoint traffic ever becomes a problem.
+    def auth_flow(
         self, request: httpx2.Request
     ) -> Generator[httpx2.Request, httpx2.Response, None]:
-        request.headers["Authorization"] = f"Bearer {self._sync_token()}"
+        if not self._is_fresh():
+            token_response = yield self._token_request()
+            self._store(token_response)
+        assert self._token is not None
+        request.headers["Authorization"] = f"Bearer {self._token}"
         response = yield request
         if response.status_code == httpx2.codes.UNAUTHORIZED:
             logger.info("QPU API returned 401, refreshing token and retrying once")
-            request.headers["Authorization"] = f"Bearer {self._sync_token(force=True)}"
-            yield request
-
-    async def async_auth_flow(
-        self, request: httpx2.Request
-    ) -> AsyncGenerator[httpx2.Request, httpx2.Response]:
-        request.headers["Authorization"] = f"Bearer {await self._async_token()}"
-        response = yield request
-        if response.status_code == httpx2.codes.UNAUTHORIZED:
-            logger.info("QPU API returned 401, refreshing token and retrying once")
-            request.headers["Authorization"] = (
-                f"Bearer {await self._async_token(force=True)}"
-            )
+            token_response = yield self._token_request()
+            self._store(token_response)
+            request.headers["Authorization"] = f"Bearer {self._token}"
             yield request
 
     def _is_fresh(self) -> bool:
         return self._token is not None and monotonic() < self._expires_at
 
-    def _token_request(self) -> tuple[str, dict[str, str]]:
-        """Return the (url, form data) for a client_credentials token request."""
-        return self.conf.token_url, {
-            "grant_type": "client_credentials",
-            "client_id": self.conf.id,
-            "client_secret": self.conf.secret,
-        }
+    def _token_request(self) -> httpx2.Request:
+        return httpx2.Request(
+            "POST",
+            self.conf.token_url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": self.conf.id,
+                "client_secret": self.conf.secret,
+            },
+        )
 
-    def _store(self, response: httpx2.Response) -> str:
-        """Validate a token response, cache the token and return it."""
+    def _store(self, response: httpx2.Response) -> None:
+        """Validate a token response and cache the token."""
         if response.status_code in FATAL_TOKEN_STATUSES:
             # Never log the response body of a token request: it may echo
             # credentials. The error field alone is the useful part.
@@ -99,9 +97,8 @@ class KeycloakClientCredentialsAuth(httpx2.Auth):
         response.raise_for_status()
 
         payload = response.json()
-        token = payload["access_token"]
+        self._token = payload["access_token"]
         expires_in = float(payload.get("expires_in", 0))
-        self._token = token
         configured_ttl = expires_in - self.conf.leeway_s
         ttl = max(configured_ttl, expires_in / 2)
         if ttl > configured_ttl:
@@ -115,25 +112,3 @@ class KeycloakClientCredentialsAuth(httpx2.Auth):
             f"Obtained QPU API token for client '{self.conf.id}', "
             f"expires in {expires_in}s"
         )
-        return token
-
-    def _sync_token(self, force: bool = False) -> str:
-        if not force and self._is_fresh():
-            assert self._token is not None
-            return self._token
-        url, data = self._token_request()
-        with httpx2.Client(verify=self.verify) as client:
-            return self._store(client.post(url, data=data))
-
-    # Note: unlocked check-then-fetch. Two concurrent async requests in one
-    # process can both miss and both fetch a token; one wins and the loser
-    # wasted a request. The sync path (scheduler) blocks its single event loop
-    # per fetch, so this race is only reachable via awaited callers here. Add
-    # a lock only if token-endpoint traffic ever becomes a problem.
-    async def _async_token(self, force: bool = False) -> str:
-        if not force and self._is_fresh():
-            assert self._token is not None
-            return self._token
-        url, data = self._token_request()
-        async with httpx2.AsyncClient(verify=self.verify) as client:
-            return self._store(await client.post(url, data=data))

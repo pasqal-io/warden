@@ -197,9 +197,14 @@ class QPUAuthConfig(WardenSettings):
 
     id: str = Field(description="OIDC client_id")
 
-    secret: str = Field(description="OIDC client_secret. Provide via WARDEN_QPU_AUTH_SECRET, never in YAML.")
+    secret: str = Field(
+        description="OIDC client_secret. Provide via WARDEN_QPU_AUTH_SECRET, never in YAML."
+    )
 
-    leeway_s: float = Field(default=30, description="Refresh this many seconds before the token actually expires.")
+    leeway_s: float = Field(
+        default=30,
+        description="Refresh this many seconds before the token actually expires.",
+    )
 
     @property
     def token_url(self) -> str:
@@ -263,9 +268,7 @@ class QPUConfig(WardenSettings):
         if self._auth_flow is None:
             from warden.lib.qpu_client.auth import KeycloakClientCredentialsAuth
 
-            self._auth_flow = KeycloakClientCredentialsAuth(
-                self.auth, verify=self.verify
-            )
+            self._auth_flow = KeycloakClientCredentialsAuth(self.auth)
         return self._auth_flow
 
     @property
