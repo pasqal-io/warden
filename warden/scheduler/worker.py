@@ -19,6 +19,8 @@ from warden.scheduler.types import JobUpdate, JobUpdateQueue
 
 logger = logging.getLogger(__name__)
 
+TERMINAL_STATUSES: tuple[JobStatus, ...] = ("ERROR", "DONE", "CANCELED")
+
 
 class JobExecutionTracker:
     """Handles current job status and sends updates to db"""
@@ -45,33 +47,47 @@ class JobExecutionTracker:
         return self.status == "ERROR"
 
     @property
-    def is_in_terminal_state(self) -> bool:
-        return self.status in ("DONE", "CANCELED", "ERROR")
-
-    @property
     def created_datetime(self) -> UTCDatetime:
         return self.job.created_datetime
 
     async def update_job(
         self, qpu_job_info: QPUJobInfo, enforce_end_datetime: bool = False
     ):
+        was_terminal = self._status in TERMINAL_STATUSES
         self._qpu_job_info = qpu_job_info
         self._status = qpu_job_info.status or "ERROR"
-        if enforce_end_datetime and self._qpu_job_info.end_datetime is None:
-            self._qpu_job_info.end_datetime = datetime.now(timezone.utc)
-        await self.push_update()
+        await self.push_update(was_terminal, enforce_end_datetime)
 
     async def to_error(self):
+        was_terminal = self._status in TERMINAL_STATUSES
         self._status = "ERROR"
-        if self._qpu_job_info and self._qpu_job_info.end_datetime is None:
-            self._qpu_job_info.end_datetime = datetime.now(timezone.utc)
-        await self.push_update()
+        await self.push_update(was_terminal, enforce_end_datetime=True)
 
     def log(self, msg: str) -> None:
         self._log_buffer.append(msg + "\n")
 
-    async def push_update(self):
-        """Push update of job execution to db commit task through queue"""
+    async def push_update(
+        self, was_terminal: bool | None = None, enforce_end_datetime: bool = False
+    ):
+        """Push update of job execution to db commit task through queue
+
+        `was_terminal` and `enforce_end_datetime` are set by `update_job`/
+        `to_error` on a status transition, so the closing log line and the
+        backfilled `end_datetime` land in the same `JobUpdate` - hence the
+        same transaction - as the terminal status itself. Flushed separately,
+        the DB would briefly hold a finished job whose logs/dates are
+        incomplete, and anything that stops polling once the status is
+        terminal would read that incomplete state.
+        """
+        if (
+            enforce_end_datetime
+            and self._qpu_job_info
+            and self._qpu_job_info.end_datetime is None
+        ):
+            self._qpu_job_info.end_datetime = datetime.now(timezone.utc)
+        if was_terminal is False and self._status in TERMINAL_STATUSES:
+            logger.info("Job execution ended with status '%s'", self._status)
+
         new_logs = "".join(self._log_buffer)
         self._log_buffer = []
 
@@ -172,7 +188,6 @@ class LocalQPUWorker:
                 return
 
             await self.await_job_execution(job_tracker)
-            logger.info("Job execution ended with status '%s'", job_tracker.status)
 
             # Flush potential last updates before return
             await job_tracker.push_update()
@@ -247,7 +262,7 @@ class LocalQPUWorker:
 
         polling_start = job_tracker.created_datetime
         await self._get_job_poll(job_tracker)
-        while not job_tracker.is_in_terminal_state:
+        while job_tracker.status not in TERMINAL_STATUSES:
             if self.is_timed_out(self.conf_sched.job_polling_timeout_s, polling_start):
                 logger.warning(
                     f"Job timed out (max {self.conf_sched.job_polling_timeout_s} s). "
@@ -256,6 +271,10 @@ class LocalQPUWorker:
                 )
                 try:
                     qpu_job_info = await self.qpu_client.cancel_job(job_tracker.job.uid)
+                    # Logged before the update so it is buffered into the same
+                    # JobUpdate, and stays ahead of the closing line that a
+                    # terminal status appends
+                    logger.info("Job cancellation done")
                     await job_tracker.update_job(
                         qpu_job_info, enforce_end_datetime=True
                     )
@@ -263,7 +282,6 @@ class LocalQPUWorker:
                     logger.error(f"Failed cancelling job: {e}")
                     await job_tracker.to_error()
                     continue
-                logger.info("Job cancellation done")
                 continue
             await asyncio.sleep(self.conf_sched.job_polling_interval_s)
             await self._get_job_poll(job_tracker)

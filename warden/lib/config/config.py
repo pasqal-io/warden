@@ -241,6 +241,7 @@ class QPUConfig(WardenSettings):
     )
 
     _client: httpx2.AsyncClient | None = PrivateAttr(default=None)
+    _auth_flow: httpx2.Auth | None = PrivateAttr(default=None)
 
     @property
     def verify(self) -> bool | ssl.SSLContext:
@@ -250,9 +251,27 @@ class QPUConfig(WardenSettings):
         return self.tls_verify
 
     @property
+    def auth_flow(self) -> httpx2.Auth | None:
+        """Memoized Keycloak auth flow, or None when auth is not configured.
+
+        Memoized so that every client built from this config shares a single
+        cached token. Imported lazily because ``qpu_client.auth`` imports this
+        module.
+        """
+        if self.auth is None:
+            return None
+        if self._auth_flow is None:
+            from warden.lib.qpu_client.auth import KeycloakClientCredentialsAuth
+
+            self._auth_flow = KeycloakClientCredentialsAuth(
+                self.auth, verify=self.verify
+            )
+        return self._auth_flow
+
+    @property
     def client(self) -> httpx2.AsyncClient:
         if self._client is None:
-            self._client = httpx2.AsyncClient(verify=self.verify)
+            self._client = httpx2.AsyncClient(verify=self.verify, auth=self.auth_flow)
         self._client.base_url = self.uri + API_PREFIX
         return self._client
 

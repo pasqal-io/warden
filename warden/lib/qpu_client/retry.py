@@ -50,6 +50,8 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
         UnhandledError: If decorator encounters an unnexpected exception.
         NotRetriedHTTPStatus: If the HTTP request returns with a non-retryable error code.
         MaxRetryError: If the maximum number of retries without success has been reached.
+        QPUClientRequestError: If `no_retry=True` or any subclass already classified as
+            non-retryable by the wrapped function (e.g. TokenRequestError) propagates unchanged.
     """
 
     def decorator(func: Callable):
@@ -60,6 +62,10 @@ def retry(max: int, sleep_s: float, no_retry: bool = False) -> Callable:
             elif isinstance(e, HTTPStatusError):
                 if e.response.status_code not in RETRY_HTTP_EXIT_CODES:
                     raise NotRetriedHTTPStatus(e) from e
+            elif isinstance(e, QPUClientRequestError):
+                # Already classified as non-retryable by the raiser (e.g. bad
+                # Keycloak credentials). Do not rewrap it as UnhandledError.
+                raise
             else:
                 raise UnhandledError(e) from e
 
