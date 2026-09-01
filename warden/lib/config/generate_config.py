@@ -5,6 +5,8 @@ Utility script to generate config.yaml from config.py's field defaults and descr
 import re
 import sys
 import textwrap
+import types
+import typing
 from enum import Enum
 from pathlib import Path
 
@@ -85,10 +87,14 @@ def _wrap_indented_text(text: str, indent: str) -> list[str]:
 
 
 def _get_nested_model(field: FieldInfo) -> type[BaseModel] | None:
-    """Returns if the field type is indeed a BaseModel subclass"""
-    field_annotation = field.annotation
-    if isinstance(field_annotation, type) and issubclass(field_annotation, BaseModel):
-        return field_annotation
+    """Returns the field's BaseModel type, unwrapping an Optional (``Model | None``)."""
+    annotation = field.annotation
+    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+        non_none = [a for a in typing.get_args(annotation) if a is not type(None)]
+        if len(non_none) == 1:
+            annotation = non_none[0]
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
     return None
 
 
@@ -126,10 +132,19 @@ def _render_field(
 
     indent = INDENT_UNIT * depth
 
+    # Check if contains a nested model, to recursively render it below and,
+    # absent a field-level description, fall back to its docstring's summary
+    # line (the rest of a multi-paragraph docstring is skipped).
+    nested_model = _get_nested_model(field_info)
+    nested_doc = nested_model.__doc__ if nested_model else None
+    description = field_info.description or (
+        nested_doc.strip().splitlines()[0] if nested_doc else None
+    )
+
     # Add comment lines
     lines = [
         wrapped
-        for paragraph in (field_info.description or "").split("\n")
+        for paragraph in (description or "").split("\n")
         if paragraph
         for sentence in SENTENCE_RE.split(paragraph)
         if sentence
@@ -139,8 +154,6 @@ def _render_field(
     # Get matching previously set data that we need to migrate to new config
     data_to_migrate = _existing_value(previous_section_data, name, field_info)
 
-    # Check if contains a nested model and recursively renders it
-    nested_model = _get_nested_model(field_info)
     if nested_model is not None:
         nested_existing = data_to_migrate if isinstance(data_to_migrate, dict) else {}
         lines.append(f"{indent}{name}:")

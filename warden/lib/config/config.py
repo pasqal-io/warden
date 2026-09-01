@@ -185,13 +185,13 @@ class QPUAuthConfig(WardenSettings):
     """Keycloak client_credentials configuration for outbound QPU API calls.
 
     Presence of this section is what enables authentication. There is
-    deliberately no separate ``enabled`` flag: a second switch can drift out of
-    sync with the credentials it guards. ``url``, ``id`` and ``secret`` have no
+    deliberately no separate `enabled` flag: a second switch can drift out of
+    sync with the credentials it guards. `url`, `id` and `secret` have no
     defaults, so a partially configured section is a startup validation error
     rather than a silent fallback to unauthenticated requests.
     """
 
-    url: str = Field(description="Keycloak base URL, e.g. http://keycloak:8080")
+    url: str = Field(description="Keycloak base URL, for example http://keycloak:8080")
 
     realm: str = Field(default="pasqos")
 
