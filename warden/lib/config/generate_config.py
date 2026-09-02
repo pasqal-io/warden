@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 
 import yaml
-from pydantic import AliasChoices, BaseModel, ValidationError
+from pydantic import AliasChoices, BaseModel
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -17,7 +17,6 @@ from warden.lib.config.config import (
     CONFIG_FILENAME,
     DEFAULT_LOGGING_CONFIG,
     APIConfig,
-    Config,
     MariadbConfig,
     PostgresConfig,
     QPUConfig,
@@ -263,11 +262,9 @@ def migrate() -> None:
     previous_data = None
     if previous_text:
         try:
-            Config()
-            loaded = yaml.safe_load(previous_text)
-            previous_data = loaded
-        except (yaml.YAMLError, ValidationError):
-            print("Previous config.yaml is not valid YAML/Config: ignore it.")
+            previous_data = yaml.safe_load(previous_text)
+        except yaml.YAMLError:
+            print("Previous config.yaml is not valid YAML: ignore it.")
 
     content = generate_config(previous_data, previous_text)
     if content == previous_text:

@@ -54,8 +54,7 @@ fi
 if [ -d "$INSTALL_DIR/.git" ]; then
     # Update the existing repository
     info "Updating existing checkout in $INSTALL_DIR..."
-    cd "$INSTALL_DIR"
-    git fetch --tags origin
+    git -C $INSTALL_DIR fetch --tags origin
 else
     # Clone the repository
     info "Cloning Warden into $INSTALL_DIR..."

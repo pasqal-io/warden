@@ -179,6 +179,24 @@ def test_migrate_preserves_overrides_and_backs_up_previous_file(tmp_path, monkey
     ).read_text() == "api:\n  host: 127.0.0.1\n"
 
 
+def test_migrate_preserves_overrides_when_the_environment_is_invalid(
+    tmp_path, monkeypatch
+):
+    """Test that migrate() only cares whether its target file parses.
+
+    A bad WARDEN_* env var (or a newly introduced required field) must not be
+    mistaken for an unusable config.yaml and cost the operator their settings.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WARDEN_API_PORT", "not-a-port")
+    output_path = tmp_path / "config.yaml"
+    output_path.write_text("api:\n  host: 127.0.0.1\n")
+
+    migrate()
+
+    assert "\n  host: 127.0.0.1\n" in output_path.read_text()
+
+
 def test_migrate_is_a_noop_when_nothing_changed(tmp_path, monkeypatch):
     """Test that re-running migrate() on an already up-to-date file creates no backup"""
     monkeypatch.chdir(tmp_path)
