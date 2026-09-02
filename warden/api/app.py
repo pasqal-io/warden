@@ -1,3 +1,4 @@
+import importlib.metadata
 import logging
 
 from fastapi import FastAPI
@@ -38,7 +39,11 @@ def create_app(config: Config):
 
     @app.get("/")
     async def ping():
-        return {"message": "The warden is operational."}
+        try:
+            version = importlib.metadata.version("warden")
+        except importlib.metadata.PackageNotFoundError:
+            version = ""
+        return {"message": f"Warden {version} is operational."}
 
     logger.info("App ready")
     return app
