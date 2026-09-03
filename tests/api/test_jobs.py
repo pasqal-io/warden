@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime
 
@@ -546,3 +547,47 @@ async def test_cancel_job_twice(client, app, serialized_sequence: str):
     with mock_munge_auth(app, uid=user_id):
         response = await client.post(f"/jobs/{job.id}/cancel")
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_concurrent_cancels_have_a_single_winner(
+    client, app, serialized_sequence: str
+):
+    """Assert concurrent cancels of the same job produce exactly one winner
+
+    1. Create a PENDING job for a given user
+    2. Call POST /job/id/cancel four times concurrently
+    3. Assert exactly one request gets a 200 and the rest get a 409
+    4. Assert the job is canceled once in DB
+
+    Each request runs in its own session/transaction, so the `canceled_at IS
+    NULL` guard has to be enforced by the DB, not by a prior read.
+    """
+    user_id = 1000
+    job = Job(
+        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        sequence=serialized_sequence,
+        shots=100,
+        status="PENDING",
+    )
+    async_session = app.state.db_session_factory
+
+    async with async_session() as session:
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+
+    job_id = job.id
+
+    with mock_munge_auth(app, uid=user_id):
+        responses = await asyncio.gather(
+            *(client.post(f"/jobs/{job_id}/cancel") for _ in range(4))
+        )
+
+    assert sorted(r.status_code for r in responses) == [200, 409, 409, 409]
+
+    async with async_session() as session:
+        job = (await session.execute(select(Job).where(Job.id == job_id))).scalar_one()
+
+    assert job.status == "CANCELED"
+    assert job.canceled_at is not None
