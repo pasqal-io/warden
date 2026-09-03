@@ -21,8 +21,9 @@ from warden.scheduler.strategy import schedulers
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_repeated_job_cancel_and_scheduler_pick_race(
-    client, app, serialized_sequence: str
+    client, app, serialized_sequence: str, strategy
 ):
     """Assert racing a real cancel against a real scheduler pick never lets
     a job end up CANCELED and scheduled at once
@@ -36,7 +37,7 @@ async def test_repeated_job_cancel_and_scheduler_pick_race(
     """
     user_id = 1000
     async_session = app.state.db_session_factory
-    scheduler = schedulers[SchedulerStrategy.FIFO]
+    scheduler = schedulers[strategy]
 
     for _ in range(40):
         job = Job(
@@ -84,15 +85,16 @@ async def test_repeated_job_cancel_and_scheduler_pick_race(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_repeated_session_revoke_and_scheduler_pick_race(
-    client, app, serialized_sequence: str
+    client, app, serialized_sequence: str, strategy
 ):
     """Assert racing a real session revoke against a real scheduler pick
     never lets a job end up CANCELED and scheduled at once
     """
     user_id = 1000
     async_session = app.state.db_session_factory
-    scheduler = schedulers[SchedulerStrategy.FIFO]
+    scheduler = schedulers[strategy]
 
     for _ in range(40):
         session_record = Session(user_id=str(user_id), slurm_job_id="1")
@@ -168,8 +170,9 @@ class _HookedUpdateDBSession:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_cancel_racing_scheduler_pick_is_not_claimed(
-    client, app, serialized_sequence: str
+    client, app, serialized_sequence: str, strategy
 ):
     """Assert a cancel committed mid-pick stops the scheduler claiming the job
 
@@ -206,7 +209,7 @@ async def test_cancel_racing_scheduler_pick_is_not_claimed(
         assert response.status_code == 200
         assert response.json()["status"] == "CANCELED"
 
-    scheduler = schedulers[SchedulerStrategy.FIFO]
+    scheduler = schedulers[strategy]
     async with async_session() as session:
         claimed = await scheduler.get_next_job(
             cast(AsyncSession, _HookedUpdateDBSession(session, cancel_mid_pick))
@@ -223,8 +226,9 @@ async def test_cancel_racing_scheduler_pick_is_not_claimed(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("strategy", list(SchedulerStrategy))
 async def test_session_revoke_racing_scheduler_pick_is_not_claimed(
-    client, app, serialized_sequence: str
+    client, app, serialized_sequence: str, strategy
 ):
     """Assert a session revoke committed mid-pick stops the scheduler
     claiming the job
@@ -256,7 +260,7 @@ async def test_session_revoke_racing_scheduler_pick_is_not_claimed(
             response = await client.delete(f"/sessions/{session_id}")
         assert response.status_code == 200
 
-    scheduler = schedulers[SchedulerStrategy.FIFO]
+    scheduler = schedulers[strategy]
     async with async_session() as session:
         claimed = await scheduler.get_next_job(
             cast(AsyncSession, _HookedUpdateDBSession(session, revoke_mid_pick))

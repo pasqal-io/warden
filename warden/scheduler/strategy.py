@@ -17,7 +17,7 @@ class Scheduler(ABC):
     @staticmethod
     @abstractmethod
     async def _get_next_job_id(session: AsyncSession) -> Optional[int]:
-        """Return ID of next job, where each implementatino define it's strategy"""
+        """Return ID of next job, where each implementatino define its strategy"""
         pass
 
     async def get_next_job(self, session: AsyncSession) -> Optional[Job]:
