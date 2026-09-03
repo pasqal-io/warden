@@ -553,15 +553,12 @@ async def test_cancel_job_twice(client, app, serialized_sequence: str):
 async def test_concurrent_cancels_have_a_single_winner(
     client, app, serialized_sequence: str
 ):
-    """Assert concurrent cancels of the same job produce exactly one winner
+    """Assert concurrent cancels of the same job produce exactly one cancelation
 
-    1. Create a PENDING job for a given user
+    1. Create a PENDING job in db for a given user
     2. Call POST /job/id/cancel four times concurrently
     3. Assert exactly one request gets a 200 and the rest get a 409
     4. Assert the job is canceled once in DB
-
-    Each request runs in its own session/transaction, so the `canceled_at IS
-    NULL` guard has to be enforced by the DB, not by a prior read.
     """
     user_id = 1000
     job = Job(
