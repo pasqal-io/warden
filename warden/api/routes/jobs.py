@@ -1,9 +1,10 @@
 import asyncio
 from datetime import datetime, timezone
 from logging import getLogger
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import CursorResult, case, select, update
 
 from warden.api.routes.dependencies.auth import CurrentUserDep, SessionDep
 from warden.api.routes.dependencies.db import DBSessionDep
@@ -98,31 +99,44 @@ async def cancel_job(
     db_session: DBSessionDep,
     identity: CurrentUserDep,
 ) -> JobResponse:
-    # Start transaction context
     async with db_session.begin():
-        # Lock row/db during transaction
-        result = await db_session.execute(
-            select(Job)
-            .where(Job.user_id == identity.uid, Job.id == id)
-            .with_for_update(of=Job)
+        # Atomic claim: ownership and the cancelability guards are
+        # evaluated by the DB against the live row in one statement, so
+        # there's no read-then-write gap for a concurrent scheduler pickup
+        cancel_job_stmt = (
+            update(Job)
+            .where(
+                Job.id == id,
+                Job.user_id == identity.uid,
+                Job.status.not_in(("CANCELED", "DONE", "ERROR")),
+                Job.canceled_at.is_(None),
+            )
+            .values(
+                canceled_at=datetime.now(timezone.utc),
+                status=case((Job.scheduled_at.is_(None), "CANCELED"), else_=Job.status),
+            )
         )
-        job = result.scalar_one_or_none()
+        result = cast(
+            CursorResult,
+            await db_session.execute(cancel_job_stmt),
+        )
+
+        job = (
+            await db_session.execute(
+                select(Job).where(Job.id == id, Job.user_id == identity.uid)
+            )
+        ).scalar_one_or_none()
+
         if job is None:
             raise HTTPException(404, detail="Job not found")
-        elif job.status in ("CANCELED", "DONE", "ERROR"):
-            raise HTTPException(
-                409, detail=f"Job with status '{job.status}' can't be canceled"
-            )
-        elif job.canceled_at is not None:
+        if result.rowcount == 0:
+            if job.status in ("CANCELED", "DONE", "ERROR"):
+                raise HTTPException(
+                    409, detail=f"Job with status '{job.status}' can't be canceled"
+                )
             raise HTTPException(
                 409, detail="Job with status was already requested to be stopped"
             )
-        job.canceled_at = datetime.now(timezone.utc)
-        # Not yet started by the worker
-        if job.scheduled_at is None:
-            # Set job to cancel
-            job.status = "CANCELED"
-            # Releases nowait
     return JobResponse.from_model(job)
 
 
