@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DEFAULT_INSTALL_DIR="/opt/warden"
-WARDEN_VERSION="${WARDEN_VERSION:-v0.2.0}"
+WARDEN_VERSION="${WARDEN_VERSION:-v0.3.0}"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     COLOR_BOLD=$'\033[1m'
