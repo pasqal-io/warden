@@ -146,13 +146,8 @@ async def test_repeated_session_revoke_and_scheduler_pick_race(
 
 
 class _HookedUpdateDBSession:
-    """Session proxy running `hook` once, right before the first `UPDATE`.
-
-    Passed to `get_next_job`, this lands the hook in the candidate-pick ->
-    claim window: whatever reads a strategy does to pick a candidate, the
-    claim itself has to be a write, so triggering on the first `UPDATE`
-    (rather than on a fixed call count) keeps this test working regardless
-    of how many reads a strategy's candidate pick does.
+    """
+    Session proxy running `hook` once, right before the first `UPDATE`.
     """
 
     def __init__(self, session: AsyncSession, hook):
