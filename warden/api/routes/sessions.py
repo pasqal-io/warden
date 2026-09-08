@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 from logging import getLogger
+from typing import cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import UUID4
-from sqlalchemy import select
+from sqlalchemy import CursorResult, case, select, update
 
 from warden.api.routes.dependencies.auth import (
     AdminUserDep,
@@ -51,25 +52,32 @@ async def revoke_session(
     await db_session.commit()
 
     async with db_session.begin():
-        result = await db_session.execute(
-            select(Job)
-            .where(
-                Job.session_id == session_record.id,
-                Job.status.not_in(("ERROR", "DONE", "CANCELED")),
-                Job.canceled_at.is_(None),
-            )
-            .with_for_update(of=Job)
+        # Atomic claim: same pattern as `jobs.py::cancel_job`, the status
+        # and cancelability guards are re-evaluated against the live row by
+        # this single UPDATE, so there's no read-then-write gap for a
+        # concurrent scheduler pickup.
+        result = cast(
+            CursorResult,
+            await db_session.execute(
+                update(Job)
+                .where(
+                    Job.session_id == session_record.id,
+                    Job.status.not_in(("CANCELED", "DONE", "ERROR")),
+                    Job.canceled_at.is_(None),
+                )
+                .values(
+                    canceled_at=datetime.now(timezone.utc),
+                    status=case(
+                        (Job.scheduled_at.is_(None), "CANCELED"), else_=Job.status
+                    ),
+                )
+            ),
         )
-        jobs_to_cancel = result.scalars()
-        for job in jobs_to_cancel:
+        if result.rowcount > 0:
             logger.info(
-                "Cancelling job '%s' attached to session %s", job.id, session_record.id
+                "Canceled %d job(s) attached to revoked session '%s'",
+                result.rowcount,
+                session_record.id,
             )
-            job.canceled_at = datetime.now(timezone.utc)
-            # Not yet started by the worker
-            if job.scheduled_at is None:
-                # Set job to cancel
-                job.status = "CANCELED"
-            # Releases nowait
 
     return SessionResponse.from_model(session_record)
