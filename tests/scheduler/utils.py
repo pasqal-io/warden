@@ -2,14 +2,21 @@
 
 import asyncio
 from asyncio import Task, timeout
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from warden.lib.config import Config, QPUConfig, SchedulerConfig, SchedulerStrategy
 from warden.lib.models import Job, Session
+
+# Deliberately generous: this budget is only ever spent by a test that is
+# already failing, so it costs nothing on the happy path. Tight per-test budgets
+# turned a slow CI runner into a flake instead of catching anything.
+JOB_WAIT_TIMEOUT_S = 30
 
 
 async def wait_until_scalar_equals(
@@ -121,6 +128,31 @@ async def scheduler_task_timeout(delay: float, scheduler_task: Task):
             await scheduler_task
         except (asyncio.CancelledError, Exception):
             pass
+
+
+async def wait_until_jobs_settled(
+    session: AsyncSession,
+    scheduler_task: Task,
+    *,
+    count: int,
+    statuses: Sequence[str] = ("DONE",),
+    timeout_s: float = JOB_WAIT_TIMEOUT_S,
+    interval: float = 0.1,
+) -> None:
+    """Wait until ``count`` jobs reached one of ``statuses``, then stop the scheduler.
+
+    Use this rather than hand-rolling a wait predicate. The scheduler commits a
+    job's terminal status and its complete logs in a single transaction (see
+    ``JobExecutionTracker.update_job``), so waiting on the status alone is enough
+    to make the assertions that follow - including any on ``logs`` - safe.
+
+    Fails the test on timeout, and always cancels ``scheduler_task`` so it cannot
+    outlive the test body and interfere with fixture teardown.
+    """
+
+    stmt = select(func.count(Job.id)).where(Job.status.in_(tuple(statuses)))
+    async with scheduler_task_timeout(timeout_s, scheduler_task):
+        await wait_until_scalar_equals(session, stmt, count, interval=interval)
 
 
 def build_conf(strategy: SchedulerStrategy, qpu_uri: str) -> Config:
