@@ -103,7 +103,7 @@ def cancel_job(uid: int) -> Job:
 
 def _run_qutip_job(job: Job) -> str | None:
     """
-    Simulates sequence up to `max_num_qubits` with qutip
+    Simulates sequence up to 10 qubits with qutip
     Else returns DUMMY_RESULTS
     """
 
