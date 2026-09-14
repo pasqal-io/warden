@@ -29,6 +29,7 @@ Only handles nominal behavior for Warden compatibility, meaning:
     - With mocked results
     - Qutip-emulated results if `MOCK_QPU_API_EMUL` is set
         - Returns "ERROR" status with the emulation went wrong
+        - Emulates sequences for up to `10` qubits
 
 ## Run
 

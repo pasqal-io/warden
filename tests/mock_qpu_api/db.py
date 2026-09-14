@@ -102,6 +102,11 @@ def cancel_job(uid: int) -> Job:
 
 
 def _run_qutip_job(job: Job) -> str | None:
+    """
+    Simulates sequence up to 10 qubits with qutip
+    Else returns DUMMY_RESULTS
+    """
+
     from pulser import Sequence
     from pulser_simulation import QutipBackendV2
 
@@ -110,6 +115,10 @@ def _run_qutip_job(job: Job) -> str | None:
     except (TypeError, json.JSONDecodeError, UnicodeDecodeError):
         logger.exception("Failed to deserialize pulser sequence")
         return None
+
+    # Do not overwork the qutip emulator
+    if len(sequence.qubit_info) > 10:
+        return FAKE_RESULTS
 
     try:
         result = QutipBackendV2(sequence, mimic_qpu=True).run()
