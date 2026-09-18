@@ -32,7 +32,7 @@ check-python:
 		exit 1; \
 	fi; \
 	case "$$python_version" in \
-		3.11|3.12) \
+		3.11|3.12|3.13|3.14) \
 			echo "Detected supported Python $$python_version from PYTHON=$(PYTHON)."; \
 			;; \
 		*) \
