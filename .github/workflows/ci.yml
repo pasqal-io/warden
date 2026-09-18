@@ -142,8 +142,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Note: Python 3.13 is not supported yet, due to some errors in building some dependencies,
-        #       see https://github.com/pasqal-io/warden/actions/runs/23564423832/job/68612293750
         python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:

@@ -36,7 +36,7 @@ check-python:
 			echo "Detected supported Python $$python_version from PYTHON=$(PYTHON)."; \
 			;; \
 		*) \
-			echo "Error: PYTHON=$(PYTHON) resolves to Python $$python_version. Please use Python 3.11 or 3.12."; \
+			echo "Error: PYTHON=$(PYTHON) resolves to Python $$python_version. Please use Python 3.11, 3.12, 3.13 or 3.14."; \
 			exit 1; \
 			;; \
 	esac

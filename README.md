@@ -7,7 +7,7 @@ Middleware for the integration of a QPU into an HPC center. It is composed of tw
 
 ## Requirements
 
-- Python 3.11 / 3.12
+- Python 3.11 / 3.12 / 3.13 / 3.14
 - make, git, curl, build toolchain
 - [munge](https://github.com/dun/munge/wiki/Installation-Guide)
 
