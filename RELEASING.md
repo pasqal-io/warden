@@ -14,7 +14,7 @@ version, lockfile, and exported requirements files are all in sync.
    make update-requirements
    ```
 
-5. Open and merge a PR with the version bump, `poetry.lock`, `install.sh` and the
+5. Open and merge a PR with the version bump, `poetry.lock`, `install.sh`, `README.md` and the
    updated `requirements*.txt` files.
 
 Pull requests include a warning-only CI check when the committed
