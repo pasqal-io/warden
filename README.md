@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/pasqal-io/warden/main/install.sh | 
 ```
 
 Notes:
-- The installer currently checks out tag `WARDEN_VERSION=0.3.1`, can be overridden
+- The installer currently checks out tag `WARDEN_VERSION=0.3.2`, can be overridden
 - Make sure you have the rights to create the target Warden folder `/opt/warden`
 - Make sure to check the generated `/opt/warden/config.yaml` configuration file
 - If you need to change the database type used (e.g. from SQLite to PSQL), you need to run the install process again to install the required dependencies
