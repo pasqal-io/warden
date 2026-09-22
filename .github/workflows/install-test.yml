@@ -20,6 +20,12 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
         base: ["rocky8", "rocky9"]
+        exclude:
+          # Rocky Linux 8 has no EPEL/AppStream packages for Python 3.13/3.14
+          - base: rocky8
+            python-version: "3.13"
+          - base: rocky8
+            python-version: "3.14"
         include:
           - base: rocky8
             image_name: rockylinux:8

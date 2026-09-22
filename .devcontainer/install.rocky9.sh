@@ -6,6 +6,9 @@ dnf makecache
 dnf -y update
 dnf -y install dnf-plugins-core
 dnf config-manager --set-enabled crb
+# Python 3.13 is only packaged in EPEL (not AppStream) for Rocky/RHEL 9.
+dnf -y install epel-release
+dnf makecache
 dnf -y install \
   wget \
   bzip2 \
