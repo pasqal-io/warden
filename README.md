@@ -248,3 +248,5 @@ scheduler allocation was extended. Administrators can find sessions with
 `GET /sessions?scheduler_job_id=<id>&active=true`
 and revoke one immediately
 with `DELETE /sessions` and the session ID in the `X-Warden-Session` header.
+The older `DELETE /sessions/{id}` route is kept for existing QRMI releases but
+is deprecated: it puts the session credential in the URL and access logs.

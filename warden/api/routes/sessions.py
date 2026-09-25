@@ -127,6 +127,24 @@ async def revoke_session(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing 'X-Warden-Session' header.",
         )
+    return await _revoke(db_session, session_id)
+
+
+@router.delete("/{id}", deprecated=True)
+async def revoke_session_by_path(
+    id: UUID4,
+    db_session: DBSessionDep,
+    _admin: AdminUserDep,
+) -> SessionResponse:
+    """Revoke a session for clients that predate the X-Warden-Session header.
+
+    Prefer `DELETE /sessions`: the session ID is a credential and URLs end up
+    in access logs.
+    """
+    return await _revoke(db_session, id)
+
+
+async def _revoke(db_session: DBSessionDep, session_id: UUID4) -> SessionResponse:
     async with db_session.begin():
         await lock_qpu_capacity(db_session)
         result = await db_session.execute(

@@ -175,6 +175,32 @@ async def test_revoke_session_frees_qpu_slots(client, app):
 
 
 @pytest.mark.asyncio
+async def test_revoke_session_by_path_frees_qpu_slots(client, app):
+    """Clients that predate the X-Warden-Session header can still revoke."""
+
+    app.state.qpu_config.qpu_slots_total = 5
+    payload = {"user_id": "1000", "slurm_job_id": "1", "qpu_slots": 5}
+    with mock_munge_auth(app, uid=0):
+        session_id = (await client.post("/sessions", json=payload)).json()["id"]
+        response = await client.delete(f"/sessions/{session_id}")
+        assert response.status_code == 200
+        assert response.json()["revoked_at"] is not None
+        assert (await client.post("/sessions", json=payload)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_revoke_session_by_path_requires_admin(client, app):
+    """The legacy revoke route keeps the administrator requirement."""
+
+    payload = {"user_id": "1000", "scheduler_job_id": "1"}
+    with mock_munge_auth(app, uid=0):
+        session_id = (await client.post("/sessions", json=payload)).json()["id"]
+    with mock_munge_auth(app, uid=1000):
+        response = await client.delete(f"/sessions/{session_id}")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_revoke_session_is_idempotent(client, app):
     """Repeated session revocation preserves the first revocation."""
 
