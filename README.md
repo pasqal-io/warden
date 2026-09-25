@@ -236,7 +236,9 @@ identity in the job ID.
 Set `scheduler.strategy` to `WEIGHTED_FIFO` to use `qpu_slots` as the weight for
 Warden's job-level scheduler. A five-slot session then receives approximately
 five scheduling turns for every turn received by a one-slot session, while
-jobs remain FIFO within a session. The default `FIFO` strategy remains ordered
+jobs remain FIFO within a session. A session that starts submitting jobs joins
+at the turn count of the sessions already waiting, so it does not catch up on
+turns it did not use. The default `FIFO` strategy remains ordered
 by job creation time. Neither strategy preempts running QPU jobs or measures
 their execution duration.
 

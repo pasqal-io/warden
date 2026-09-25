@@ -1,10 +1,11 @@
 import asyncio
 import json
 from datetime import datetime
+from uuid import UUID
 
 import pytest
 from httpx2 import AsyncClient, Request, Response
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from tests.api.conftest import mock_munge_auth, mock_qpu_client
@@ -604,3 +605,82 @@ def test_ahs_waveform_endpoint_rounding(duration):
     waveform = _timeseries_to_waveform(series, duration, 1e6)
     assert waveform.duration == duration
     assert float(waveform.samples[-1]) == pytest.approx(0.0)
+
+
+async def _create_session_and_job(client, app, scheduler_job_id: str, sequence: str):
+    with mock_munge_auth(app, uid=0):
+        created = await client.post(
+            "/sessions", json={"user_id": "1000", "scheduler_job_id": scheduler_job_id}
+        )
+    session_id = created.json()["id"]
+    with mock_munge_auth(app, uid=1000):
+        response = await client.post(
+            "/jobs",
+            json={"sequence": sequence, "shots": 100},
+            headers={"X-Warden-Session": session_id},
+        )
+    assert response.status_code == 200
+    return session_id
+
+
+@pytest.mark.asyncio
+async def test_runnable_session_catches_up_scheduler_vruntime(
+    client, app, serialized_sequence: str
+):
+    """A session that becomes runnable starts at the other sessions' vruntime.
+
+    Otherwise a new session would take many weighted turns in a row.
+    """
+    async_session = app.state.db_session_factory
+    busy = Session(user_id="1001", scheduler_job_id="busy", scheduler_vruntime=50.0)
+    idle = Session(user_id="1002", scheduler_job_id="idle", scheduler_vruntime=90.0)
+    async with async_session() as session:
+        session.add_all(
+            [
+                Job(session=busy, sequence=serialized_sequence, shots=1),
+                Job(session=idle, sequence=serialized_sequence, shots=1, status="DONE"),
+            ]
+        )
+        await session.commit()
+
+    session_id = await _create_session_and_job(client, app, "new", serialized_sequence)
+    # A second job while the session is runnable does not move it again.
+    with mock_munge_auth(app, uid=1000):
+        await client.post(
+            "/jobs",
+            json={"sequence": serialized_sequence, "shots": 100},
+            headers={"X-Warden-Session": session_id},
+        )
+    async with async_session() as session:
+        caught_up = (
+            await session.execute(
+                select(Session.scheduler_vruntime).where(Session.id == UUID(session_id))
+            )
+        ).scalar_one()
+        await session.execute(
+            update(Session)
+            .where(Session.id == UUID(session_id))
+            .values(scheduler_vruntime=100.0)
+        )
+        await session.commit()
+    assert caught_up == 50.0
+
+    # A session ahead of the others keeps its vruntime.
+    async with async_session() as session:
+        await session.execute(
+            update(Job).where(Job.session_id == UUID(session_id)).values(status="DONE")
+        )
+        await session.commit()
+    with mock_munge_auth(app, uid=1000):
+        await client.post(
+            "/jobs",
+            json={"sequence": serialized_sequence, "shots": 100},
+            headers={"X-Warden-Session": session_id},
+        )
+    async with async_session() as session:
+        vruntime = (
+            await session.execute(
+                select(Session.scheduler_vruntime).where(Session.id == UUID(session_id))
+            )
+        ).scalar_one()
+    assert vruntime == 100.0

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from warden.lib.config import SchedulerStrategy
 from warden.lib.models import Job, Session
@@ -285,3 +286,23 @@ async def test_fifo_does_not_weight_sessions_by_qpu_slots(db_session_maker):
             await session.commit()
 
     assert scheduled_sessions == ["large", "small"] * 3
+
+
+@pytest.mark.asyncio
+async def test_weighted_fifo_does_not_charge_resumed_jobs(db_session_maker):
+    """Resuming a job already on the QPU does not cost its session a turn."""
+
+    scheduler = schedulers[SchedulerStrategy.WEIGHTED_FIFO]
+    record = Session(scheduler_job_id="1", user_id="1000", qpu_slots=2)
+    job = Job(session=record, shots=1, sequence="{}", status="RUNNING", backend_id="b1")
+    async with db_session_maker() as session:
+        session.add(job)
+        await session.commit()
+        scheduled = await scheduler.get_next_job(session)
+        assert scheduled is not None and scheduled.id == job.id
+        vruntime = (
+            await session.execute(
+                select(Session.scheduler_vruntime).where(Session.id == record.id)
+            )
+        ).scalar_one()
+    assert vruntime == 0.0
