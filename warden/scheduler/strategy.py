@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from warden.lib.config import SchedulerStrategy
 from warden.lib.models import Job, Session
-from warden.lib.models.sessions import active_session_filter
 
 SCHEDULABLE_STATUS = ["PENDING", "RUNNING"]
 
@@ -48,6 +47,26 @@ class Scheduler(ABC):
 
 
 class FifoScheduler(Scheduler):
+    """Simple FIFO Queue"""
+
+    @staticmethod
+    async def _get_next_job_id(session: AsyncSession) -> Optional[int]:
+        candidate_stmt = (
+            select(Job.id)
+            .where(Job.status.in_(SCHEDULABLE_STATUS))
+            .order_by(
+                # Rank jobs with an assigned backend before pending ones without
+                case((Job.backend_id.is_(None), 1), else_=0),
+                Job.backend_id.asc(),
+                Job.created_at,
+                Job.id,
+            )
+            .limit(1)
+        )
+        return (await session.execute(candidate_stmt)).scalar_one_or_none()
+
+
+class WeightedFifoScheduler(Scheduler):
     """FIFO queue with turns weighted by each session's QPU slots"""
 
     @staticmethod
@@ -55,7 +74,7 @@ class FifoScheduler(Scheduler):
         candidate_stmt = (
             select(Job.id)
             .join(Session)
-            .where(Job.status.in_(SCHEDULABLE_STATUS), active_session_filter())
+            .where(Job.status.in_(SCHEDULABLE_STATUS))
             .order_by(
                 # Rank jobs with an assigned backend before pending ones without
                 case((Job.backend_id.is_(None), 1), else_=0),
@@ -71,6 +90,7 @@ class FifoScheduler(Scheduler):
     async def get_next_job(self, session: AsyncSession) -> Optional[Job]:
         job = await super().get_next_job(session)
         if job is not None and job.backend_id is None:
+            # A new QPU job costs its session 1/qpu_slots of virtual runtime
             await session.execute(
                 update(Session)
                 .where(Session.id == job.session_id)
@@ -83,4 +103,7 @@ class FifoScheduler(Scheduler):
         return job
 
 
-schedulers = {SchedulerStrategy.FIFO: FifoScheduler()}
+schedulers = {
+    SchedulerStrategy.FIFO: FifoScheduler(),
+    SchedulerStrategy.WEIGHTED_FIFO: WeightedFifoScheduler(),
+}

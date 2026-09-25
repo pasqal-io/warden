@@ -3,7 +3,7 @@ import logging
 
 from fastapi import FastAPI
 
-from warden.api.routes import accessible, acct, jobs, qpu, sessions, status
+from warden.api.routes import accessible, acct, jobs, qpu, qpu_slots, sessions, status
 from warden.api.routes.dependencies.auth import init_auth
 from warden.api.routes.dependencies.db import init_db
 from warden.api.routes.dependencies.qpu_client import init_qpu_client
@@ -36,6 +36,7 @@ def create_app(config: Config):
     app.include_router(accessible.router, tags=["accessible"])
     app.include_router(acct.router, tags=["accounting"])
     app.include_router(status.router, tags=["status"])
+    app.include_router(qpu_slots.router, tags=["qpu-slots"])
 
     logger = logging.getLogger(__name__)
 

@@ -15,6 +15,8 @@ from warden.lib.db.functions import duration_seconds
 
 
 class QPUCapacityLock(Base):
+    """Provide one database row for serializing QPU capacity changes."""
+
     __tablename__ = "qpu_capacity_lock"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

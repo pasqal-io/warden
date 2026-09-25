@@ -16,6 +16,10 @@ from warden.lib.config.config import (
 
 def test_scheduler():
     assert Config().scheduler.strategy is SchedulerStrategy.FIFO
+    assert (
+        SchedulerConfig(strategy=SchedulerStrategy.WEIGHTED_FIFO).strategy
+        is SchedulerStrategy.WEIGHTED_FIFO
+    )
 
     with pytest.raises(ValidationError):
         SchedulerConfig(strategy=cast(Any, "NOT_FIFO"))

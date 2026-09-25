@@ -128,6 +128,7 @@ DatabaseConfig = Annotated[
 
 class SchedulerStrategy(StrEnum):
     FIFO = "FIFO"
+    WEIGHTED_FIFO = "WEIGHTED_FIFO"
 
 
 class SchedulerConfig(WardenSettings):
@@ -137,7 +138,8 @@ class SchedulerConfig(WardenSettings):
         default=SchedulerStrategy.FIFO,
         description=(
             "Job scheduling strategy. Available strategies: "
-            "- FIFO (priority to the oldest job pending in the database)."
+            "- FIFO (priority to the oldest job pending in the database). "
+            "- WEIGHTED_FIFO (FIFO turns weighted by each session's qpu_slots claim)."
         ),
     )
 

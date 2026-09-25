@@ -34,12 +34,15 @@ async def create_session(
     session_config: SessionConfigDep,
     qpu_config: QPUConfig = Depends(get_qpu_config),
 ) -> SessionResponse:
+    """Create a session or return the matching session after an adapter retry."""
     ensure_user_is_authorized(auth_config, str(payload.user_id))
     async with db_session.begin():
         await lock_qpu_capacity(db_session)
         await expire_due_sessions(db_session)
         existing = await active_session_for_job(
-            db_session, str(payload.user_id), payload.scheduler_job_id
+            db_session,
+            str(payload.user_id),
+            payload.scheduler_job_id,
         )
         if existing is not None:
             if existing.qpu_slots != payload.qpu_slots:
@@ -68,7 +71,9 @@ async def create_session(
 
 
 async def active_session_for_job(
-    db_session: DBSessionDep, user_id: str, scheduler_job_id: str
+    db_session: DBSessionDep,
+    user_id: str,
+    scheduler_job_id: str,
 ) -> Session | None:
     result = await db_session.execute(
         select(Session).where(

@@ -214,25 +214,37 @@ that external scheduler. Polling this endpoint is only a readiness hint; Warden
 still performs its normal session and job handling.
 
 If `qpu.qpu_slots_total` is set, sessions may include `qpu_slots` and Warden
-rejects new sessions when active sessions would exceed that total. In that
-case, `GET /accessible` also returns `qpu_slots_total`, `qpu_slots_used`, and
-`qpu_slots_available` for external polling.
+rejects new sessions when active sessions would exceed that total. External
+scheduler sensors read the capacity from `GET /qpu-slots`:
 
-Capacity admission is serialized in the database, so concurrent session
-requests cannot oversubscribe the configured total. Warden derives session
-idempotency from `(user_id, scheduler_job_id)`: repeating an active request for
-the same scheduler job returns the existing session, while changing its slot
-count returns `409`.
+```json
+{"qpu_slots_total": 10, "qpu_slots_used": 4, "qpu_slots_available": 6}
+```
 
-`qpu_slots` is also the weight for Warden's job-level scheduler. A five-slot
-session receives approximately five scheduling turns for every turn received
-by a one-slot session, while jobs remain FIFO within a session. Running QPU jobs
-are not preempted.
+`GET /accessible` retains the QRMI boolean response. A scheduler sensor uses
+both endpoints, treating false readiness or a failed capacity request as
+unavailable.
+
+One Warden instance fronts one QPU. Its capacity admission is serialized in
+the database across the API and session-reaper processes, so concurrent
+session requests cannot oversubscribe that QPU's configured total. Warden derives session
+idempotency from `(user_id, scheduler_job_id)`: repeating an active request
+for the same scheduler job returns the existing session, while changing its
+slot count returns `409`. Scheduler integrations must include array-task
+identity in the job ID.
+
+Set `scheduler.strategy` to `WEIGHTED_FIFO` to use `qpu_slots` as the weight for
+Warden's job-level scheduler. A five-slot session then receives approximately
+five scheduling turns for every turn received by a one-slot session, while
+jobs remain FIFO within a session. The default `FIFO` strategy remains ordered
+by job creation time. Neither strategy preempts running QPU jobs or measures
+their execution duration.
 
 Warden retires sessions independently of scheduler wall time. A session is
 revoked after `sessions.idle_timeout_s` without pending or running Warden jobs,
 or after the absolute `sessions.max_lifetime_s` fallback. This handles missing
 Slurm SPANK and Grid Engine epilog cleanup without invalidating jobs whose
 scheduler allocation was extended. Administrators can find sessions with
-`GET /sessions?scheduler_job_id=<id>&active=true` and revoke one immediately
+`GET /sessions?scheduler_job_id=<id>&active=true`
+and revoke one immediately
 with `DELETE /sessions` and the session ID in the `X-Warden-Session` header.

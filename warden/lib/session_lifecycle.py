@@ -31,7 +31,19 @@ def absolute_deadline(config: SessionConfig, now: datetime | None = None) -> dat
 
 
 async def lock_qpu_capacity(db_session: AsyncSession) -> None:
-    """Serialize changes that affect available QPU capacity."""
+    """Serialize capacity changes across the API and session-reaper processes."""
+    if db_session.get_bind().dialect.name != "sqlite":
+        result = await db_session.execute(
+            select(QPUCapacityLock).where(QPUCapacityLock.id == 1).with_for_update()
+        )
+        if result.scalar_one_or_none() is None:
+            raise RuntimeError(
+                "QPU capacity lock is missing; run the latest Warden database migration."
+            )
+        return
+
+    # SQLite ignores SELECT FOR UPDATE. Updating the singleton row obtains its
+    # database write lock and holds it until the surrounding transaction ends.
     result = await db_session.execute(
         update(QPUCapacityLock)
         .where(QPUCapacityLock.id == 1)

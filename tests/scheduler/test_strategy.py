@@ -201,10 +201,10 @@ async def test_fifo_job_running(db_session_maker):
 
 
 @pytest.mark.asyncio
-async def test_fifo_weights_sessions_by_qpu_slots(db_session_maker):
+async def test_weighted_fifo_weights_sessions_by_qpu_slots(db_session_maker):
     """QPU slots weight job-level scheduling turns across sessions."""
 
-    scheduler = schedulers[SchedulerStrategy.FIFO]
+    scheduler = schedulers[SchedulerStrategy.WEIGHTED_FIFO]
     now = datetime.now()
     large = Session(scheduler_job_id="large", user_id="1000", qpu_slots=5)
     small = Session(scheduler_job_id="small", user_id="1001", qpu_slots=1)
@@ -242,3 +242,46 @@ async def test_fifo_weights_sessions_by_qpu_slots(db_session_maker):
 
     assert scheduled_sessions.count("large") == 5
     assert scheduled_sessions.count("small") == 1
+
+
+@pytest.mark.asyncio
+async def test_fifo_does_not_weight_sessions_by_qpu_slots(db_session_maker):
+    """FIFO keeps creation order regardless of session slot claims."""
+
+    scheduler = schedulers[SchedulerStrategy.FIFO]
+    now = datetime.now()
+    large = Session(scheduler_job_id="large", user_id="1000", qpu_slots=5)
+    small = Session(scheduler_job_id="small", user_id="1001", qpu_slots=1)
+    jobs = []
+    for index in range(3):
+        jobs.extend(
+            [
+                Job(
+                    session=large,
+                    shots=100,
+                    sequence="{}",
+                    status="PENDING",
+                    created_at=now + timedelta(microseconds=index * 2),
+                ),
+                Job(
+                    session=small,
+                    shots=100,
+                    sequence="{}",
+                    status="PENDING",
+                    created_at=now + timedelta(microseconds=index * 2 + 1),
+                ),
+            ]
+        )
+
+    async with db_session_maker() as session:
+        session.add_all(jobs)
+        await session.commit()
+        scheduled_sessions = []
+        for _ in jobs:
+            job = await scheduler.get_next_job(session)
+            assert job is not None
+            scheduled_sessions.append(job.session.scheduler_job_id)
+            job.status = "DONE"
+            await session.commit()
+
+    assert scheduled_sessions == ["large", "small"] * 3

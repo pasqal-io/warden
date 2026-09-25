@@ -129,6 +129,19 @@ async def test_create_session_is_idempotent(client, app):
 
 
 @pytest.mark.asyncio
+async def test_create_session_separates_array_tasks(client, app):
+    """Array tasks receive distinct sessions."""
+    payload = {"user_id": "1000", "scheduler_job_id": "1234.1"}
+    with mock_munge_auth(app, uid=0):
+        first = await client.post("/sessions", json=payload)
+        second = await client.post(
+            "/sessions", json={**payload, "scheduler_job_id": "1234.2"}
+        )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] != second.json()["id"]
+
+
+@pytest.mark.asyncio
 async def test_create_session_rejects_job_parameter_change(client, app):
     """An active scheduler job cannot be reused with different parameters."""
 
