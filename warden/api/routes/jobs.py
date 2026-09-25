@@ -147,8 +147,10 @@ async def cancel_job(
             raise HTTPException(
                 409, detail="Job with status was already requested to be stopped"
             )
-        if job.scheduled_at is None:
-            # Canceled before the worker picked it up: the session is idle again
+    if job.scheduled_at is None:
+        # Canceled before the worker picked it up: the session is idle again.
+        # Separate transaction so the session is never locked after the job.
+        async with db_session.begin():
             await db_session.execute(
                 update(Session)
                 .where(Session.id == job.session_id)
