@@ -326,9 +326,7 @@ def _build_acct_sessions_db_query_filters(
         filters.append(Session.id.in_(acct_sessions_query.session_id))
 
     if acct_sessions_query.slurm_job_id:
-        filters.append(
-            Session.scheduler_job_id.in_(acct_sessions_query.slurm_job_id)
-        )
+        filters.append(Session.scheduler_job_id.in_(acct_sessions_query.slurm_job_id))
 
     return filters
 

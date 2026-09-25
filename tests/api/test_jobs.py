@@ -1,7 +1,6 @@
 import asyncio
 import json
 from datetime import datetime
-from types import SimpleNamespace
 
 import pytest
 from httpx2 import AsyncClient, Request, Response
@@ -9,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from tests.api.conftest import mock_munge_auth, mock_qpu_client
+from warden.api.schemas.jobs import AHSTimeSeries
 from warden.api.utils.cudaq import _timeseries_to_waveform
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
@@ -597,7 +597,7 @@ async def test_concurrent_cancels_have_a_single_winner(
 @pytest.mark.parametrize("duration", [2000, 4000, 4004])
 def test_ahs_waveform_endpoint_rounding(duration):
     """Accept nanosecond endpoints after floating-point unit conversion."""
-    series = SimpleNamespace(
+    series = AHSTimeSeries(
         times=[0.0, duration / 2 * 1e-9, duration * 1e-9],
         values=[0.0, 3e6, 0.0],
     )

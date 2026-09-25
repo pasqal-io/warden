@@ -117,7 +117,10 @@ async def test_repeated_session_revoke_and_scheduler_pick_race(
 
         with mock_munge_auth(app, uid=0):
             revoke_response, claimed = await asyncio.gather(
-                client.delete(f"/sessions/{session_id}"), do_schedule()
+                client.delete(
+                    "/sessions", headers={"X-Warden-Session": str(session_id)}
+                ),
+                do_schedule(),
             )
 
         assert revoke_response.status_code == 200
@@ -252,7 +255,9 @@ async def test_session_revoke_racing_scheduler_pick_is_not_claimed(
 
     async def revoke_mid_pick():
         with mock_munge_auth(app, uid=0):
-            response = await client.delete(f"/sessions/{session_id}")
+            response = await client.delete(
+                "/sessions", headers={"X-Warden-Session": str(session_id)}
+            )
         assert response.status_code == 200
 
     scheduler = schedulers[strategy]
