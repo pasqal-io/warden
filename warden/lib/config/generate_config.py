@@ -21,6 +21,7 @@ from warden.lib.config.config import (
     PostgresConfig,
     QPUConfig,
     SchedulerConfig,
+    SessionConfig,
     SqliteConfig,
 )
 
@@ -39,6 +40,7 @@ LOGGING_SECTION = yaml.safe_dump(
 SECTION_MODELS = {
     "api": APIConfig,
     "scheduler": SchedulerConfig,
+    "sessions": SessionConfig,
     "qpu": QPUConfig,
 }
 # Discriminated union of database backends: rendered as the union of their
@@ -47,10 +49,10 @@ SECTION_MODELS = {
 DATABASE_MODELS = [SqliteConfig, PostgresConfig, MariadbConfig]
 
 # Section order in the generated file.
-SECTIONS = ["api", "database", "scheduler", "qpu", "logging"]
+SECTIONS = ["api", "database", "scheduler", "sessions", "qpu", "logging"]
 
 SECTION_DESCRIPTIONS = {
-    # api/scheduler/qpu map 1:1 to a model, so their description is the
+    # api/scheduler/sessions/qpu map 1:1 to a model, so their description is the
     # model's own docstring. database (a 3-way backend union) and logging
     # (untyped, free-form dictConfig) don't map to a single model, so their
     # description is declared here instead.
