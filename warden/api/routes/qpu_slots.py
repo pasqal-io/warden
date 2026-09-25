@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
 
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.routes.dependencies.qpu_client import get_qpu_config
 from warden.api.schemas.qpu_slots import QPUSlotsResponse
 from warden.lib.config.config import QPUConfig
-from warden.lib.models.sessions import Session, active_session_filter
+from warden.lib.session_lifecycle import active_qpu_slots
 
 router = APIRouter(prefix="/qpu-slots")
 
@@ -18,12 +17,7 @@ async def qpu_slots(
     """Report QPU slot capacity for external scheduler sensors."""
     if qpu_config.qpu_slots_total is None:
         raise HTTPException(status_code=404, detail="QPU slots are not configured.")
-    result = await db_session.execute(
-        select(func.coalesce(func.sum(Session.qpu_slots), 0)).where(
-            active_session_filter()
-        )
-    )
-    used = int(result.scalar_one())
+    used = await active_qpu_slots(db_session)
     total = qpu_config.qpu_slots_total
     return QPUSlotsResponse(
         qpu_slots_total=total,

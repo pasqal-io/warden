@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import case, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -53,6 +53,16 @@ async def lock_qpu_capacity(db_session: AsyncSession) -> None:
         raise RuntimeError(
             "QPU capacity lock is missing; run the latest Warden database migration."
         )
+
+
+async def active_qpu_slots(db_session: AsyncSession) -> int:
+    """Return the QPU slots claimed by active sessions."""
+    result = await db_session.execute(
+        select(func.coalesce(func.sum(Session.qpu_slots), 0)).where(
+            active_session_filter()
+        )
+    )
+    return int(result.scalar_one())
 
 
 async def has_nonterminal_jobs(db_session: AsyncSession, session_id: UUID) -> bool:

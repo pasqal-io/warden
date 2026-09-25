@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import UUID4
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from warden.api.routes.dependencies.auth import (
     AdminUserDep,
@@ -16,6 +16,7 @@ from warden.lib.models import Session
 from warden.lib.models.sessions import active_session_filter
 from warden.lib.session_lifecycle import (
     absolute_deadline,
+    active_qpu_slots,
     expire_due_sessions,
     idle_deadline,
     lock_qpu_capacity,
@@ -85,15 +86,6 @@ async def active_session_for_job(
     return result.scalar_one_or_none()
 
 
-async def active_qpu_slots(db_session: DBSessionDep) -> int:
-    result = await db_session.execute(
-        select(func.coalesce(func.sum(Session.qpu_slots), 0)).where(
-            active_session_filter()
-        )
-    )
-    return int(result.scalar_one())
-
-
 @router.get("")
 async def list_sessions(
     db_session: DBSessionDep,
@@ -110,7 +102,7 @@ async def list_sessions(
         query = query.where(Session.scheduler_job_id == scheduler_job_id)
     if active is not None:
         query = query.where(
-            Session.revoked_at.is_(None) if active else Session.revoked_at.is_not(None)
+            active_session_filter() if active else ~active_session_filter()
         )
     result = await db_session.execute(query)
     return [SessionResponse.from_model(record) for record in result.scalars()]
