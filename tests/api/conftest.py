@@ -31,9 +31,15 @@ async def app(db_backend_config: DatabaseConfig) -> AsyncGenerator[FastAPI, None
     # create tables in the test database
     async with app.state.db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield app
-    async with app.state.db_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    try:
+        yield app
+
+        async with app.state.db_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    finally:
+        # See tests/scheduler/conftest.py: the database is shared, so the
+        # engine has to be disposed even when the teardown above fails.
+        await app.state.db_engine.dispose()
 
 
 @pytest_asyncio.fixture

@@ -25,3 +25,5 @@ config.*.yaml
 venv
 .venv
 dist
+
+.claude

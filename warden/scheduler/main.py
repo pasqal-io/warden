@@ -9,11 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     async_sessionmaker,
-    create_async_engine,
 )
 
 from warden.lib.config import Config
-from warden.lib.db.database import build_db_url
+from warden.lib.db.database import build_engine
 from warden.lib.models import Job
 from warden.scheduler.cancellation_worker import cancellation_worker
 from warden.scheduler.db import job_update_commiter
@@ -144,7 +143,7 @@ async def main_async(conf: Config | None = None):
         conf = Config()
 
     logging.config.dictConfig(config=conf.logging)
-    engine = create_async_engine(build_db_url(conf.database), echo=conf.database.echo)
+    engine = build_engine(conf.database)
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
