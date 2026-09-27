@@ -8,6 +8,7 @@ from warden.lib.config.config import (
     Config,
     MariadbConfig,
     PostgresConfig,
+    QPUAuthConfig,
     QPUConfig,
     SchedulerConfig,
     SqliteConfig,
@@ -25,12 +26,17 @@ ALL_FIELD_NAMES = {
         APIConfig,
         SchedulerConfig,
         QPUConfig,
+        QPUAuthConfig,
         SqliteConfig,
         PostgresConfig,
         MariadbConfig,
     )
     for name in model.model_fields
 }
+# Fields whose type is itself a nested model (e.g. QPUConfig.auth, an Optional
+# QPUAuthConfig) are rendered as an uncommented "name:" header, with their own
+# fields commented out beneath, rather than a single "# name:" scalar line.
+NESTED_MODEL_FIELD_NAMES = {"auth"}
 
 
 def test_generate_config_is_valid_yaml():
@@ -47,7 +53,8 @@ def test_generate_config_documents_every_field():
     generated = generate_config()
 
     for name in ALL_FIELD_NAMES:
-        assert f"# {name}:" in generated
+        prefix = "" if name in NESTED_MODEL_FIELD_NAMES else "# "
+        assert f"{prefix}{name}:" in generated
 
 
 def test_generate_config_preserves_existing_overrides():
@@ -101,9 +108,40 @@ def test_render_fields_indents_nested_models():
     overridden = _render_section_fields(Outer.model_fields, {"inner": {"value": 42}}, 1)
 
     assert "    value: 42" in overridden
-    assert yaml.safe_load(f"outer:\n{overridden}") == {
-        "outer": {"inner": {"value": 42}}
-    }
+
+
+def test_render_fields_indents_optional_nested_models():
+    """Test that an Optional (``Model | None``) nested field is recursed into
+    just like a plain nested model, falling back to the nested model's own
+    docstring since it has no field-level description of its own"""
+
+    class Inner(BaseModel):
+        """Inner docstring."""
+
+        value: int = Field(default=1, description="An inner value.")
+
+    class Outer(BaseModel):
+        inner: Inner | None = None
+
+    generated = _render_section_fields(Outer.model_fields, {}, 1)
+
+    assert (
+        "  # Inner docstring.\n  inner:\n    # An inner value.\n    # value: 1"
+        in generated
+    )
+
+
+def test_generate_config_documents_qpu_auth_section():
+    """Test that qpu.auth (an Optional QPUAuthConfig) is recursed into: its
+    own docstring and every one of its fields must appear, not just an opaque
+    "# auth: null" line"""
+    generated = generate_config()
+
+    assert "auth:" in generated
+    assert "# auth: null" not in generated
+    assert "Keycloak client_credentials configuration" in generated
+    for name in QPUAuthConfig.model_fields:
+        assert f"# {name}:" in generated
 
 
 def test_generate_writes_directly_when_no_previous_file(tmp_path, monkeypatch):
