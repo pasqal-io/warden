@@ -15,11 +15,14 @@ router = APIRouter(prefix="/accessible")
 
 
 @router.get("")
-async def is_accessible(db_session: DBSessionDep) -> AccessibleResponse:
+async def is_accessible(
+    db_session: DBSessionDep,
+) -> AccessibleResponse:
     """Warden endpoint for qrmi 'is_accessible' interface"""
     settings = await get_latest_accessibility_settings(db_session)
     return AccessibleResponse(
-        is_accessible=settings.is_accessible, message=settings.message
+        is_accessible=settings.is_accessible,
+        message=settings.message,
     )
 
 

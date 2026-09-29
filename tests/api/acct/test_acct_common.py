@@ -231,7 +231,7 @@ async def test_acct_excludes_not_yet_ended(client, app, accounting_endpoint: str
         created_at=datetime(2026, 1, 1, 0, 0, 0),
         revoked_at=None,
         user_id="9999",
-        slurm_job_id="active-session",
+        scheduler_job_id="active-session",
     )
     # A still-running job attached to the first ended user's session.
     active_job = Job(
@@ -395,7 +395,7 @@ async def test_acct_records_slurm_job_id_filtering(
     with mock_munge_auth(app, uid=0):
         response = await client.get(accounting_records_endpoint)
 
-    requested_slurm_job_id = [str(sessions[i].slurm_job_id) for i in session_index]
+    requested_slurm_job_id = [str(sessions[i].scheduler_job_id) for i in session_index]
     query = accounting_records_endpoint
     if requested_slurm_job_id:
         query += "?" + "&".join(

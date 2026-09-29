@@ -25,7 +25,7 @@ async def test_job_hybrid_properties_match(db_session_factory):
         created_at=NOW,
         revoked_at=NOW + timedelta(hours=2),
         user_id="1000",
-        slurm_job_id="0",
+        scheduler_job_id="0",
     )
     job = Job(
         status="CANCELED",
@@ -80,7 +80,7 @@ async def test_session_hybrid_properties_match(db_session_factory):
         created_at=NOW,
         revoked_at=NOW + timedelta(minutes=45),
         user_id="1000",
-        slurm_job_id="0",
+        scheduler_job_id="0",
     )
 
     async with db_session_factory() as db_session:
