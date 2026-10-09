@@ -1,8 +1,8 @@
-import importlib.metadata
 import logging
 
 from fastapi import FastAPI
 
+from warden import __version__
 from warden.api.routes import accessible, acct, jobs, qpu, sessions, status
 from warden.api.routes.dependencies.auth import init_auth
 from warden.api.routes.dependencies.db import init_db
@@ -21,7 +21,7 @@ def create_app(config: Config):
     app = FastAPI(
         title="Warden API",
         description="Receives, validates, and stores jobs for execution",
-        version="0.2.0",
+        version=__version__,
         openapi_tags=TAGS_METADATA,
     )
     init_db(app, config.database)
@@ -39,11 +39,7 @@ def create_app(config: Config):
 
     @app.get("/")
     async def ping():
-        try:
-            version = importlib.metadata.version("warden")
-        except importlib.metadata.PackageNotFoundError:
-            version = ""
-        return {"message": f"Warden {version} is operational."}
+        return {"message": f"Warden {__version__} is operational."}
 
     logger.info("App ready")
     return app
