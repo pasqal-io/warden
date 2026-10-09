@@ -62,6 +62,8 @@ $(VENV)/bin/python: check-python
 
 install: $(VENV)/bin/python
 	$(VENV)/bin/python -m pip install -r requirements.txt $(INSTALL_FLAGS)
+	# Register warden itself (deps are pinned above) so its version metadata exists
+	$(VENV)/bin/python -m pip install --no-deps -e .
 	$(MAKE) config.yaml
 
 run: migrate
