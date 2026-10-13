@@ -72,6 +72,6 @@ async def test_acct_sessions_nominal(client, app, endpoint):
     for i, session_data in enumerate(body["data"]):
         assert session_data["id"] == str(sessions[i].id)
         assert session_data["user_id"] == user_uids[i]
-        assert session_data["slurm_job_id"] == sessions[i].slurm_job_id
+        assert session_data["slurm_job_id"] == sessions[i].scheduler_job_id
         assert session_data["total_duration"] == expected_duration
         assert session_data["jobs_count"] == len(JOB_STATUSES)

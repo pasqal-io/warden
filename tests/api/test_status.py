@@ -10,18 +10,18 @@ async def _seed(app, *, serialized_sequence: str):
     async_session = app.state.db_session_factory
 
     open_session = Session(
-        user_id="1000", slurm_job_id="1", created_at=datetime.now(timezone.utc)
+        user_id="1000", scheduler_job_id="1", created_at=datetime.now(timezone.utc)
     )
     other_sessions = [
         Session(
             user_id="1000",
-            slurm_job_id="1",
+            scheduler_job_id="1",
             created_at=(datetime.now(timezone.utc) - timedelta(minutes=i)),
         )
         for i in range(5, 0, -1)
     ]
     revoked_session = Session(
-        user_id="1000", slurm_job_id="2", revoked_at=datetime.now(timezone.utc)
+        user_id="1000", scheduler_job_id="2", revoked_at=datetime.now(timezone.utc)
     )
 
     async with async_session() as session:

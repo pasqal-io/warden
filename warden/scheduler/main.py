@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
 from warden.lib.config import Config
 from warden.lib.db.database import build_db_url
 from warden.lib.models import Job
+from warden.lib.session_lifecycle import session_reaper
 from warden.scheduler.cancellation_worker import cancellation_worker
 from warden.scheduler.db import job_update_commiter
 from warden.scheduler.strategy import schedulers
@@ -68,7 +69,10 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
         # DB commit loop
         db_commit_task = asyncio.create_task(
             job_update_commiter(
-                job_id=job.id, queue=queue, session_factory=session_factory
+                job_id=job.id,
+                queue=queue,
+                session_factory=session_factory,
+                session_idle_timeout_s=conf.sessions.idle_timeout_s,
             ),
             name=f"Job {job.id} DB commit worker",
         )
@@ -81,7 +85,7 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
                     nb_run=job.shots,
                     sequence=job.sequence,
                     backend_id=job.backend_id,
-                    batch_id=job.session.slurm_job_id,
+                    batch_id=job.session.scheduler_job_id,
                 ),
                 name=f"Job {job.id} execution worker",
             )
@@ -153,25 +157,33 @@ async def main_async(conf: Config | None = None):
 
     try:
         logger.info(
-            "Starting scheduler and cancellation worker (Press Ctrl+C to exit)..."
+            "Starting scheduler, cancellation worker, and session reaper "
+            "(Press Ctrl+C to exit)..."
         )
 
-        # Start both scheduler and cancellation worker as separate tasks with same lifetime
+        # Start scheduler workers as separate tasks with the same lifetime.
         scheduler_task = loop.create_task(run_scheduler(engine, conf), name="Scheduler")
         cancellation_task = loop.create_task(
             run_cancellation_worker(engine, conf), name="Cancellation Worker"
+        )
+        session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+        reaper_task = loop.create_task(
+            session_reaper(conf.sessions, session_factory), name="Session Reaper"
         )
 
         # Wait for stop signal
         await stop_event.wait()
 
-        # Cancel both tasks
-        logger.info("Stopping scheduler and cancellation worker...")
+        # Cancel all workers.
+        logger.info("Stopping scheduler, cancellation worker, and session reaper...")
         scheduler_task.cancel()
         cancellation_task.cancel()
+        reaper_task.cancel()
 
         # Wait for graceful shutdown
-        await asyncio.gather(scheduler_task, cancellation_task, return_exceptions=True)
+        await asyncio.gather(
+            scheduler_task, cancellation_task, reaper_task, return_exceptions=True
+        )
 
     finally:
         await shutdown(engine)

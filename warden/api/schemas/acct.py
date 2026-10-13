@@ -68,7 +68,7 @@ class SessionData(BaseModel):
             user_id=session.user_id,
             created_at=session.created_at,
             revoked_at=session.revoked_at,
-            slurm_job_id=session.slurm_job_id,
+            slurm_job_id=session.scheduler_job_id,
         )
 
 

@@ -180,7 +180,7 @@ async def test_run_scheduler_integration_cancellation_worker(
         sequence="{}",
         status="PENDING",
         shots=N_SHOTS,
-        session=Session(slurm_job_id="1", user_id="1234"),
+        session=Session(scheduler_job_id="1", user_id="1234"),
         canceled_at=datetime.now(),
     )
 

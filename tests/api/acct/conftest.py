@@ -49,7 +49,7 @@ async def acct_populate_db(
                 created_at=session_start,
                 revoked_at=session_end,
                 user_id=uid,
-                slurm_job_id=str(i),
+                scheduler_job_id=str(i),
             )
         )
         for status in job_statuses:

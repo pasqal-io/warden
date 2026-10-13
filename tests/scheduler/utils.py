@@ -49,7 +49,7 @@ async def create_n_jobs(
             sequence="{}",
             status="PENDING",
             shots=shots,
-            session=Session(slurm_job_id="1", user_id=SLURM_USER_ID),
+            session=Session(scheduler_job_id="1", user_id=SLURM_USER_ID),
             backend_id=backend_ids[i] if backend_ids else None,
         )
         for i in range(n_jobs)

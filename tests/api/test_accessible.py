@@ -70,3 +70,14 @@ async def test_accessible_auth_update(client: AsyncClient, app):
     with mock_munge_auth(app, uid=0):
         response = await client.post("/accessible", json=payload)
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_accessible_get_contract_for_external_polling(client: AsyncClient):
+    """Verify GET /accessible is unauthenticated and schema-stable."""
+
+    response = await client.get("/accessible")
+    assert response.status_code == 200
+    assert set(response.json()) == {"is_accessible", "message"}
+    assert isinstance(response.json()["is_accessible"], bool)
+    assert isinstance(response.json()["message"], str)

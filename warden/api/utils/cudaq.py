@@ -64,7 +64,7 @@ def _timeseries_to_waveform(
         InterpolatedWaveform(
             duration,
             values=values,
-            times=[t * 1e9 / duration for t in series.times],
+            times=[round(t * 1e9) / duration for t in series.times],
             interpolator="interp1d",
         ),
         Waveform,

@@ -41,7 +41,7 @@ async def test_repeated_job_cancel_and_scheduler_pick_race(
 
     for _ in range(40):
         job = Job(
-            session=Session(user_id=str(user_id), slurm_job_id="1"),
+            session=Session(user_id=str(user_id), scheduler_job_id="1"),
             sequence=serialized_sequence,
             shots=100,
             status="PENDING",
@@ -97,7 +97,7 @@ async def test_repeated_session_revoke_and_scheduler_pick_race(
     scheduler = schedulers[strategy]
 
     for _ in range(40):
-        session_record = Session(user_id=str(user_id), slurm_job_id="1")
+        session_record = Session(user_id=str(user_id), scheduler_job_id="1")
         job = Job(
             session=session_record,
             sequence=serialized_sequence,
@@ -117,7 +117,10 @@ async def test_repeated_session_revoke_and_scheduler_pick_race(
 
         with mock_munge_auth(app, uid=0):
             revoke_response, claimed = await asyncio.gather(
-                client.delete(f"/sessions/{session_id}"), do_schedule()
+                client.delete(
+                    "/sessions", headers={"X-Warden-Session": str(session_id)}
+                ),
+                do_schedule(),
             )
 
         assert revoke_response.status_code == 200
@@ -184,7 +187,7 @@ async def test_cancel_racing_scheduler_pick_is_not_claimed(
     """
     user_id = 1000
     job = Job(
-        session=Session(user_id=str(user_id), slurm_job_id="1"),
+        session=Session(user_id=str(user_id), scheduler_job_id="1"),
         sequence=serialized_sequence,
         shots=100,
         status="PENDING",
@@ -233,7 +236,7 @@ async def test_session_revoke_racing_scheduler_pick_is_not_claimed(
     instead of `POST /jobs/{id}/cancel`.
     """
     user_id = 1000
-    session_record = Session(user_id=str(user_id), slurm_job_id="1")
+    session_record = Session(user_id=str(user_id), scheduler_job_id="1")
     job = Job(
         session=session_record,
         sequence=serialized_sequence,
@@ -252,7 +255,9 @@ async def test_session_revoke_racing_scheduler_pick_is_not_claimed(
 
     async def revoke_mid_pick():
         with mock_munge_auth(app, uid=0):
-            response = await client.delete(f"/sessions/{session_id}")
+            response = await client.delete(
+                "/sessions", headers={"X-Warden-Session": str(session_id)}
+            )
         assert response.status_code == 200
 
     scheduler = schedulers[strategy]

@@ -45,7 +45,7 @@ async def get_status(
             id=session.id,
             user_id=session.user_id,
             created_at=session.created_at,
-            slurm_job_id=session.slurm_job_id,
+            slurm_job_id=session.scheduler_job_id,
         )
         for session in open_sessions_result.scalars()
     ]

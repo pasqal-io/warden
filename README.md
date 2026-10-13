@@ -103,7 +103,6 @@ Warden's access to the PASQAL QPU can be configured through the YAML config or e
 - `false`: disable verification entirely. **Insecure**, dev/local testing only.
 - a path (e.g. `/etc/warden/backend-ca.pem`) — verify against a specific CA bundle / certificate file.
 
-
 The API server can also be configured to only accept new jobs from configured user IDs:
 
 | Path       | Description             | Default   | Required | Example Value |
@@ -200,3 +199,56 @@ Configure Warden to accept jobs again by configuring:
 ```bash
 make set-accessible IS_ACCESSIBLE=true MESSAGE="Maintenance done"
 ```
+
+### External Resource-Manager Polling
+
+External schedulers can poll `GET /accessible` to decide whether to offer a QPU
+resource for early scheduling. The response is:
+
+```json
+{"is_accessible": true, "message": "QPU accessible"}
+```
+
+`is_accessible=false` means the resource should be treated as unavailable by
+that external scheduler. Polling this endpoint is only a readiness hint; Warden
+still performs its normal session and job handling.
+
+If `qpu.qpu_slots_total` is set, sessions may include `qpu_slots` and Warden
+rejects new sessions when active sessions would exceed that total. External
+scheduler sensors read the capacity from `GET /qpu-slots`:
+
+```json
+{"qpu_slots_total": 10, "qpu_slots_used": 4, "qpu_slots_available": 6}
+```
+
+`GET /accessible` retains the QRMI boolean response. A scheduler sensor uses
+both endpoints, treating false readiness or a failed capacity request as
+unavailable.
+
+One Warden instance fronts one QPU. Its capacity admission is serialized in
+the database across the API and session-reaper processes, so concurrent
+session requests cannot oversubscribe that QPU's configured total. Warden derives session
+idempotency from `(user_id, scheduler_job_id)`: repeating an active request
+for the same scheduler job returns the existing session, while changing its
+slot count returns `409`. Scheduler integrations must include array-task
+identity in the job ID.
+
+Set `scheduler.strategy` to `WEIGHTED_FIFO` to use `qpu_slots` as the weight for
+Warden's job-level scheduler. A five-slot session then receives approximately
+five scheduling turns for every turn received by a one-slot session, while
+jobs remain FIFO within a session. A session that starts submitting jobs joins
+at the turn count of the sessions already waiting, so it does not catch up on
+turns it did not use. The default `FIFO` strategy remains ordered
+by job creation time. Neither strategy preempts running QPU jobs or measures
+their execution duration.
+
+Warden retires sessions independently of scheduler wall time. A session is
+revoked after `sessions.idle_timeout_s` without pending or running Warden jobs,
+or after the absolute `sessions.max_lifetime_s` fallback. This handles missing
+Slurm SPANK and Grid Engine epilog cleanup without invalidating jobs whose
+scheduler allocation was extended. Administrators can find sessions with
+`GET /sessions?scheduler_job_id=<id>&active=true`
+and revoke one immediately
+with `DELETE /sessions` and the session ID in the `X-Warden-Session` header.
+The older `DELETE /sessions/{id}` route is kept for existing QRMI releases but
+is deprecated: it puts the session credential in the URL and access logs.

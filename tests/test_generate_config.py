@@ -10,6 +10,7 @@ from warden.lib.config.config import (
     PostgresConfig,
     QPUConfig,
     SchedulerConfig,
+    SessionConfig,
     SqliteConfig,
 )
 from warden.lib.config.generate_config import (
@@ -24,6 +25,7 @@ ALL_FIELD_NAMES = {
     for model in (
         APIConfig,
         SchedulerConfig,
+        SessionConfig,
         QPUConfig,
         SqliteConfig,
         PostgresConfig,
@@ -39,7 +41,7 @@ def test_generate_config_is_valid_yaml():
 
     data = yaml.safe_load(generated)
 
-    assert set(data) == {"api", "database", "scheduler", "qpu", "logging"}
+    assert set(data) == {"api", "database", "scheduler", "sessions", "qpu", "logging"}
 
 
 def test_generate_config_documents_every_field():
@@ -77,6 +79,14 @@ def test_generate_config_preserves_existing_overrides():
     # Untouched fields still document their default, commented out.
     assert "  # port: " in generated
     assert "  # echo: " in generated
+
+
+def test_generate_config_preserves_session_overrides():
+    """Session lifetime overrides survive a config migration"""
+    generated = generate_config({"sessions": {"idle_timeout_s": 7200}})
+
+    assert yaml.safe_load(generated)["sessions"] == {"idle_timeout_s": 7200}
+    assert "  # max_lifetime_s: " in generated
 
 
 def test_render_fields_indents_nested_models():
