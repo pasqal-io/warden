@@ -43,6 +43,27 @@ Depending on your use-case and specific situation, you may want to run Warden in
 
 One option is to use a systemd configuration like the one described in [docs/install/systemd](docs/install/systemd).
 
+### Connect to a containerized cluster
+
+If Warden runs in a container and the HPC cluster (Slurm, LSF, Open Cluster Scheduler, ...) runs in
+containers on its own network, the cluster nodes cannot reach Warden until it joins that network.
+List the networks of any cluster node, for example the controller or head node:
+
+```bash
+docker inspect <cluster-node> --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+```
+
+Connect the Warden container to that network and check it from a cluster node:
+
+```bash
+docker network connect <network> <warden-container>
+docker exec <cluster-node> curl -s http://<warden-container>:<port>/accessible
+```
+
+The cluster nodes then reach Warden by its container name, e.g. `QRMI_WARDEN_URL=http://<warden-container>:<port>`.
+With Podman, use `podman` instead of `docker`. Recreating either container removes the connection; connect it again.
+The nodes and Warden must still share the MUNGE key, and job users must have the same UIDs on both.
+
 ### Configuration
 
 Configuration is done:
