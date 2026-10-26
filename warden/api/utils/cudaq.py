@@ -64,7 +64,7 @@ def _timeseries_to_waveform(
         InterpolatedWaveform(
             duration,
             values=values,
-            times=[t * 1e9 / duration for t in series.times],
+            times=[t / series.times[-1] for t in series.times],
             interpolator="interp1d",
         ),
         Waveform,
@@ -147,8 +147,11 @@ def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSeq
     if len(hamiltonian.drivingFields) != 1:
         raise ValueError("All pulses should be programmed using a single Hamiltonian")
 
+    clock_period = seq.declared_channels["ising"].clock_period
     for pulse in hamiltonian.drivingFields:
         amp, det, phases, td = _validate_sequences(pulse)
+        # Pulser needs whole clock periods; the schedule is stretched to the nearest one
+        td = clock_period * round(td / clock_period)
         amp_wf, det_wf = _setup_amplitude_and_detuning(amp, det, td)
         full_det_wf, phase = _setup_phase(phases, amp_wf, det_wf, td)
         seq.add(pulser.Pulse(amp_wf, full_det_wf, phase), "ising")

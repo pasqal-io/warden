@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 
+import pulser
 import pytest
 from httpx2 import AsyncClient, Request, Response
 from sqlalchemy import select
@@ -313,6 +314,40 @@ async def test_create_job_with_cudaq_payload(
     sequence_dict = json.loads(job.sequence)
     assert "operations" in sequence_dict
     assert sequence_dict["device"]["name"] == "FRESNEL_CAN1"
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_off_clock_duration(
+    client: AsyncClient, app, cudaq_sequence: str, qpu_specs: dict
+):
+    """Assert that a CUDA-Q duration off the 4 ns clock period is rounded, not rejected."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    sequence = json.loads(cudaq_sequence)
+    for field in sequence["hamiltonian"]["drivingFields"][0].values():
+        field["time_series"]["times"] = [0.0, 7.1e-7]
+    payload = {"shots": 100, "sequence": json.dumps(sequence)}
+
+    def handler(request: Request) -> Response:
+        return Response(200, json={"data": {"specs": qpu_specs}})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 200
+    async with app.state.db_session_factory() as session:
+        job = await session.get(Job, response.json()["id"])
+    assert pulser.Sequence.from_abstract_repr(job.sequence).get_duration() == 712
 
 
 @pytest.mark.asyncio
