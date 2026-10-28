@@ -1,24 +1,14 @@
 from __future__ import annotations
 
-from typing import TypeVar
-
+import numpy as np
 import pulser
-from pulser import CustomWaveform, InterpolatedWaveform, Register
+from pulser import CustomWaveform, Register
 from pulser import Sequence as PulserSequence
+from pulser.channels.base_channel import Channel
 from pulser.devices import Device
-from pulser.math.abstract_array import AbstractArray
 from pulser.register import RegisterLayout
-from pulser.waveforms import ConstantWaveform, Waveform
 
 from warden.api.schemas.jobs import AHSDrivingFields, AHSSequence, AHSTimeSeries
-
-T = TypeVar("T")
-
-
-def _require_instance(value: object, typ: type[T]) -> T:
-    if not isinstance(value, typ):
-        raise TypeError(f"Expected {typ.__name__}, got {type(value).__name__}")
-    return value
 
 
 def _setup_register_and_layout(
@@ -53,51 +43,35 @@ def _setup_register_and_layout(
     return seq
 
 
-def _timeseries_to_waveform(
-    series: AHSTimeSeries, duration: int, scale: float, sign: float = 1.0
-) -> Waveform:
-    values = [sign * v / scale for v in series.values]
-    if all(abs(v - values[0]) <= 1e-12 for v in values):
-        return _require_instance(ConstantWaveform(duration, values[0]), Waveform)
-
-    return _require_instance(
-        InterpolatedWaveform(
-            duration,
-            values=values,
-            times=[t / series.times[-1] for t in series.times],
-            interpolator="interp1d",
-        ),
-        Waveform,
-    )
+def _timeseries_samples(series: AHSTimeSeries, duration: int) -> np.ndarray:
+    """Sample a linear AHS time series (rad/s) in rad/us, stretched to `duration` ns."""
+    times = np.array(series.times) / series.times[-1]
+    return np.interp(np.linspace(0, 1, duration), times, series.values) / 1e6
 
 
-def _setup_amplitude_and_detuning(
-    amp: AHSTimeSeries, det: AHSTimeSeries, td: int
-) -> tuple[CustomWaveform, Waveform]:
-    amp_wf = _require_instance(
-        CustomWaveform(_timeseries_to_waveform(amp, td, 1e6).samples),
-        CustomWaveform,
-    )
-    det_wf = _timeseries_to_waveform(det, td, 1e6)
-    return amp_wf, det_wf
+def _phase_intervals(
+    phase: AHSTimeSeries, duration: int, channel: Channel
+) -> list[tuple[int, int, float]]:
+    """Split `duration` ns into (start, end, phase) intervals of constant AHS phase.
 
-
-def _setup_phase(
-    phases: AHSTimeSeries,
-    amp_wf: CustomWaveform,
-    det_wf: Waveform,
-    td: int,
-) -> tuple[CustomWaveform, AbstractArray]:
-    phase_wf = _require_instance(
-        CustomWaveform(_timeseries_to_waveform(phases, td, 1e6, sign=-1.0).samples),
-        CustomWaveform,
-    )
-    phase_mod = pulser.Pulse.ArbitraryPhase(amp_wf, phase_wf)
-    full_det_wf = _require_instance(
-        CustomWaveform(det_wf.samples + phase_mod.detuning.samples),
-        CustomWaveform,
-    )
-    return full_det_wf, phase_mod.phase
+    AHS holds the phase constant between time points. Each change moves to the nearest
+    clock period of the stretched schedule, and a change closer than the channel's
+    minimum pulse duration to the previous one (or to the end) moves with it.
+    """
+    clock, min_duration = channel.clock_period, channel.min_duration
+    starts, phases = [0], [phase.values[0]]
+    for t, value in zip(phase.times[1:-1], phase.values[1:-1]):
+        start = clock * round(t / phase.times[-1] * duration / clock)
+        if value == phases[-1]:
+            continue
+        if start - starts[-1] < min_duration:
+            phases[-1] = value
+        else:
+            starts.append(start)
+            phases.append(value)
+    if len(starts) > 1 and duration - starts[-1] < min_duration:
+        del starts[-1], phases[-1]
+    return list(zip(starts, starts[1:] + [duration], phases))
 
 
 def _validate_sequences(
@@ -147,14 +121,22 @@ def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSeq
     if len(hamiltonian.drivingFields) != 1:
         raise ValueError("All pulses should be programmed using a single Hamiltonian")
 
-    clock_period = seq.declared_channels["ising"].clock_period
+    channel = seq.declared_channels["ising"]
     for pulse in hamiltonian.drivingFields:
         amp, det, phases, td = _validate_sequences(pulse)
-        # Pulser needs whole clock periods; the schedule is stretched to the nearest one
-        td = clock_period * round(td / clock_period)
-        amp_wf, det_wf = _setup_amplitude_and_detuning(amp, det, td)
-        full_det_wf, phase = _setup_phase(phases, amp_wf, det_wf, td)
-        seq.add(pulser.Pulse(amp_wf, full_det_wf, phase), "ising")
+        # Round up to the clock period; the schedule is stretched to the new duration
+        td = channel.validate_duration(td)
+        amp_samples = _timeseries_samples(amp, td)
+        det_samples = _timeseries_samples(det, td)
+        for start, end, phase in _phase_intervals(phases, td, channel):
+            seq.add(
+                pulser.Pulse(
+                    CustomWaveform(amp_samples[start:end]),
+                    CustomWaveform(det_samples[start:end]),
+                    phase,
+                ),
+                "ising",
+            )
     return seq
 
 
