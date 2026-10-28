@@ -43,27 +43,6 @@ Depending on your use-case and specific situation, you may want to run Warden in
 
 One option is to use a systemd configuration like the one described in [docs/install/systemd](docs/install/systemd).
 
-### Connect to a containerized cluster
-
-If Warden runs in a container and the HPC cluster (Slurm, LSF, Open Cluster Scheduler, ...) runs in
-containers on its own network, the cluster nodes cannot reach Warden until it joins that network.
-List the networks of any cluster node, for example the controller or head node:
-
-```bash
-docker inspect <cluster-node> --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
-```
-
-Connect the Warden container to that network and check it from a cluster node:
-
-```bash
-docker network connect <network> <warden-container>
-docker exec <cluster-node> curl -s http://<warden-container>:<port>/accessible
-```
-
-The cluster nodes then reach Warden by its container name, e.g. `QRMI_WARDEN_URL=http://<warden-container>:<port>`.
-With Podman, use `podman` instead of `docker`. Recreating either container removes the connection; connect it again.
-The nodes and Warden must still share the MUNGE key, and job users must have the same UIDs on both.
-
 ### Configuration
 
 Configuration is done:
@@ -221,3 +200,30 @@ Configure Warden to accept jobs again by configuring:
 ```bash
 make set-accessible IS_ACCESSIBLE=true MESSAGE="Maintenance done"
 ```
+
+## Work with a containerized cluster
+
+If Warden runs in a container next to a containerized HPC cluster (Slurm, LSF, Open Cluster Scheduler, ...), the
+container where Warden runs must be reachable from the cluster's network. List the networks of any cluster node, for
+example the controller or head node:
+
+```bash
+docker inspect <cluster-node> --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+```
+
+Connect the Warden container to that network and check it from a cluster node:
+
+```bash
+docker network connect <network> <warden-container>
+docker exec <cluster-node> curl -s http://<warden-container>:<port>/accessible
+```
+
+The cluster nodes then reach Warden by its container name, e.g. `QRMI_WARDEN_URL=http://<warden-container>:<port>`.
+The nodes and Warden containers must have munge installed and share the same MUNGE key.
+
+This works for any containerized cluster, for example the Slurm cluster of the
+[QRMI SPANK plugin demo](https://github.com/qiskit-community/spank-plugins/blob/main/demo/qrmi/slurm-docker-cluster/INSTALL.md)
+or [QFw-SLURM-Cluster](https://github.com/openQSE/QFw-SLURM-Cluster). The
+[SC26 tutorial](https://github.com/qrmi-community/SC26) instead starts Warden with a simulated QPU on the cluster's own
+network for Slurm, OpenPBS, LSF and Open Cluster Scheduler, e.g.
+[`containers/slurm/compose.warden.yml`](https://github.com/qrmi-community/SC26/blob/main/containers/slurm/compose.warden.yml).
