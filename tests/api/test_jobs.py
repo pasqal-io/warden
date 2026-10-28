@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 
+import numpy as np
 import pulser
 import pytest
 from httpx2 import AsyncClient, Request, Response
@@ -379,10 +380,36 @@ def test_cudaq_phase_is_held_between_time_points(
     )
 
     operations = json.loads(seq.to_abstract_repr())["operations"]
-    assert [
-        (len(op["amplitude"]["samples"]), op["phase"]) for op in operations
-    ] == expected
+    assert [(op["amplitude"]["duration"], op["phase"]) for op in operations] == expected
     assert seq.get_duration() == 712
+
+
+def test_cudaq_waveforms_are_linear_between_time_points(
+    cudaq_sequence: str, qpu_specs: dict
+):
+    """Assert that CUDA-Q amplitude and detuning stay linear between sparse time points."""
+    times, amplitude = [0.0, 2.1e-7, 5e-7, 7.1e-7], [0.0, 9e6, 9e6, 5e6]
+    sequence = json.loads(cudaq_sequence)
+    field = sequence["hamiltonian"]["drivingFields"][0]
+    field["amplitude"]["time_series"] = {"values": amplitude, "times": times}
+    field["detuning"]["time_series"] = {"values": [-9e6, 0.0, 4e6, 9e6], "times": times}
+    field["phase"]["time_series"] = {"values": [0.0, 0.0], "times": [0.0, 7.1e-7]}
+
+    seq = cudaq_sequence_to_pulser(
+        AHSSequence.model_validate(sequence),
+        Device.from_abstract_repr(json.dumps(qpu_specs)),
+    )
+
+    (operation,) = json.loads(seq.to_abstract_repr())["operations"]
+    amplitude_wf = operation["amplitude"]
+    assert amplitude_wf["kind"] == "interpolated"
+    waveform = pulser.InterpolatedWaveform(
+        amplitude_wf["duration"], amplitude_wf["values"], amplitude_wf["times"]
+    )
+    assert isinstance(waveform, pulser.InterpolatedWaveform)
+    samples = waveform.samples.as_array()
+    expected = np.interp(np.arange(712), np.array(times) / times[-1] * 711, amplitude)
+    assert np.max(np.abs(samples - expected / 1e6)) < 0.02
 
 
 @pytest.mark.asyncio

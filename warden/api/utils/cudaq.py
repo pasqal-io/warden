@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pulser
-from pulser import CustomWaveform, Register
+from pulser import ConstantWaveform, InterpolatedWaveform, Register
 from pulser import Sequence as PulserSequence
 from pulser.channels.base_channel import Channel
 from pulser.devices import Device
 from pulser.register import RegisterLayout
+from pulser.waveforms import Waveform
 
 from warden.api.schemas.jobs import AHSDrivingFields, AHSSequence, AHSTimeSeries
 
@@ -43,10 +46,29 @@ def _setup_register_and_layout(
     return seq
 
 
-def _timeseries_samples(series: AHSTimeSeries, duration: int) -> np.ndarray:
-    """Sample a linear AHS time series (rad/s) in rad/us, stretched to `duration` ns."""
-    times = np.array(series.times) / series.times[-1]
-    return np.interp(np.linspace(0, 1, duration), times, series.values) / 1e6
+def _waveform(series: AHSTimeSeries, duration: int, start: int, end: int) -> Waveform:
+    """Return the samples `start` to `end` of an AHS series (rad/s) as a waveform in rad/us.
+
+    The series is stretched to `duration` ns and interpolated by Pulser. A part of it keeps
+    the AHS points inside the part, plus the values of the whole waveform at its ends.
+    """
+    values = np.array(series.values) / 1e6
+    points = np.array(series.times) / series.times[-1] * (duration - 1)
+    if (start, end) != (0, duration):
+        whole = InterpolatedWaveform(duration, values, points / (duration - 1))
+        samples = cast(Waveform, whole).samples.as_array()
+        inside = (points > start) & (points < end - 1)
+        points = np.r_[start, points[inside], end - 1]
+        values = np.r_[samples[start], values[inside], samples[end - 1]]
+    if np.all(values == values[0]):
+        return cast(Waveform, ConstantWaveform(end - start, values[0]))
+    # AHS is linear between points; with a point 1 ns from each side of every AHS point,
+    # Pulser's interpolation is linear except within 1 ns of them
+    near = np.r_[points[:-1] + 1, points[1:] - 1]
+    near = np.union1d(points, near[(near > points[0]) & (near < points[-1])])
+    points, values = near, np.interp(near, points, values)
+    times = (points - start) / (end - start - 1)
+    return cast(Waveform, InterpolatedWaveform(end - start, values, times))
 
 
 def _phase_intervals(
@@ -126,13 +148,11 @@ def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSeq
         amp, det, phases, td = _validate_sequences(pulse)
         # Round up to the clock period; the schedule is stretched to the new duration
         td = channel.validate_duration(td)
-        amp_samples = _timeseries_samples(amp, td)
-        det_samples = _timeseries_samples(det, td)
         for start, end, phase in _phase_intervals(phases, td, channel):
             seq.add(
                 pulser.Pulse(
-                    CustomWaveform(amp_samples[start:end]),
-                    CustomWaveform(det_samples[start:end]),
+                    _waveform(amp, td, start, end),
+                    _waveform(det, td, start, end),
                     phase,
                 ),
                 "ising",
