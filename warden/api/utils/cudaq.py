@@ -49,25 +49,17 @@ def _setup_register_and_layout(
 def _waveform(series: AHSTimeSeries, duration: int, start: int, end: int) -> Waveform:
     """Return the samples `start` to `end` of an AHS series (rad/s) as a waveform in rad/us.
 
-    The series is stretched to `duration` ns and interpolated by Pulser. A part of it keeps
-    the AHS points inside the part, plus the values of the whole waveform at its ends.
+    The series is stretched to `duration` ns. AHS is linear between points; with a point
+    1 ns from each side of every AHS point, Pulser's interpolation is linear except within
+    1 ns of them.
     """
-    values = np.array(series.values) / 1e6
     points = np.array(series.times) / series.times[-1] * (duration - 1)
-    if (start, end) != (0, duration):
-        whole = InterpolatedWaveform(duration, values, points / (duration - 1))
-        samples = cast(Waveform, whole).samples.as_array()
-        inside = (points > start) & (points < end - 1)
-        points = np.r_[start, points[inside], end - 1]
-        values = np.r_[samples[start], values[inside], samples[end - 1]]
+    knots = np.union1d(points, np.r_[points[:-1] + 1, points[1:] - 1])
+    knots = np.r_[start, knots[(knots > start) & (knots < end - 1)], end - 1]
+    values = np.interp(knots, points, series.values) / 1e6
     if np.all(values == values[0]):
         return cast(Waveform, ConstantWaveform(end - start, values[0]))
-    # AHS is linear between points; with a point 1 ns from each side of every AHS point,
-    # Pulser's interpolation is linear except within 1 ns of them
-    near = np.r_[points[:-1] + 1, points[1:] - 1]
-    near = np.union1d(points, near[(near > points[0]) & (near < points[-1])])
-    points, values = near, np.interp(near, points, values)
-    times = (points - start) / (end - start - 1)
+    times = (knots - start) / (end - start - 1)
     return cast(Waveform, InterpolatedWaveform(end - start, values, times))
 
 
