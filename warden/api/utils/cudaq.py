@@ -19,10 +19,7 @@ def _setup_register_and_layout(
 ) -> PulserSequence:
     layout = ahs_sequence.setup.ahs_register.sites
     filling = ahs_sequence.setup.ahs_register.filling
-    register_coords: list[tuple[float, float]] = []
-    for i, coord in enumerate(layout):
-        if filling[i]:
-            register_coords.append((coord[0] * 1e6, coord[1] * 1e6))
+    register_coords = [(x * 1e6, y * 1e6) for (x, y), f in zip(layout, filling) if f]
 
     register = Register.from_coordinates(register_coords, prefix="q")
     if device.requires_layout:
@@ -91,39 +88,29 @@ def _phase_intervals(
 def _validate_sequences(
     pulse: AHSDrivingFields,
 ) -> tuple[AHSTimeSeries, AHSTimeSeries, AHSTimeSeries, int]:
-    if pulse.amplitude.pattern != "uniform":
-        raise NotImplementedError(
-            f"pattern {pulse.amplitude.pattern} not supported for amplitude"
-        )
-    if pulse.detuning.pattern != "uniform":
-        raise NotImplementedError(
-            f"pattern {pulse.detuning.pattern} not supported for detuning"
-        )
-    if pulse.phase.pattern != "uniform":
-        raise NotImplementedError(
-            f"pattern {pulse.phase.pattern} not supported for phase"
-        )
+    fields = {
+        "amplitude": pulse.amplitude,
+        "detuning": pulse.detuning,
+        "phase": pulse.phase,
+    }
+    for name, field in fields.items():
+        if field.pattern != "uniform":
+            raise NotImplementedError(
+                f"pattern {field.pattern} not supported for {name}"
+            )
 
-    amp = pulse.amplitude.time_series
-    det = pulse.detuning.time_series
-    phases = pulse.phase.time_series
-    final_time = max(amp.times[-1], det.times[-1], phases.times[-1])
-    total_duration = int(round(final_time * 1e9))
-
-    if (
-        abs(amp.times[0]) > 1e-9
-        or abs(det.times[0]) > 1e-9
-        or abs(phases.times[0]) > 1e-9
-        or abs(amp.times[-1] - final_time) > 1e-9
-        or abs(det.times[-1] - final_time) > 1e-9
-        or abs(phases.times[-1] - final_time) > 1e-9
+    amp, det, phases = (field.time_series for field in fields.values())
+    final_time = max(series.times[-1] for series in (amp, det, phases))
+    if any(
+        abs(series.times[0]) > 1e-9 or abs(series.times[-1] - final_time) > 1e-9
+        for series in (amp, det, phases)
     ):
         raise ValueError(
             "Please ensure Hamiltonian is programmed for the full duration, from t=0 "
             "to the final time."
         )
 
-    return amp, det, phases, total_duration
+    return amp, det, phases, int(round(final_time * 1e9))
 
 
 def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSequence:
@@ -136,19 +123,12 @@ def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSeq
         raise ValueError("All pulses should be programmed using a single Hamiltonian")
 
     channel = seq.declared_channels["ising"]
-    for pulse in hamiltonian.drivingFields:
-        amp, det, phases, td = _validate_sequences(pulse)
-        # Round up to the clock period; the schedule is stretched to the new duration
-        td = channel.validate_duration(td)
-        for start, end, phase in _phase_intervals(phases, td, channel):
-            seq.add(
-                pulser.Pulse(
-                    _waveform(amp, td, start, end),
-                    _waveform(det, td, start, end),
-                    phase,
-                ),
-                "ising",
-            )
+    amp, det, phases, td = _validate_sequences(hamiltonian.drivingFields[0])
+    # Round up to the clock period; the schedule is stretched to the new duration
+    td = channel.validate_duration(td)
+    for start, end, phase in _phase_intervals(phases, td, channel):
+        amp_wf, det_wf = _waveform(amp, td, start, end), _waveform(det, td, start, end)
+        seq.add(pulser.Pulse(amp_wf, det_wf, phase), "ising")
     return seq
 
 
