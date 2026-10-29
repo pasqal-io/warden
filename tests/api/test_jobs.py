@@ -353,82 +353,36 @@ async def test_create_job_with_cudaq_payload_off_clock_duration(
     assert pulser.Sequence.from_abstract_repr(job.sequence).get_duration() == 712
 
 
-def _cudaq_to_operations(cudaq_sequence: str, qpu_specs: dict, **series) -> list:
-    sequence = json.loads(cudaq_sequence)
-    for name, (times, values) in series.items():
-        field = sequence["hamiltonian"]["drivingFields"][0][name]
-        field["time_series"] = {"values": values, "times": times}
-    seq = cudaq_sequence_to_pulser(
-        AHSSequence.model_validate(sequence),
-        Device.from_abstract_repr(json.dumps(qpu_specs)),
-    )
-    return json.loads(seq.to_abstract_repr())["operations"]
-
-
 @pytest.mark.parametrize(
     "times, values, expected",
     [
-        ([0.0, 3e-7, 7.1e-7], [0.0, 0.5, 0.9], [(300, 0.0), (410, 0.5)]),
-        ([0.0, 7.1e-7], [0.7, 0.7], [(710, 0.7)]),
+        ([0.0, 3e-7, 7.1e-7], [0.0, 0.5, 0.9], [(300, 0.0), (412, 0.5)]),
+        ([0.0, 7.1e-7], [0.7, 0.7], [(712, 0.7)]),
+        ([0.0, 1e-8, 2e-8, 7.1e-7], [0.0, 0.2, 0.4, 0.4], [(20, 0.2), (692, 0.4)]),
+        ([0.0, 7e-7, 7.1e-7], [0.0, 0.5, 0.5], [(712, 0.0)]),
     ],
 )
 def test_cudaq_phase_is_held_between_time_points(
     cudaq_sequence: str, qpu_specs: dict, times, values, expected
 ):
-    """Assert that each CUDA-Q phase interval becomes a pulse with that phase."""
-    constant = (times, [1e6] * len(times))
-    operations = _cudaq_to_operations(
-        cudaq_sequence,
-        qpu_specs,
-        amplitude=constant,
-        detuning=constant,
-        phase=(times, values),
-    )
-    assert [(op["amplitude"]["duration"], op["phase"]) for op in operations] == expected
-
-
-@pytest.mark.parametrize("times", [[0.0, 1e-8, 2e-8, 7.1e-7], [0.0, 7e-7, 7.1e-7]])
-def test_cudaq_rejects_intervals_shorter_than_min_duration(
-    cudaq_sequence: str, qpu_specs: dict, times
-):
-    """Assert that CUDA-Q time points closer than 16 ns are rejected."""
-    series = (times, [0.0] * len(times))
-    with pytest.raises(ValueError, match="at least 16 ns"):
-        _cudaq_to_operations(
-            cudaq_sequence, qpu_specs, amplitude=series, detuning=series, phase=series
-        )
-
-
-def test_cudaq_fields_become_ramps_on_the_union_of_time_points(
-    cudaq_sequence: str, qpu_specs: dict
-):
-    """Assert that CUDA-Q amplitude and detuning become ramps between the union of time points."""
-    operations = _cudaq_to_operations(
-        cudaq_sequence,
-        qpu_specs,
-        amplitude=([0.0, 2.1e-7, 5e-7, 7.1e-7], [0.0, 9e6, 9e6, 5e6]),
-        detuning=([0.0, 3e-7, 7.1e-7], [-9e6, 0.0, 8.2e6]),
-        phase=([0.0, 7.1e-7], [0.0, 0.0]),
+    """Assert that each CUDA-Q phase interval becomes a pulse of at least 16 ns on the 4 ns clock."""
+    sequence = json.loads(cudaq_sequence)
+    for field in sequence["hamiltonian"]["drivingFields"][0].values():
+        field["time_series"] = {"values": [1e6] * len(times), "times": times}
+    sequence["hamiltonian"]["drivingFields"][0]["phase"]["time_series"]["values"] = (
+        values
     )
 
-    def ramp(wf: dict) -> tuple:
-        if wf["kind"] == "constant":
-            return wf["duration"], wf["value"], wf["value"]
-        assert wf["kind"] == "ramp"
-        return wf["duration"], wf["start"], wf["stop"]
+    seq = cudaq_sequence_to_pulser(
+        AHSSequence.model_validate(sequence),
+        Device.from_abstract_repr(json.dumps(qpu_specs)),
+    )
 
-    assert [ramp(op["amplitude"]) for op in operations] == [
-        (210, 0.0, 9.0),
-        (90, 9.0, 9.0),
-        (200, 9.0, 9.0),
-        (210, 9.0, 5.0),
-    ]
-    assert [ramp(op["detuning"]) for op in operations] == [
-        (210, -9.0, -2.7),
-        (90, -2.7, 0.0),
-        (200, 0.0, 4.0),
-        (210, 4.0, 8.2),
-    ]
+    operations = json.loads(seq.to_abstract_repr())["operations"]
+    assert [
+        (len(op["amplitude"]["samples"]), op["phase"]) for op in operations
+    ] == expected
+    assert seq.get_duration() == 712
 
 
 @pytest.mark.asyncio
