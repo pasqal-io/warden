@@ -4,14 +4,13 @@ from typing import cast
 
 import numpy as np
 import pulser
-from pulser import ConstantWaveform, InterpolatedWaveform, Register
+from pulser import ConstantWaveform, RampWaveform, Register
 from pulser import Sequence as PulserSequence
-from pulser.channels.base_channel import Channel
 from pulser.devices import Device
 from pulser.register import RegisterLayout
 from pulser.waveforms import Waveform
 
-from warden.api.schemas.jobs import AHSDrivingFields, AHSSequence, AHSTimeSeries
+from warden.api.schemas.jobs import AHSDrivingFields, AHSSequence
 
 
 def _setup_register_and_layout(
@@ -43,51 +42,20 @@ def _setup_register_and_layout(
     return seq
 
 
-def _waveform(series: AHSTimeSeries, duration: int, start: int, end: int) -> Waveform:
-    """Return the samples `start` to `end` of an AHS series (rad/s) as a waveform in rad/us.
-
-    The series is stretched to `duration` ns. AHS is linear between points; with a point
-    1 ns from each side of every AHS point, Pulser's interpolation is linear except within
-    1 ns of them.
-    """
-    points = np.array(series.times) / series.times[-1] * (duration - 1)
-    knots = np.union1d(points, np.r_[points[:-1] + 1, points[1:] - 1])
-    knots = np.r_[start, knots[(knots > start) & (knots < end - 1)], end - 1]
-    values = np.interp(knots, points, series.values) / 1e6
-    if np.all(values == values[0]):
-        return cast(Waveform, ConstantWaveform(end - start, values[0]))
-    times = (knots - start) / (end - start - 1)
-    return cast(Waveform, InterpolatedWaveform(end - start, values, times))
-
-
-def _phase_intervals(
-    phase: AHSTimeSeries, duration: int, channel: Channel
-) -> list[tuple[int, int, float]]:
-    """Split `duration` ns into (start, end, phase) intervals of constant AHS phase.
-
-    AHS holds the phase constant between time points. Each change moves to the nearest
-    clock period of the stretched schedule, and a change closer than the channel's
-    minimum pulse duration to the previous one (or to the end) moves with it.
-    """
-    clock, min_duration = channel.clock_period, channel.min_duration
-    starts, phases = [0], [phase.values[0]]
-    for t, value in zip(phase.times[1:-1], phase.values[1:-1]):
-        start = clock * round(t / phase.times[-1] * duration / clock)
-        if value == phases[-1]:
-            continue
-        if start - starts[-1] < min_duration:
-            phases[-1] = value
-        else:
-            starts.append(start)
-            phases.append(value)
-    if len(starts) > 1 and duration - starts[-1] < min_duration:
-        del starts[-1], phases[-1]
-    return list(zip(starts, starts[1:] + [duration], phases))
+def _ramp(duration: int, start: float, stop: float) -> Waveform:
+    if start == stop:
+        return cast(Waveform, ConstantWaveform(duration, start))
+    return cast(Waveform, RampWaveform(duration, start, stop))
 
 
 def _validate_sequences(
     pulse: AHSDrivingFields,
-) -> tuple[AHSTimeSeries, AHSTimeSeries, AHSTimeSeries, int]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return the union of the AHS time points (ns) and the fields at each of them.
+
+    Amplitude and detuning (rad/us) are linear between their own points; the phase is
+    held from each of its points to the next.
+    """
     fields = {
         "amplitude": pulse.amplitude,
         "detuning": pulse.detuning,
@@ -99,18 +67,25 @@ def _validate_sequences(
                 f"pattern {field.pattern} not supported for {name}"
             )
 
-    amp, det, phases = (field.time_series for field in fields.values())
-    final_time = max(series.times[-1] for series in (amp, det, phases))
-    if any(
-        abs(series.times[0]) > 1e-9 or abs(series.times[-1] - final_time) > 1e-9
-        for series in (amp, det, phases)
-    ):
+    amp, det, phase = (
+        (np.round(np.array(field.time_series.times) * 1e9), field.time_series.values)
+        for field in fields.values()
+    )
+    final_time = max(series[0][-1] for series in (amp, det, phase))
+    if any(t[0] != 0 or t[-1] != final_time for t, _ in (amp, det, phase)):
         raise ValueError(
             "Please ensure Hamiltonian is programmed for the full duration, from t=0 "
             "to the final time."
         )
 
-    return amp, det, phases, int(round(final_time * 1e9))
+    times = np.unique(np.concatenate([amp[0], det[0], phase[0]]))
+    phase_values = np.array(phase[1])[np.searchsorted(phase[0], times, "right") - 1]
+    return (
+        times,
+        np.interp(times, *amp) / 1e6,
+        np.interp(times, *det) / 1e6,
+        phase_values,
+    )
 
 
 def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSequence:
@@ -122,13 +97,18 @@ def cudaq_sequence_to_pulser(sequence: AHSSequence, device: Device) -> PulserSeq
     if len(hamiltonian.drivingFields) != 1:
         raise ValueError("All pulses should be programmed using a single Hamiltonian")
 
-    channel = seq.declared_channels["ising"]
-    amp, det, phases, td = _validate_sequences(hamiltonian.drivingFields[0])
-    # Round up to the clock period; the schedule is stretched to the new duration
-    td = channel.validate_duration(td)
-    for start, end, phase in _phase_intervals(phases, td, channel):
-        amp_wf, det_wf = _waveform(amp, td, start, end), _waveform(det, td, start, end)
-        seq.add(pulser.Pulse(amp_wf, det_wf, phase), "ising")
+    times, amp, det, phase = _validate_sequences(hamiltonian.drivingFields[0])
+    # One pulse per pair of time points; Pulser rounds each duration up to the clock
+    # period (with a warning) and rejects pulses shorter than the channel minimum
+    for i, duration in enumerate(np.diff(times).astype(int)):
+        seq.add(
+            pulser.Pulse(
+                _ramp(duration, amp[i], amp[i + 1]),
+                _ramp(duration, det[i], det[i + 1]),
+                phase[i],
+            ),
+            "ising",
+        )
     return seq
 
 
