@@ -2,12 +2,16 @@ import asyncio
 import json
 from datetime import datetime
 
+import pulser
 import pytest
 from httpx2 import AsyncClient, Request, Response
+from pulser.devices import Device
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from tests.api.conftest import mock_munge_auth, mock_qpu_client
+from warden.api.schemas.jobs import AHSSequence
+from warden.api.utils.cudaq import cudaq_sequence_to_pulser
 from warden.lib.models.jobs import Job
 from warden.lib.models.sessions import Session
 
@@ -313,6 +317,72 @@ async def test_create_job_with_cudaq_payload(
     sequence_dict = json.loads(job.sequence)
     assert "operations" in sequence_dict
     assert sequence_dict["device"]["name"] == "FRESNEL_CAN1"
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_cudaq_payload_off_clock_duration(
+    client: AsyncClient, app, cudaq_sequence: str, qpu_specs: dict
+):
+    """Assert that a CUDA-Q duration off the 4 ns clock period is rounded up, not rejected."""
+    user_id = 1000
+
+    with mock_munge_auth(app, uid=0):
+        response = await client.post(
+            "/sessions",
+            json={"user_id": str(user_id), "slurm_job_id": "1"},
+        )
+    assert response.status_code == 200
+    session_id = response.json()["id"]
+
+    sequence = json.loads(cudaq_sequence)
+    for field in sequence["hamiltonian"]["drivingFields"][0].values():
+        field["time_series"]["times"] = [0.0, 7.09e-7]
+    payload = {"shots": 100, "sequence": json.dumps(sequence)}
+
+    def handler(request: Request) -> Response:
+        return Response(200, json={"data": {"specs": qpu_specs}})
+
+    with mock_munge_auth(app, uid=user_id), mock_qpu_client(app, handler):
+        response = await client.post(
+            "/jobs", json=payload, headers={"X-Warden-Session": session_id}
+        )
+
+    assert response.status_code == 200
+    async with app.state.db_session_factory() as session:
+        job = await session.get(Job, response.json()["id"])
+    assert pulser.Sequence.from_abstract_repr(job.sequence).get_duration() == 712
+
+
+@pytest.mark.parametrize(
+    "times, values, expected",
+    [
+        ([0.0, 3e-7, 7.1e-7], [0.0, 0.5, 0.9], [(300, 0.0), (412, 0.5)]),
+        ([0.0, 7.1e-7], [0.7, 0.7], [(712, 0.7)]),
+        ([0.0, 1e-8, 2e-8, 7.1e-7], [0.0, 0.2, 0.4, 0.4], [(20, 0.2), (692, 0.4)]),
+        ([0.0, 7e-7, 7.1e-7], [0.0, 0.5, 0.5], [(712, 0.0)]),
+    ],
+)
+def test_cudaq_phase_is_held_between_time_points(
+    cudaq_sequence: str, qpu_specs: dict, times, values, expected
+):
+    """Assert that each CUDA-Q phase interval becomes a pulse of at least 16 ns on the 4 ns clock."""
+    sequence = json.loads(cudaq_sequence)
+    for field in sequence["hamiltonian"]["drivingFields"][0].values():
+        field["time_series"] = {"values": [1e6] * len(times), "times": times}
+    sequence["hamiltonian"]["drivingFields"][0]["phase"]["time_series"]["values"] = (
+        values
+    )
+
+    seq = cudaq_sequence_to_pulser(
+        AHSSequence.model_validate(sequence),
+        Device.from_abstract_repr(json.dumps(qpu_specs)),
+    )
+
+    operations = json.loads(seq.to_abstract_repr())["operations"]
+    assert [
+        (len(op["amplitude"]["samples"]), op["phase"]) for op in operations
+    ] == expected
+    assert seq.get_duration() == 712
 
 
 @pytest.mark.asyncio
