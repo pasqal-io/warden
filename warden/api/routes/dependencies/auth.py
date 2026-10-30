@@ -75,9 +75,18 @@ def ensure_bound_to_request(
     """
     if not audience:
         return
-    method, _, url = payload.decode(errors="replace").partition(" ")
+    signed = payload.decode(errors="replace")
+    method, _, url = signed.partition(" ")
     path = request.url.path
     if method != request.method or not any(url == base + path for base in audience):
+        logger.info(
+            "Refused a MUNGE credential signed for %r on %s %s; "
+            "accepted: '<METHOD> <base URL><path>' with base URLs %s",
+            signed,
+            request.method,
+            path,
+            sorted(audience),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="MUNGE credential not issued for this request to this Warden",
@@ -85,9 +94,15 @@ def ensure_bound_to_request(
 
 
 async def munge_identity(
-    request: Request,
-    config: AuthConfigDep,
-    x_munge_cred: str | None = Header(default=None, alias="X-Munge-Cred"),
+    x_munge_cred: str | None = Header(
+        default=None,
+        alias="X-Munge-Cred",
+        description=(
+            "MUNGE credential of the caller (`munge -n`). With `api.munge_audience` "
+            "set, its payload must be the request's method and URL: "
+            '`munge -s "GET http://warden:4207/status"`.'
+        ),
+    ),
 ) -> MungeIdentity:
     if not x_munge_cred:
         raise HTTPException(
@@ -121,11 +136,20 @@ async def munge_identity(
             detail="MUNGE decode failed",
         )
 
-    ensure_bound_to_request(payload, request, config.munge_audience)
     return MungeIdentity(uid=str(uid), payload=payload)
 
 
-CurrentUserDep = Annotated[MungeIdentity, Depends(munge_identity)]
+async def request_identity(
+    request: Request,
+    config: AuthConfigDep,
+    identity: Annotated[MungeIdentity, Depends(munge_identity)],
+) -> MungeIdentity:
+    """Return the caller's identity, if its credential was issued for this request."""
+    ensure_bound_to_request(identity.payload, request, config.munge_audience)
+    return identity
+
+
+CurrentUserDep = Annotated[MungeIdentity, Depends(request_identity)]
 
 
 async def require_admin(
