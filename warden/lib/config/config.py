@@ -279,6 +279,16 @@ class APIConfig(WardenSettings):
             "the spank plugin."
         ),
     )
+    munge_audience: list[str] = Field(
+        default=[],
+        description=(
+            "Base URLs clients use to reach this Warden, e.g. "
+            '["http://warden:4207"]. When set, a MUNGE credential is accepted '
+            'only if its payload is "<METHOD> <base URL><path>" of the request, '
+            "so a credential sent to another server cannot be relayed here. "
+            "If empty/unset, the payload is not checked."
+        ),
+    )
 
 
 DEFAULT_LOGGING_CONFIG: dict[str, Any] = {

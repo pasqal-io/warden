@@ -25,6 +25,7 @@ class AuthConfig:
 
     authorized_users: set[str]
     admin_users: set[str]
+    munge_audience: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ def init_auth(app: FastAPI, api_config: APIConfig) -> None:
     auth_config = AuthConfig(
         authorized_users=set(api_config.authorized_users),
         admin_users=set(api_config.admin_users),
+        munge_audience=frozenset(url.rstrip("/") for url in api_config.munge_audience),
     )
     app.state.auth_config = auth_config
 
@@ -61,7 +63,30 @@ AuthorizedUsersDep = Annotated[
 ]
 
 
+def ensure_bound_to_request(
+    payload: bytes, request: Request, audience: frozenset[str]
+) -> None:
+    """Raise unless the credential was issued for this request to this Warden.
+
+    A MUNGE credential carries the client's uid but not its destination, so a
+    server that receives one (e.g. through a wrong Warden URL) could relay it here
+    once. Clients sign "<METHOD> <URL>" as the payload; with munge_audience set,
+    the URL must be one of those base URLs followed by the request path.
+    """
+    if not audience:
+        return
+    method, _, url = payload.decode(errors="replace").partition(" ")
+    path = request.url.path
+    if method != request.method or not any(url == base + path for base in audience):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="MUNGE credential not issued for this request to this Warden",
+        )
+
+
 async def munge_identity(
+    request: Request,
+    config: AuthConfigDep,
     x_munge_cred: str | None = Header(default=None, alias="X-Munge-Cred"),
 ) -> MungeIdentity:
     if not x_munge_cred:
@@ -96,6 +121,7 @@ async def munge_identity(
             detail="MUNGE decode failed",
         )
 
+    ensure_bound_to_request(payload, request, config.munge_audience)
     return MungeIdentity(uid=str(uid), payload=payload)
 
 

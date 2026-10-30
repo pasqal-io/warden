@@ -113,19 +113,19 @@ set-accessible:
 	fi
 
 	curl -X POST $(URL)/accessible \
-		-H "X-Munge-Cred: $$(munge -n)" \
+		-H "X-Munge-Cred: $$(munge -s 'POST $(URL)/accessible')" \
 		-H "Content-Type: application/json" \
 		-d '$(ACCESSIBLE_POST_JSON_PAYLOAD)'
 
 get-logs:
 
 	curl -X GET $(URL)/jobs/$(ID)/logs \
-		-H "X-Munge-Cred: $$(munge -n)"
+		-H "X-Munge-Cred: $$(munge -s 'GET $(URL)/jobs/$(ID)/logs')"
 
 get-status:
 
 	curl -s -X GET $(URL)/status\
-		-H "X-Munge-Cred: $$(munge -n)"
+		-H "X-Munge-Cred: $$(munge -s 'GET $(URL)/status')"
 
 ping:
 	curl $(URL)
