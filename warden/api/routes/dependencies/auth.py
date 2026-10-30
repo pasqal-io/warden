@@ -79,7 +79,7 @@ def ensure_bound_to_request(
     method, _, url = signed.partition(" ")
     path = request.url.path
     if method != request.method or not any(url == base + path for base in audience):
-        logger.info(
+        logger.warning(
             "Refused a MUNGE credential signed for %r on %s %s; "
             "accepted: '<METHOD> <base URL><path>' with base URLs %s",
             signed,

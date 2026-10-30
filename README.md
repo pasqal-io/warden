@@ -153,7 +153,7 @@ empty (the default), the payload is not checked.
 
 **Troubleshooting.** A refused credential gets
 `401 MUNGE credential not issued for this request to this Warden`, and Warden
-logs at INFO what was signed and what it accepts:
+logs a warning with what was signed and what it accepts:
 
 ```
 Refused a MUNGE credential signed for 'GET http://10.0.0.5:4207/status' on GET /status; accepted: '<METHOD> <base URL><path>' with base URLs ['http://warden:4207']
