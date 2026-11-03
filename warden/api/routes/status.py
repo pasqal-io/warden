@@ -3,8 +3,14 @@ from sqlalchemy import func, select
 
 from warden.api.routes.dependencies.auth import AdminUserDep
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.api.schemas.status import CurrentJob, OpenSession, StatusResponse
+from warden.api.schemas.status import (
+    CurrentJob,
+    OpenSession,
+    ResourceStatusResponse,
+    StatusResponse,
+)
 from warden.lib.models import Job, Session
+from warden.lib.models.accessible import get_latest_accessibility_settings
 
 router = APIRouter(prefix="/status")
 
@@ -19,10 +25,10 @@ async def get_status(
     - count of pending jobs
     - the job currently executing
     - open sessions
+
+    Restricted to admin users.
     """
-    pending_jobs_count = await db_session.scalar(
-        select(func.count(Job.id)).where(Job.status == "PENDING")
-    )
+    pending_jobs_count = await _pending_job_count(db_session)
 
     running_job = await db_session.scalar(select(Job).where(Job.status == "RUNNING"))
     current_job = (
@@ -54,4 +60,41 @@ async def get_status(
         pending_jobs_count=pending_jobs_count or 0,
         current_job=current_job,
         open_sessions=open_sessions,
+    )
+
+
+@router.get("/resource")
+async def get_resource_status(db_session: DBSessionDep) -> ResourceStatusResponse:
+    """Warden endpoint for qrmi 'status' interface.
+
+    Unauthenticated like `/accessible`, which it supersedes for QRMI: it only
+    exposes aggregate counts, unlike the admin-only `/status` snapshot
+    above.
+
+    `status` follows `/accessible` only: `offline` when an admin made Warden
+    inaccessible, `online` otherwise. The QPU is not probed, since a transient
+    QPU error would wrongly take the resource offline.
+    """
+    settings = await get_latest_accessibility_settings(db_session)
+
+    pending_job_count = await _pending_job_count(db_session)
+    running_job_count = await db_session.scalar(
+        select(func.count(Job.id)).where(Job.status == "RUNNING")
+    )
+
+    return ResourceStatusResponse(
+        status="online" if settings.is_accessible else "offline",
+        status_reason=settings.message,
+        # None until QPU health is better defined.
+        healthy=None,
+        busy=bool(pending_job_count or running_job_count),
+        pending_job_count=pending_job_count or 0,
+        # None until Warden implements QPU slots
+        capacity=None,
+    )
+
+
+async def _pending_job_count(db_session):
+    return await db_session.scalar(
+        select(func.count(Job.id)).where(Job.status == "PENDING")
     )

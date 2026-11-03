@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from httpx2 import AsyncClient
 
 from tests.api.conftest import mock_munge_auth
 from warden.lib.models import Job, Session
@@ -104,3 +105,49 @@ async def test_get_status_no_current_job(client, app):
     assert data["pending_jobs_count"] == 0
     assert data["current_job"] is None
     assert data["open_sessions"] == []
+
+
+@pytest.mark.asyncio
+async def test_resource_status_online_idle_needs_no_auth(client: AsyncClient):
+    response = await client.get("/status/resource")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "online",
+        "status_reason": "Warden ok.",
+        "healthy": None,
+        "busy": False,
+        "pending_job_count": 0,
+        "capacity": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_resource_status_offline_when_inaccessible(client: AsyncClient, app):
+    payload = {"is_accessible": False, "message": "Scheduled QPU maintenance"}
+    with mock_munge_auth(app, uid=0):
+        assert (await client.post("/accessible", json=payload)).status_code == 200
+
+    body = (await client.get("/status/resource")).json()
+
+    assert body["status"] == "offline"
+    assert body["status_reason"] == "Scheduled QPU maintenance"
+
+
+@pytest.mark.asyncio
+async def test_resource_status_busy_counts_pending_jobs(
+    client: AsyncClient, app, serialized_sequence: str
+):
+    session = Session(user_id="1000", slurm_job_id="1")
+    jobs = [
+        Job(sequence=serialized_sequence, shots=1, session=session, status=status)
+        for status in ("PENDING", "PENDING", "RUNNING", "DONE")
+    ]
+    async with app.state.db_session_factory() as db:
+        db.add_all([session, *jobs])
+        await db.commit()
+
+    body = (await client.get("/status/resource")).json()
+
+    assert body["busy"] is True
+    assert body["pending_job_count"] == 2
