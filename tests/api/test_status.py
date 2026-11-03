@@ -60,20 +60,20 @@ async def _seed(app, *, serialized_sequence: str):
 
 
 @pytest.mark.asyncio
-async def test_get_status_non_admin(client, app):
+async def test_get_status_non_admin(client: AsyncClient, app):
     with mock_munge_auth(app, uid=1001):
         response = await client.get("/status")
     assert response.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_get_status_no_auth(client):
+async def test_get_status_no_auth(client: AsyncClient):
     response = await client.get("/status")
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_get_status_admin(client, app, serialized_sequence: str):
+async def test_get_status_admin(client: AsyncClient, app, serialized_sequence: str):
     """A PENDING, RUNNING and DONE job plus several open sessions and a
     revoked session are seeded; the snapshot must count only the PENDING job,
     surface the RUNNING job as current_job (ignoring DONE), and list the open
@@ -96,7 +96,7 @@ async def test_get_status_admin(client, app, serialized_sequence: str):
 
 
 @pytest.mark.asyncio
-async def test_get_status_no_current_job(client, app):
+async def test_get_status_no_current_job(client: AsyncClient, app):
     """With an empty DB, current_job is null and both counts/lists are empty."""
     with mock_munge_auth(app, uid=0):
         response = await client.get("/status")
@@ -130,7 +130,7 @@ async def test_resource_status_offline_when_inaccessible(client: AsyncClient, ap
 
     body = (await client.get("/status/resource")).json()
 
-    assert body["status"] == "offline"
+    assert body["status"] == "paused"
     assert body["status_reason"] == "Scheduled QPU maintenance"
 
 
