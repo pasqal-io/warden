@@ -35,7 +35,7 @@ class ResourceCapacity(BaseModel):
 class ResourceStatusResponse(BaseModel):
     """Mirrors QRMI's `ResourceStatus`, so the client maps it field by field."""
 
-    status: Literal["online", "offline"]
+    status: Literal["online", "offline", "paused"]
     status_reason: str | None
     healthy: bool | None
     busy: bool

@@ -83,7 +83,8 @@ async def get_resource_status(db_session: DBSessionDep) -> ResourceStatusRespons
     )
 
     return ResourceStatusResponse(
-        status="online" if settings.is_accessible else "offline",
+        # paused/offline interpreted similarly in hres plugin for the moment
+        status="online" if settings.is_accessible else "paused",
         status_reason=settings.message,
         # None until QPU health is better defined.
         healthy=None,
