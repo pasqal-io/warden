@@ -128,13 +128,20 @@ Warden exposes usage-reporting endpoints under `/accounting`, restricted to
 | `GET /accounting/sessions` | Per-session detail                       |
 | `GET /accounting/jobs`     | Per-job detail                           |
 
-All three accept `start_datetime` (required), `end_datetime`, `user_ids` and
-pagination (`limit`, `offset`) as query parameters, and filter on session
-`revoked_at`. `GET /accounting/sessions` additionally accepts `slurm_job_id` filtering,
-and `GET /accounting/jobs` accepts `session_id` and `status` filtering.
+All three accept the following optional query parameters:
+- `ended_after` / `ended_before`: time window on the record's end (session
+  `revoked_at`, or job end for `/accounting/jobs`). Naive datetimes are
+  assumed to be UTC.
+- `user_id`: restrict to these users (repeatable).
+- `limit` (default and max `100`) and `offset` for pagination.
 
-See FastAPI's `/docs` page for the full request/response schema of each
-route.
+`GET /accounting/sessions` additionally accepts `session_id` and `slurm_job_id`,
+and `GET /accounting/jobs` accepts `session_id`, `slurm_job_id`, `status` and
+`job_id` (all repeatable). Only ended sessions/jobs are reported, and unknown
+query parameters are rejected.
+
+See the generated API docs at `http://<warden-host>:<api.port>/docs` for the
+full request/response schema of each route.
 
 ### Status API
 
