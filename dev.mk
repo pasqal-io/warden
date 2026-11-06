@@ -3,7 +3,7 @@ include config.mk
 .PHONY: install-dev dev
 .PHONY: start-mock-qpu-dev 
 .PHONY: start-qutip-qpu-dev
-.PHONY: migrate alembic revision
+.PHONY: migrate migrate-isolated alembic revision
 .PHONY: lint-check lint-fix type-check
 .PHONY: run-with-python
 .PHONY: test test-sqlite test-postgres test-mariadb
@@ -95,6 +95,13 @@ start-qutip-qpu-dev:
 alembic:
 	$(VENV)/bin/python -m alembic -c warden/api/alembic.ini $(ARGS)
 
+# Migrate from a dir without config.yaml/.env so local settings are ignored
+MIGRATIONS_TEST_CWD ?= /tmp/warden_migrations_cwd
+migrate-isolated:
+	mkdir -p $(MIGRATIONS_TEST_CWD)
+	cd $(MIGRATIONS_TEST_CWD) && \
+	$(abspath $(VENV))/bin/python -m alembic -c $(abspath warden/api/alembic.ini) upgrade head
+
 test: test-sqlite test-postgres test-mariadb
 
 test-sqlite: test-migrations-sqlite
@@ -120,7 +127,7 @@ test-migrations-postgres:
 	WARDEN_DATABASE_USER=$(PG_TEST_USER) \
 	WARDEN_DATABASE_NAME=$(PG_MIGRATIONS_TEST_DB) \
 	WARDEN_DATABASE_PASSWORD=$(PG_TEST_PASSWORD) \
-	$(MAKE) migrate
+	$(MAKE) migrate-isolated
 
 test-migrations-mariadb:
 	# Run against an isolated MariaDB database.
@@ -131,14 +138,14 @@ test-migrations-mariadb:
 	WARDEN_DATABASE_USER=$(MARIADB_TEST_ADMIN_USER) \
 	WARDEN_DATABASE_NAME=$(MARIADB_MIGRATIONS_TEST_DB) \
 	WARDEN_DATABASE_PASSWORD=$(MARIADB_TEST_ADMIN_PASSWORD) \
-	$(MAKE) migrate
+	$(MAKE) migrate-isolated
 
 test-migrations-sqlite:
 	# Run against an isolated SQLite database file.
 	rm -f "$(SQLITE_MIGRATIONS_TEST_DB)"
 	WARDEN_DATABASE_BACKEND=sqlite \
 	WARDEN_DATABASE_NAME=$(SQLITE_MIGRATIONS_TEST_DB) \
-	$(MAKE) migrate
+	$(MAKE) migrate-isolated
 
 lint-check:
 	$(POETRY_PYTHON) -m poetry run ruff check .
