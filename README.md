@@ -110,12 +110,61 @@ The API server can also be configured to only accept new jobs from configured us
 |------------|-------------------------|-----------|----------|---------------|
 | `api.authorized_users` | List of user IDs auhorized to create new jobs  | `[]` | Yes      | `["1000", "2000", "0"]`   |
 | `api.admin_users` | List of admin user IDs authorized to administer QPU availability and create sessions on behalf of users | `[0]` | Yes | `[0, "1001"]` |
+| `api.munge_audience` | Base URLs clients use to reach Warden; MUNGE credentials must be issued for one of them | `[]` | No | `["http://warden:4207"]` |
 
 The default value `[]` for `api.authorized_users` allows all users to create new jobs.
 
 `api.admin_users` must not be empty. The uid running the spank plugin must be
 included in `api.admin_users`; otherwise the plugin cannot acquire a session and
 Warden is unusable with it.
+
+See [Binding MUNGE credentials to Warden](#binding-munge-credentials-to-warden-apimunge_audience)
+for `api.munge_audience`.
+
+### Binding MUNGE credentials to Warden (`api.munge_audience`)
+
+A MUNGE credential proves the client's uid but not which server it was meant
+for. A server that receives one, for instance through a wrong Warden URL in a
+client's configuration, could relay it to Warden once within its lifetime and
+act as that uid, an admin uid included. To prevent this, clients sign the
+request into the credential's payload, and Warden checks it when
+`api.munge_audience` is set.
+
+**Payload format.** `<METHOD> <URL>`, separated by one space:
+
+- `<METHOD>`: the HTTP method in upper case, e.g. `GET`, `POST`, `DELETE`.
+- `<URL>`: the base URL the client uses for Warden, exactly as configured on the
+  client (scheme, host and port, plus a path prefix if Warden is behind a
+  proxy), followed by the request path, e.g. `http://warden:4207/sessions`.
+  The query string is not part of it.
+
+QRMI (from qiskit-community/qrmi#334) signs every request this way. By hand:
+
+```bash
+curl -H "X-Munge-Cred: $(munge -s 'GET http://warden:4207/status')" http://warden:4207/status
+```
+
+**Configuration.** `api.munge_audience` lists every base URL clients use, e.g.
+`["http://warden:4207", "http://localhost:8006"]` (the second for the admin
+commands of the Makefile, run on the Warden host). A trailing `/` in an entry
+is ignored. Warden accepts a credential when its method is the request's and
+its URL is one of the entries followed by the request path. When the list is
+empty (the default), the payload is not checked.
+
+**Troubleshooting.** A refused credential gets
+`401 MUNGE credential not issued for this request to this Warden`, and Warden
+logs a warning with what was signed and what it accepts:
+
+```
+Refused a MUNGE credential signed for 'GET http://10.0.0.5:4207/status' on GET /status; accepted: '<METHOD> <base URL><path>' with base URLs ['http://warden:4207']
+```
+
+| Signed payload | Cause | Fix |
+|---|---|---|
+| `''` (empty) | The client does not sign requests: QRMI older than #334, or `munge -n` by hand | Update QRMI; use `munge -s` |
+| Another host name, IP address or port | The client reaches Warden under a URL not in the list | Add that base URL to `api.munge_audience`, or use the listed one on the client |
+| `http` instead of `https` (or the reverse), or a missing path prefix | The client's URL differs from the listed one | Make them identical |
+| A host you do not know | A credential relayed from another server | Nothing to fix: the check did its job |
 
 ### Accounting API
 
