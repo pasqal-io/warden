@@ -5,6 +5,14 @@ from tests.mock_qpu_api.app import create_app
 from warden.lib.config.config import Config
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolated_cwd(tmp_path_factory):
+    """Run tests from an empty dir so Config() ignores the local config.yaml and .env"""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.chdir(tmp_path_factory.mktemp("cwd"))
+        yield
+
+
 @pytest.fixture(scope="session")
 def mock_qpu_api_app():
     # Set shot duration to 0 for quick qpu api behavior
