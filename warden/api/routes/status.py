@@ -7,8 +7,8 @@ from warden.api.routes.dependencies.qpu_client import APIQPUClient
 from warden.api.schemas.status import (
     CurrentJob,
     OpenSession,
-    StatusSummaryResponse,
     StatusResponse,
+    StatusSummaryResponse,
 )
 from warden.lib.models import Job, Session
 from warden.lib.models.accessible import get_latest_accessibility_settings
