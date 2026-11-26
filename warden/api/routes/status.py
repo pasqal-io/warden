@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 
 from warden.api.routes.dependencies.auth import AdminUserDep
 from warden.api.routes.dependencies.db import DBSessionDep
+from warden.api.routes.dependencies.qpu_client import get_qpu_client
 from warden.api.schemas.status import (
     CurrentJob,
     OpenSession,
@@ -11,6 +12,7 @@ from warden.api.schemas.status import (
 )
 from warden.lib.models import Job, Session
 from warden.lib.models.accessible import get_latest_accessibility_settings
+from warden.lib.qpu_client import QPUClient, QPUClientRequestError
 
 router = APIRouter(prefix="/status")
 
@@ -21,7 +23,7 @@ async def get_status(
     _admin: AdminUserDep,
 ) -> StatusResponse:
     """
-    Provide live snapshot of Warden's current activity:
+    Provide in-depth live snapshot of Warden's current activity:
     - count of pending jobs
     - the job currently executing
     - open sessions
@@ -64,30 +66,40 @@ async def get_status(
 
 
 @router.get("/resource")
-async def get_resource_status(db_session: DBSessionDep) -> ResourceStatusResponse:
-    """Warden endpoint for qrmi 'status' interface.
-
-    Unauthenticated like `/accessible`, which it supersedes for QRMI: it only
-    exposes aggregate counts, unlike the admin-only `/status` snapshot
-    above.
-
-    `status` follows `/accessible` only: `offline` when an admin made Warden
-    inaccessible, `online` otherwise. The QPU is not probed, since a transient
-    QPU error would wrongly take the resource offline.
+async def get_resource_status(
+    db_session: DBSessionDep,
+    client: QPUClient = Depends(get_qpu_client),
+) -> ResourceStatusResponse:
+    """
+    Provide aggregated live snapshot of Warden's state:
+    - current Warden availability
+    - busy status
+        - running jobs
+        - scheduling pending jobs
+    - healthy status
+        - 'True' if QPU reachable and 'UP'
+        - 'False' if QPU unreachable or reachable and 'DOWN'
+    - count of pending jobs
+    -
     """
     settings = await get_latest_accessibility_settings(db_session)
 
+    try:
+        qpu_status = await client.get_operational_status()
+        healthy = qpu_status == "UP"
+    except QPUClientRequestError:
+        healthy = False
+    except ValueError:
+        healthy = None
+
     pending_job_count = await _pending_job_count(db_session)
-    running_job_count = await db_session.scalar(
-        select(func.count(Job.id)).where(Job.status == "RUNNING")
-    )
+    running_job_count = await _has_running_job(db_session)
 
     return ResourceStatusResponse(
         # paused/offline interpreted similarly in hres plugin for the moment
         status="online" if settings.is_accessible else "paused",
         status_reason=settings.message,
-        # None until QPU health is better defined.
-        healthy=None,
+        healthy=healthy,
         busy=bool(pending_job_count or running_job_count),
         pending_job_count=pending_job_count or 0,
         # None until Warden implements QPU slots
@@ -95,7 +107,13 @@ async def get_resource_status(db_session: DBSessionDep) -> ResourceStatusRespons
     )
 
 
-async def _pending_job_count(db_session):
+async def _has_running_job(db_session: DBSessionDep):
+    return await db_session.scalar(
+        select(func.count(Job.id)).where(Job.status == "RUNNING")
+    )
+
+
+async def _pending_job_count(db_session: DBSessionDep):
     return await db_session.scalar(
         select(func.count(Job.id)).where(Job.status == "PENDING")
     )
