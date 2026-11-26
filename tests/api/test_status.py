@@ -98,12 +98,24 @@ async def test_get_status_admin(client: AsyncClient, app, serialized_sequence: s
     assert response.status_code == 200
     data = response.json()
 
-    assert data["pending_jobs_count"] == N_PENDING_JOBS
+    assert data["pending_job_count"] == N_PENDING_JOBS
     assert data["current_job"]["id"] == running_job.id
     assert data["current_job"]["session_id"] == str(open_session.id)
 
     expected_order = [str(s.id) for s in other_sessions] + [str(open_session.id)]
     assert [s["id"] for s in data["open_sessions"]] == expected_order
+
+
+@pytest.mark.asyncio
+async def test_get_status_includes_status_summary(client: AsyncClient, app):
+    def handler(request: Request) -> Response:
+        return Response(200, json={"data": {"operational_status": "UP"}})
+
+    with mock_munge_auth(app, uid=0), mock_qpu_client(app, handler):
+        summary = (await client.get("/status/summary")).json()
+        data = (await client.get("/status")).json()
+
+    assert {k: data[k] for k in summary} == summary
 
 
 @pytest.mark.asyncio
@@ -113,19 +125,19 @@ async def test_get_status_no_current_job(client: AsyncClient, app):
         response = await client.get("/status")
     assert response.status_code == 200
     data = response.json()
-    assert data["pending_jobs_count"] == 0
+    assert data["pending_job_count"] == 0
     assert data["current_job"] is None
     assert data["open_sessions"] == []
 
 
 @pytest.mark.asyncio
-async def test_resource_status_online_idle_needs_no_auth(client: AsyncClient, app):
+async def test_status_summary_online_idle_needs_no_auth(client: AsyncClient, app):
 
     def handler(request: Request) -> Response:
         return Response(200, json={"data": {"operational_status": "UP"}})
 
     with mock_qpu_client(app, handler):
-        response = await client.get("/status/resource")
+        response = await client.get("/status/summary")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -139,12 +151,12 @@ async def test_resource_status_online_idle_needs_no_auth(client: AsyncClient, ap
 
 
 @pytest.mark.asyncio
-async def test_resource_status_follow_accessible(client: AsyncClient, app):
+async def test_status_summary_follow_accessible(client: AsyncClient, app):
     payload = {"is_accessible": False, "message": "Scheduled QPU maintenance"}
     with mock_munge_auth(app, uid=0):
         assert (await client.post("/accessible", json=payload)).status_code == 200
 
-    body = (await client.get("/status/resource")).json()
+    body = (await client.get("/status/summary")).json()
 
     assert body["status"] == "paused"
     assert body["status_reason"] == "Scheduled QPU maintenance"
@@ -153,79 +165,79 @@ async def test_resource_status_follow_accessible(client: AsyncClient, app):
     with mock_munge_auth(app, uid=0):
         assert (await client.post("/accessible", json=payload)).status_code == 200
 
-    body = (await client.get("/status/resource")).json()
+    body = (await client.get("/status/summary")).json()
 
     assert body["status"] == "online"
     assert body["status_reason"] == "Back up!"
 
 
 @pytest.mark.asyncio
-async def test_resource_status_busy_counts_pending_jobs(
+async def test_status_summary_busy_counts_pending_jobs(
     client: AsyncClient, app, serialized_sequence: str
 ):
     await _seed(app, serialized_sequence=serialized_sequence, no_running=True)
 
-    body = (await client.get("/status/resource")).json()
+    body = (await client.get("/status/summary")).json()
 
     assert body["busy"] is True  # No running job
     assert body["pending_job_count"] == N_PENDING_JOBS
 
 
 @pytest.mark.asyncio
-async def test_resource_status_busy_counts_running_job(
+async def test_status_summary_busy_counts_running_job(
     client: AsyncClient, app, serialized_sequence: str
 ):
     await _seed(app, serialized_sequence=serialized_sequence, no_pending=True)
 
-    body = (await client.get("/status/resource")).json()
+    body = (await client.get("/status/summary")).json()
 
     assert body["busy"] is True  # One running job
     assert body["pending_job_count"] == 0
 
 
 @pytest.mark.asyncio
-async def test_resource_status_qpu_status_up(client: AsyncClient, app):
+async def test_status_summary_qpu_status_up(client: AsyncClient, app):
 
     def handler(request: Request) -> Response:
         return Response(200, json={"data": {"operational_status": "UP"}})
 
     with mock_qpu_client(app, handler=handler):
-        body = (await client.get("status/resource")).json()
+        body = (await client.get("/status/summary")).json()
 
     assert body["healthy"] is True
 
 
 @pytest.mark.asyncio
-async def test_resource_status_qpu_status_down(client: AsyncClient, app):
+async def test_status_summary_qpu_status_down(client: AsyncClient, app):
 
     def handler(request: Request) -> Response:
         return Response(200, json={"data": {"operational_status": "DOWN"}})
 
     with mock_qpu_client(app, handler=handler):
-        body = (await client.get("status/resource")).json()
+        body = (await client.get("/status/summary")).json()
 
     assert body["healthy"] is False
 
 
 @pytest.mark.asyncio
-async def test_resource_status_qpu_status_no_info(client: AsyncClient, app):
+async def test_status_summary_qpu_status_no_info(client: AsyncClient, app):
 
     def handler(request: Request) -> Response:
         return Response(200, json={"data": {}})
 
     with mock_qpu_client(app, handler=handler):
-        body = (await client.get("status/resource")).json()
+        body = (await client.get("/status/summary")).json()
 
     assert body["healthy"] is None
 
 
 @pytest.mark.asyncio
-async def test_resource_status_qpu_status_no_qpu(client: AsyncClient, app):
+async def test_status_summary_qpu_status_no_qpu(client: AsyncClient, app):
 
     def handler(request: Request) -> Response:
         return Response(503, json={"error": "QPU unavailable"})
 
     with mock_qpu_client(app, handler=handler):
-        body = (await client.get("status/resource")).json()
+        body = (await client.get("/status/summary")).json()
 
     assert body["healthy"] is False

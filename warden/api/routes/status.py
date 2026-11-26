@@ -1,18 +1,18 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from warden.api.routes.dependencies.auth import AdminUserDep
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.api.routes.dependencies.qpu_client import APIQPUClient
 from warden.api.schemas.status import (
     CurrentJob,
     OpenSession,
-    ResourceStatusResponse,
+    StatusSummaryResponse,
     StatusResponse,
 )
 from warden.lib.models import Job, Session
 from warden.lib.models.accessible import get_latest_accessibility_settings
-from warden.lib.qpu_client import QPUClient, QPUClientRequestError
+from warden.lib.qpu_client import QPUClientRequestError
 
 router = APIRouter(prefix="/status")
 
@@ -21,16 +21,15 @@ router = APIRouter(prefix="/status")
 async def get_status(
     db_session: DBSessionDep,
     _admin: AdminUserDep,
+    client: APIQPUClient,
 ) -> StatusResponse:
-    """
-    Provide in-depth live snapshot of Warden's current activity:
-    - count of pending jobs
-    - the job currently executing
-    - open sessions
+    """Detailed live snapshot of Warden, restricted to admin users.
 
-    Restricted to admin users.
+    Contains every field of `GET /status/summary`, plus:
+    - `current_job`: the job currently running on the QPU, or null.
+    - `open_sessions`: the sessions not yet revoked, oldest first.
     """
-    pending_jobs_count = await _pending_job_count(db_session)
+    resource_status = await _resource_status(db_session, client)
 
     running_job = await db_session.scalar(select(Job).where(Job.status == "RUNNING"))
     current_job = (
@@ -59,29 +58,35 @@ async def get_status(
     ]
 
     return StatusResponse(
-        pending_jobs_count=pending_jobs_count or 0,
+        **resource_status.model_dump(),
         current_job=current_job,
         open_sessions=open_sessions,
     )
 
 
-@router.get("/resource")
-async def get_resource_status(
+@router.get("/summary")
+async def get_status_summary(
     db_session: DBSessionDep,
-    client: QPUClient = Depends(get_qpu_client),
-) -> ResourceStatusResponse:
+    client: APIQPUClient,
+) -> StatusSummaryResponse:
+    """Aggregated live snapshot of Warden, used by QRMI's `status()`.
+
+    Public: no authentication required.
+    - `status`: "online" if Warden accepts jobs, "paused" otherwise
+      (see `POST /accessible`).
+    - `status_reason`: the message set with the latest accessibility setting.
+    - `healthy`: true if the QPU is reachable and reports "UP", false if it is
+      unreachable or reports anything else, null if it reports no status.
+    - `busy`: true if a job is running or pending.
+    - `pending_job_count`: number of jobs waiting to be scheduled.
+    - `capacity`: always null, Warden has no notion of QPU slots yet.
     """
-    Provide aggregated live snapshot of Warden's state:
-    - current Warden availability
-    - busy status
-        - running jobs
-        - scheduling pending jobs
-    - healthy status
-        - 'True' if QPU reachable and 'UP'
-        - 'False' if QPU unreachable or reachable and 'DOWN'
-    - count of pending jobs
-    -
-    """
+    return await _resource_status(db_session, client)
+
+
+async def _resource_status(
+    db_session: DBSessionDep, client: APIQPUClient
+) -> StatusSummaryResponse:
     settings = await get_latest_accessibility_settings(db_session)
 
     try:
@@ -93,21 +98,20 @@ async def get_resource_status(
         healthy = None
 
     pending_job_count = await _pending_job_count(db_session)
-    running_job_count = await _has_running_job(db_session)
+    running_job_count = await _running_job_count(db_session)
 
-    return ResourceStatusResponse(
-        # paused/offline interpreted similarly in hres plugin for the moment
+    return StatusSummaryResponse(
         status="online" if settings.is_accessible else "paused",
         status_reason=settings.message,
         healthy=healthy,
         busy=bool(pending_job_count or running_job_count),
         pending_job_count=pending_job_count or 0,
-        # None until Warden implements QPU slots
+        # Warden implements QPU slots
         capacity=None,
     )
 
 
-async def _has_running_job(db_session: DBSessionDep):
+async def _running_job_count(db_session: DBSessionDep):
     return await db_session.scalar(
         select(func.count(Job.id)).where(Job.status == "RUNNING")
     )

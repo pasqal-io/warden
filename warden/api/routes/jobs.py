@@ -3,12 +3,12 @@ from datetime import datetime, timezone
 from logging import getLogger
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import CursorResult, case, select, update
 
 from warden.api.routes.dependencies.auth import CurrentUserDep, SessionDep
 from warden.api.routes.dependencies.db import DBSessionDep
-from warden.api.routes.dependencies.qpu_client import get_qpu_client
+from warden.api.routes.dependencies.qpu_client import APIQPUClient
 from warden.api.schemas.jobs import (
     AHSSequence,
     Job,
@@ -18,7 +18,7 @@ from warden.api.schemas.jobs import (
     try_parse_AHSSequence,
 )
 from warden.api.utils.cudaq import normalize_cudaq_sequence
-from warden.lib.qpu_client import QPUClient, QPUClientRequestError
+from warden.lib.qpu_client import QPUClientRequestError
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/jobs")
@@ -29,7 +29,7 @@ async def create_job(
     job: JobCreate,
     db_session: DBSessionDep,
     session: SessionDep,
-    qpu_client: QPUClient = Depends(get_qpu_client),
+    qpu_client: APIQPUClient,
 ) -> JobResponse:
     """
     Create a new job
