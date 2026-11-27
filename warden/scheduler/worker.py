@@ -111,14 +111,14 @@ class JobFilter(logging.Filter):
 
 
 @contextmanager
-def record_logs(job_tracker: JobExecutionTracker):
+def record_logs(job_tracker: JobExecutionTracker, job_id: int):
     """Setups logger for current job executions recording of logs"""
 
     # User-visible logs should only be >= INFO level
     job_log_handler = JobLoggingHandler(job_tracker, logging.INFO)
     job_log_handler.addFilter(JobFilter())
     job_log_handler.setFormatter(
-        logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+        logging.Formatter(f"[Job {job_id}] [%(asctime)s] %(levelname)s: %(message)s")
     )
     logger.addHandler(job_log_handler)
     try:
@@ -147,6 +147,7 @@ class LocalQPUWorker:
     async def execute_job(
         self,
         queue: JobUpdateQueue,
+        job_id: int,
         nb_run: int,
         sequence: str,
         backend_id: str | None = None,
@@ -155,7 +156,7 @@ class LocalQPUWorker:
         """Execute job on the QPU"""
 
         job_tracker = JobExecutionTracker(queue)
-        with record_logs(job_tracker):
+        with record_logs(job_tracker, job_id):
             await self.poll_qpu(job_tracker)
             if job_tracker.is_error:
                 return
@@ -163,6 +164,7 @@ class LocalQPUWorker:
 
             await self.create_job(
                 job_tracker=job_tracker,
+                job_id=job_id,
                 nb_run=nb_run,
                 sequence=sequence,
                 backend_id=backend_id,
@@ -205,6 +207,7 @@ class LocalQPUWorker:
     async def create_job(
         self,
         job_tracker: JobExecutionTracker,
+        job_id: int,
         nb_run: int,
         sequence: str,
         backend_id: str | None,
@@ -233,6 +236,7 @@ class LocalQPUWorker:
             qpu_job_info = await self.qpu_client.create_job(
                 nb_run=nb_run,
                 abstract_sequence=sequence,
+                pasqman_job_id=str(job_id),
                 batch_id=batch_id,
             )
 

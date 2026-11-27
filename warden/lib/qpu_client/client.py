@@ -2,7 +2,6 @@
 
 import json
 import logging
-import uuid
 
 from httpx2 import AsyncClient, Response
 
@@ -157,11 +156,18 @@ class QPUClient:
         return QPUJobInfo(**data)
 
     async def create_job(
-        self, nb_run: int, abstract_sequence: str, batch_id: str | None = None
+        self,
+        nb_run: int,
+        abstract_sequence: str,
+        pasqman_job_id: str,
+        batch_id: str | None = None,
     ) -> QPUJobInfo:
-        """Create job on the QPU to run an abstract Sequence nb_run times."""
+        """Create job on the QPU to run an abstract Sequence nb_run times.
+
+        `pasqman_job_id` is sent in the job context so that the QPU job can be
+        matched with the warden job that created it.
+        """
         # By default, submitting a job to the QPU cancels the previous job submitted
-        pasqman_job_id = f"{uuid.uuid4()}"
         if batch_id is None:
             batch_id = f"pasqal-local-batch-{pasqman_job_id}"
         logger.debug(

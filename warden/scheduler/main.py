@@ -78,6 +78,7 @@ async def run_scheduler(engine: AsyncEngine, conf: Config):
             worker_task = asyncio.create_task(
                 qpu_worker.execute_job(
                     queue=queue,
+                    job_id=job.id,
                     nb_run=job.shots,
                     sequence=job.sequence,
                     backend_id=job.backend_id,
