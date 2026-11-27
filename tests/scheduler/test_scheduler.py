@@ -172,6 +172,16 @@ async def test_run_nominal(
             assert job.scheduled_at is not None
             assert job.results == DUMMY_RESULTS
             assert len(job.logs) > 0
+            # Every user-visible log line is prefixed with the warden job ID
+            for line in job.logs.splitlines():
+                assert line.startswith(f"[Job {job.id}] ")
+
+        # Warden job IDs are sent to the QPU as the job context's pasqman_job_id
+        sent_pasqman_job_ids = {
+            json.loads(req.content)["context"]["pasqman_job_id"]
+            for req in httpx_mock.get_requests(method="POST", url=JOB_API)
+        }
+        assert sent_pasqman_job_ids == {str(job.id) for job in jobs_done}
 
 
 @pytest.mark.asyncio
