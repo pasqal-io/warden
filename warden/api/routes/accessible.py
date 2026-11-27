@@ -5,10 +5,8 @@ from fastapi import APIRouter
 from warden.api.routes.dependencies.auth import AdminUserDep
 from warden.api.routes.dependencies.db import DBSessionDep
 from warden.api.schemas.accessible import AccessibleResponse, UpdateAccessibleRequest
-from warden.lib.models.accessible import (
-    AccessibilitySettings,
-    get_latest_accessibility_settings,
-)
+from warden.lib.db.queries import get_latest_accessibility_settings
+from warden.lib.models.accessible import AccessibilitySettings
 
 logger = getLogger(__name__)
 router = APIRouter(prefix="/accessible")

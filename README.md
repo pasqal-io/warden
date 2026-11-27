@@ -145,11 +145,13 @@ full request/response schema of each route.
 
 ### Status API
 
-`GET /status` returns a live snapshot of Warden's current activity, restricted
-to `api.admin_users`: 
-- the number of pending jobs
-- the job currently running
-- and the list of open sessions.
+`GET /status/summary` is public and returns an aggregated snapshot: availability (`status`, `status_reason`), QPU health
+(`healthy`), `busy` (either running a job, or queue is not empty), `pending_job_count` and `capacity`.
+
+`GET /status` is restricted to `api.admin_users` and returns all of the above,
+plus:
+- the job currently running (`current_job`)
+- and the list of open sessions (`open_sessions`).
 Historical jobs/sessions are not included, see the Accounting API above for reporting.
 
 ### Database
