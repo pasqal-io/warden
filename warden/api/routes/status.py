@@ -1,5 +1,7 @@
+import asyncio
+
 from fastapi import APIRouter
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from warden.api.routes.dependencies.auth import AdminUserDep
 from warden.api.routes.dependencies.db import DBSessionDep
@@ -10,8 +12,8 @@ from warden.api.schemas.status import (
     StatusResponse,
     StatusSummaryResponse,
 )
+from warden.lib.db.queries import count_jobs, get_latest_accessibility_settings
 from warden.lib.models import Job, Session
-from warden.lib.models.accessible import get_latest_accessibility_settings
 from warden.lib.qpu_client import QPUClientRequestError
 
 router = APIRouter(prefix="/status")
@@ -87,37 +89,33 @@ async def get_status_summary(
 async def _resource_status(
     db_session: DBSessionDep, client: APIQPUClient
 ) -> StatusSummaryResponse:
-    settings = await get_latest_accessibility_settings(db_session)
-
-    try:
-        qpu_status = await client.get_operational_status()
-        healthy = qpu_status == "UP"
-    except QPUClientRequestError:
-        healthy = False
-    except ValueError:
-        healthy = None
-
-    pending_job_count = await _pending_job_count(db_session)
-    running_job_count = await _running_job_count(db_session)
+    healthy, (settings, pending_job_count, running_job_count) = await asyncio.gather(
+        _qpu_healthy(client), _db_status(db_session)
+    )
 
     return StatusSummaryResponse(
         status="online" if settings.is_accessible else "paused",
         status_reason=settings.message,
         healthy=healthy,
         busy=bool(pending_job_count or running_job_count),
-        pending_job_count=pending_job_count or 0,
-        # Warden implements QPU slots
+        pending_job_count=pending_job_count,
+        # Warden implements no QPU slots
         capacity=None,
     )
 
 
-async def _running_job_count(db_session: DBSessionDep):
-    return await db_session.scalar(
-        select(func.count(Job.id)).where(Job.status == "RUNNING")
-    )
+async def _qpu_healthy(client: APIQPUClient) -> bool | None:
+    try:
+        return await client.get_operational_status() == "UP"
+    except QPUClientRequestError:
+        return False
+    except ValueError:
+        return None
 
 
-async def _pending_job_count(db_session: DBSessionDep):
-    return await db_session.scalar(
-        select(func.count(Job.id)).where(Job.status == "PENDING")
-    )
+async def _db_status(db_session: DBSessionDep):
+    # Sequential: an AsyncSession does not support concurrent operations.
+    settings = await get_latest_accessibility_settings(db_session)
+    pending_job_count = await count_jobs(db_session, "PENDING")
+    running_job_count = await count_jobs(db_session, "RUNNING")
+    return settings, pending_job_count, running_job_count
